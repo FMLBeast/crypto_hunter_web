@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Findings - Arweave Puzzle #11{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Analysis Findings</h1>
+                <p class="mt-1 text-gray-600">Discovery results and analysis insights</p>
+            </div>
+            <a href="{{ url_for('analysis.create_finding') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                <i class="fas fa-plus mr-2"></i>Add Finding
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <form method="GET" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Analysis Vector</label>
+                    <select name="vector" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">All Vectors</option>
+                        {% for vector in vectors %}
+                        <option value="{{ vector.id }}" {{ 'selected' if vector_filter and vector_filter|int == vector.id }}>
+                            {{ vector.icon }} {{ vector.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">All Statuses</option>
+                        <option value="draft" {{ 'selected' if status_filter == 'draft' }}>Draft</option>
+                        <option value="submitted" {{ 'selected' if status_filter == 'submitted' }}>Submitted</option>
+                        <option value="verified" {{ 'selected' if status_filter == 'verified' }}>Verified</option>
+                        <option value="rejected" {{ 'selected' if status_filter == 'rejected' }}>Rejected</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Min Confidence</label>
+                    <select name="confidence" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Any Confidence</option>
+                        <option value="7" {{ 'selected' if confidence_filter and confidence_filter >= 7 }}>7+ High</option>
+                        <option value="5" {{ 'selected' if confidence_filter and confidence_filter >= 5 }}>5+ Medium</option>
+                        <option value="3" {{ 'selected' if confidence_filter and confidence_filter >= 3 }}>3+ Low</option>
+                    </select>
+                </div>
+                
+                <div class="flex items-end">
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                        <i class="fas fa-filter mr-2"></i>Filter
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Findings List -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                Findings ({{ findings.total }} total, showing {{ findings.items|length }})
+            </h2>
+        </div>
+
+        {% if findings.items %}
+        <div class="divide-y divide-gray-200">
+            {% for finding in findings.items %}
+            <div class="p-6 hover:bg-gray-50">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start space-x-4">
+                        <!-- Vector Icon -->
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center" 
+                                 style="background-color: {{ finding.vector.color }}20; color: {{ finding.vector.color }};">
+                                <span class="text-lg">{{ finding.vector.icon }}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Finding Content -->
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3">
+                                <h3 class="text-lg font-medium text-gray-900">
+                                    <a href="{{ url_for('analysis.finding_detail', finding_id=finding.id) }}" 
+                                       class="hover:text-indigo-600">
+                                        {{ finding.title }}
+                                    </a>
+                                </h3>
+                                
+                                <!-- Breakthrough Badge -->
+                                {% if finding.is_breakthrough %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <i class="fas fa-star mr-1"></i>Breakthrough
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mt-1 flex items-center space-x-4 text-sm text-gray-600">
+                                <span>{{ finding.vector.name }}</span>
+                                <span>•</span>
+                                <span>
+                                    <a href="{{ url_for('files.file_detail', sha=finding.file.sha256_hash) }}" 
+                                       class="text-indigo-600 hover:text-indigo-800">
+                                        {{ finding.file.filename[:30] }}{% if finding.file.filename|length > 30 %}...{% endif %}
+                                    </a>
+                                </span>
+                                <span>•</span>
+                                <span>{{ finding.analyst.display_name or finding.analyst.username }}</span>
+                                <span>•</span>
+                                <span>{{ finding.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                            
+                            {% if finding.description %}
+                            <p class="mt-2 text-gray-700 text-sm">
+                                {{ finding.description[:200] }}{% if finding.description|length > 200 %}...{% endif %}
+                            </p>
+                            {% endif %}
+                            
+                            <!-- Technical Details Preview -->
+                            {% if finding.technical_details %}
+                            <div class="mt-2">
+                                <details class="text-sm">
+                                    <summary class="cursor-pointer text-gray-600 hover:text-gray-800">Technical Details</summary>
+                                    <div class="mt-1 p-2 bg-gray-50 rounded text-xs font-mono">
+                                        {{ finding.technical_details[:300] }}{% if finding.technical_details|length > 300 %}...{% endif %}
+                                    </div>
+                                </details>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Tools Used -->
+                            {% if finding.tools_used %}
+                            <div class="mt-2 flex items-center space-x-2">
+                                <span class="text-xs text-gray-500">Tools:</span>
+                                {% for tool in finding.tools_used.split(',') %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                    {{ tool.strip() }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Finding Meta -->
+                    <div class="flex-shrink-0 text-right space-y-2">
+                        <!-- Status -->
+                        <div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                {% if finding.status == 'verified' %}bg-green-100 text-green-800
+                                {% elif finding.status == 'submitted' %}bg-blue-100 text-blue-800
+                                {% elif finding.status == 'draft' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ finding.status }}
+                            </span>
+                        </div>
+                        
+                        <!-- Confidence -->
+                        <div class="flex items-center justify-end">
+                            <div class="flex">
+                                {% for i in range(1, 11) %}
+                                    <i class="fas fa-star text-xs {% if i <= finding.confidence_level %}text-yellow-400{% else %}text-gray-300{% endif %}"></i>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="text-xs text-gray-500">{{ finding.confidence_level }}/10</div>
+                        
+                        <!-- Impact Level -->
+                        <div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium 
+                                {% if finding.impact_level == 'critical' %}bg-red-100 text-red-800
+                                {% elif finding.impact_level == 'high' %}bg-orange-100 text-orange-800
+                                {% elif finding.impact_level == 'medium' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ finding.impact_level|title }} Impact
+                            </span>
+                        </div>
+                        
+                        <!-- Verification Info -->
+                        {% if finding.is_verified %}
+                        <div class="text-xs text-gray-500">
+                            <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                            Verified by {{ finding.verifier.display_name or finding.verifier.username }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if findings.pages > 1 %}
+        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                {% if findings.has_prev %}
+                <a href="{{ url_for('analysis.findings_list', page=findings.prev_num, vector=vector_filter, status=status_filter, confidence=confidence_filter) }}" 
+                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </a>
+                {% endif %}
+                {% if findings.has_next %}
+                <a href="{{ url_for('analysis.findings_list', page=findings.next_num, vector=vector_filter, status=status_filter, confidence=confidence_filter) }}" 
+                   class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">{{ findings.per_page * (findings.page - 1) + 1 }}</span>
+                        to <span class="font-medium">{{ findings.per_page * (findings.page - 1) + findings.items|length }}</span>
+                        of <span class="font-medium">{{ findings.total }}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        {% if findings.has_prev %}
+                        <a href="{{ url_for('analysis.findings_list', page=findings.prev_num, vector=vector_filter, status=status_filter, confidence=confidence_filter) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        {% endif %}
+                        
+                        {% for page_num in findings.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != findings.page %}
+                                <a href="{{ url_for('analysis.findings_list', page=page_num, vector=vector_filter, status=status_filter, confidence=confidence_filter) }}" 
+                                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    {{ page_num }}
+                                </a>
+                                {% else %}
+                                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
+                                    {{ page_num }}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                ...
+                            </span>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if findings.has_next %}
+                        <a href="{{ url_for('analysis.findings_list', page=findings.next_num, vector=vector_filter, status=status_filter, confidence=confidence_filter) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-12">
+            <i class="fas fa-search text-gray-400 text-4xl mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No findings found</h3>
+            <p class="text-gray-600 mb-4">No analysis findings match your current filters.</p>
+            <div class="space-x-4">
+                <a href="{{ url_for('analysis.findings_list') }}" class="text-indigo-600 hover:text-indigo-800">Clear filters</a>
+                <a href="{{ url_for('analysis.create_finding') }}" class="text-indigo-600 hover:text-indigo-800">Add a finding</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-full">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Verified</p>
+                    <p class="text-2xl font-semibold text-gray-900">
+                        {{ findings.items|selectattr('status', 'equalto', 'verified')|list|length }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <i class="fas fa-clock text-blue-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Pending</p>
+                    <p class="text-2xl font-semibold text-gray-900">
+                        {{ findings.items|selectattr('status', 'equalto', 'submitted')|list|length }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-yellow-100 rounded-full">
+                    <i class="fas fa-star text-yellow-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Breakthroughs</p>
+                    <p class="text-2xl font-semibold text-gray-900">
+                        {{ findings.items|selectattr('is_breakthrough', 'equalto', true)|list|length }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <i class="fas fa-chart-line text-purple-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">High Confidence</p>
+                    <p class="text-2xl font-semibold text-gray-900">
+                        {{ findings.items|selectattr('confidence_level', 'ge', 7)|list|length }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

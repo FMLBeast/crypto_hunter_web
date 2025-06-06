@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    
+  crypto-worker:
+    build: .
+    command: celery -A app.services.background_crypto:celery_app worker --loglevel=info --queues=crypto,ethereum,cipher,hash_crack --concurrency=4
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    
+  crypto-monitor:
+    build: .
+    command: celery -A app.services.background_crypto:celery_app worker --loglevel=info --queues=monitor --concurrency=1
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1

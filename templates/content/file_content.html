@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% block title %}Content Analysis - {{ file.filename }} - Arweave Puzzle #11{% endblock %}
+
+{% block extra_head %}
+<style>
+    .hex-viewer {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 12px;
+        overflow-x: auto;
+        white-space: pre;
+    }
+    
+    .region-overlay {
+        position: absolute;
+        border: 2px solid;
+        background-color: rgba(255, 0, 0, 0.1);
+        cursor: pointer;
+        border-radius: 3px;
+    }
+    
+    .region-marker {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+    }
+    
+    .region-tooltip {
+        position: absolute;
+        background: #333;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 1000;
+        visibility: hidden;
+    }
+    
+    .strings-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    
+    .string-item {
+        padding: 4px 8px;
+        border-bottom: 1px solid #eee;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    
+    .string-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .interesting-string {
+        background-color: #fff3cd;
+        border-left: 3px solid #ffc107;
+    }
+    
+    .content-tabs {
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .tab-button {
+        padding: 12px 24px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        font-weight: 500;
+    }
+    
+    .tab-button.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+    
+    .tab-content {
+        display: none;
+        padding: 20px 0;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-file-code text-indigo-500 text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Content Analysis</h1>
+                    <p class="mt-1 text-gray-600">{{ file.filename }}</p>
+                    <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                        <span>SHA: {{ file.sha256_hash[:16] }}...</span>
+                        <span>•</span>
+                        <span>{{ file.file_type }}</span>
+                        {% if content %}
+                        <span>•</span>
+                        <span>{{ content.content_size|filesizeformat }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-4">
+                <a href="{{ url_for('files.file_detail', sha=file.sha256_hash) }}" 
+                   class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to File
+                </a>
+                <button onclick="analyzeContent()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                    <i class="fas fa-sync mr-2"></i>Re-analyze
+                </button>
+                <button onclick="markRegion()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium">
+                    <i class="fas fa-crosshairs mr-2"></i>Mark Region
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Tabs -->
+    {% if content %}
+    <div class="bg-white rounded-lg shadow">
+        <div class="content-tabs px-6">
+            <button class="tab-button active" onclick="switchTab('hex')">
+                <i class="fas fa-th mr-2"></i>Hex View
+            </button>
+            <button class="tab-button" onclick="switchTab('text')">
+                <i class="fas fa-font mr-2"></i>Text View
+            </button>
+            <button class="tab-button" onclick="switchTab('strings')">
+                <i class="fas fa-list mr-2"></i>Strings
+            </button>
+            <button class="tab-button" onclick="switchTab('regions')">
+                <i class="fas fa-map-marker-alt mr-2"></i>Regions ({{ regions|length }})
+            </button>
+        </div>
+
+        <!-- Hex View Tab -->
+        <div id="hex-tab" class="tab-content active">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Hex Dump</h3>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <label class="text-sm text-gray-700">Offset:</label>
+                            <input type="number" id="hex-offset" value="0" min="0" 
+                                   class="w-24 px-2 py-1 border border-gray-300 rounded text-sm">
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label class="text-sm text-gray-700">Length:</label>
+                            <input type="number" id="hex-length" value="1024" min="256" max="8192" 
+                                   class="w-24 px-2 py-1 border border-gray-300 rounded text-sm">
+                        </div>
+                        <button onclick="loadHexData()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                            Load
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="hex-content" class="hex-viewer" style="height: 400px; overflow-y: auto;">
+                    {% if content.content_preview %}
+                        {{ content.content_preview }}
+                    {% else %}
+                        Loading hex data...
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Text View Tab -->
+        <div id="text-tab" class="tab-content">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Text Content</h3>
+                {% if content.content_type == 'text' %}
+                    <div class="bg-gray-50 p-4 rounded border" style="height: 400px; overflow-y: auto;">
+                        <pre class="text-sm">{{ content.content_text or 'No text content available' }}</pre>
+                    </div>
+                {% else %}
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="fas fa-exclamation-triangle text-3xl mb-4"></i>
+                        <p>This file is not recognized as text content.</p>
+                        <p class="text-sm">File type: {{ content.content_type }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Strings Tab -->
+        <div id="strings-tab" class="tab-content">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Extracted Strings</h3>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="string-filter" placeholder="Filter strings..." 
+                               class="px-3 py-1 border border-gray-300 rounded text-sm"
+                               onkeyup="filterStrings()">
+                        <button onclick="exportStrings()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                            Export
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="strings-container">
+                    {% if strings_list %}
+                        {% for string in strings_list %}
+                        <div class="string-item {% if string|length > 20 or 'flag' in string.lower() or 'key' in string.lower() or 'password' in string.lower() %}interesting-string{% endif %}"
+                             onclick="selectString(this)">
+                            {{ string }}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-search text-3xl mb-4"></i>
+                            <p>No strings extracted yet</p>
+                            <button onclick="extractStrings()" class="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                                Extract Strings
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                {% if strings_list %}
+                <div class="mt-4 text-sm text-gray-600">
+                    Found {{ strings_list|length }} strings
+({{ interesting_strings_count }} potentially interesting)                {% endif %}
+            </div>
+        </div>
+
+        <!-- Regions Tab -->
+        <div id="regions-tab" class="tab-content">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Marked Regions</h3>
+                    <button onclick="addRegion()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded font-medium">
+                        <i class="fas fa-plus mr-2"></i>Add Region
+                    </button>
+                </div>
+                
+                {% if regions %}
+                    <div class="space-y-4">
+                        {% for region in regions %}
+                        <div class="border border-gray-200 rounded-lg p-4" style="border-left: 4px solid {{ region.color }};">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-medium text-gray-900">{{ region.title }}</h4>
+                                    <p class="text-sm text-gray-600 mt-1">{{ region.description or 'No description' }}</p>
+                                    <div class="mt-2 flex items-center space-x-4 text-xs text-gray-500">
+                                        <span>Type: {{ region.region_type }}</span>
+                                        <span>•</span>
+                                        <span>Offset: {{ region.start_offset }}-{{ region.end_offset }}</span>
+                                        <span>•</span>
+                                        <span>Confidence: {{ region.confidence_level }}/10</span>
+                                        <span>•</span>
+                                        <span>By: {{ region.analyst.display_name or region.analyst.username }}</span>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button onclick="editRegion({{ region.id }})" 
+                                            class="text-indigo-600 hover:text-indigo-800">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="deleteRegion({{ region.id }})" 
+                                            class="text-red-600 hover:text-red-800">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <button onclick="jumpToRegion({{ region.start_offset }})" 
+                                            class="text-green-600 hover:text-green-800">
+                                        <i class="fas fa-crosshairs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="fas fa-map-marker-alt text-3xl mb-4"></i>
+                        <p>No regions marked yet</p>
+                        <p class="text-sm">Mark interesting areas in the file content for analysis</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No Content Analysis -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-center py-12">
+            <i class="fas fa-exclamation-circle text-gray-400 text-4xl mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Content Analysis Available</h3>
+            <p class="text-gray-600 mb-4">This file has not been analyzed yet or the file is not accessible.</p>
+            <button onclick="analyzeContent()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-md font-medium">
+                <i class="fas fa-play mr-2"></i>Start Analysis
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Region Modal -->
+<div id="regionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div id="regionModalContent">
+            <!-- Modal content will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentRegionData = {{ regions_data|safe }};
+let selectedOffset = 0;
+
+function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Show selected tab
+    document.getElementById(tabName + '-tab').classList.add('active');
+    event.target.classList.add('active');
+}
+
+function analyzeContent() {
+    if (confirm('Re-analyze file content? This may take a moment.')) {
+        fetch(`/content/files/{{ file.sha256_hash }}/content/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Content analysis started', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showNotification(data.error || 'Analysis failed', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error starting analysis', 'error');
+        });
+    }
+}
+
+function loadHexData() {
+    const offset = document.getElementById('hex-offset').value;
+    const length = document.getElementById('hex-length').value;
+    
+    fetch(`/content/files/{{ file.sha256_hash }}/content/hex?offset=${offset}&length=${length}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('hex-content').textContent = data.hex_dump;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading hex data', 'error');
+        });
+}
+
+function filterStrings() {
+    const filter = document.getElementById('string-filter').value.toLowerCase();
+    const stringItems = document.querySelectorAll('.string-item');
+    
+    stringItems.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(filter)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function selectString(element) {
+    // Remove previous selection
+    document.querySelectorAll('.string-item').forEach(item => {
+        item.classList.remove('bg-blue-100');
+    });
+    
+    // Highlight selected string
+    element.classList.add('bg-blue-100');
+    
+    // Copy to clipboard
+    const text = element.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('String copied to clipboard', 'success');
+    });
+}
+
+function exportStrings() {
+    const strings = Array.from(document.querySelectorAll('.string-item')).map(item => item.textContent);
+    const blob = new Blob([strings.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+a.download = {{ file.filename|tojson }} + '_strings.txt';    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function markRegion() {
+    showRegionModal('Add Region', `
+        <form onsubmit="createRegion(event)" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input type="text" name="title" required 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea name="description" rows="3" 
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Offset</label>
+                    <input type="number" name="start_offset" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">End Offset</label>
+                    <input type="number" name="end_offset" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select name="region_type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="suspicious">Suspicious</option>
+                        <option value="interesting">Interesting</option>
+                        <option value="data">Data</option>
+                        <option value="text">Text</option>
+                        <option value="binary">Binary</option>
+                        <option value="encrypted">Encrypted</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confidence</label>
+                    <input type="range" name="confidence_level" min="1" max="10" value="5" 
+                           class="w-full" oninput="updateConfidenceDisplay(this.value)">
+                    <div class="text-center text-sm text-gray-500">
+                        <span id="confidence-display">5</span>/10
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" onclick="closeRegionModal()" 
+                        class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                    Create Region
+                </button>
+            </div>
+        </form>
+    `);
+}
+
+function createRegion(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    const regionData = {
+        {% if content %}content_id: {{ content.id }},{% endif %}
+        title: formData.get('title'),
+        description: formData.get('description'),
+        start_offset: parseInt(formData.get('start_offset')),
+        end_offset: parseInt(formData.get('end_offset')),
+        region_type: formData.get('region_type'),
+        confidence_level: parseInt(formData.get('confidence_level'))
+    };
+    
+    fetch('/content/api/regions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(regionData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Region created successfully', 'success');
+            closeRegionModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.error || 'Failed to create region', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error creating region', 'error');
+    });
+}
+
+function deleteRegion(regionId) {
+    if (confirm('Delete this region?')) {
+        fetch(`/content/api/regions/${regionId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Region deleted', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification('Error deleting region', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error deleting region', 'error');
+        });
+    }
+}
+
+function jumpToRegion(offset) {
+    document.getElementById('hex-offset').value = offset;
+    loadHexData();
+    switchTab('hex');
+}
+
+function showRegionModal(title, content) {
+    document.getElementById('regionModalContent').innerHTML = `
+        <h3 class="text-lg font-medium text-gray-900 mb-4">${title}</h3>
+        ${content}
+    `;
+    document.getElementById('regionModal').classList.remove('hidden');
+    document.getElementById('regionModal').classList.add('flex');
+}
+
+function closeRegionModal() {
+    document.getElementById('regionModal').classList.add('hidden');
+    document.getElementById('regionModal').classList.remove('flex');
+}
+
+function updateConfidenceDisplay(value) {
+    document.getElementById('confidence-display').textContent = value;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Load initial hex data if content exists
+    {% if content %}
+    loadHexData();
+    {% endif %}
+});
+
+// Close modal when clicking outside
+document.getElementById('regionModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeRegionModal();
+    }
+});
+</script>
+{% endblock %}
