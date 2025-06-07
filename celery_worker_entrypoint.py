@@ -1,4 +1,4 @@
-from crypto_hunter_web.services.celery_config import celery_app  # assumes celery_config.py is in your PYTHONPATH
+from crypto_hunter_web import create_app
+from crypto_hunter_web.services.celery_config import celery_app
 
-# alias for ease-of-use elsewhere
-celery = celery_app
+app = create_app()
