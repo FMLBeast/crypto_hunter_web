@@ -10,7 +10,7 @@ import sys
 # Add the app to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app import create_app
+from crypto_hunter_web import create_app
 
 # Create application instance
 application = create_app('production')
