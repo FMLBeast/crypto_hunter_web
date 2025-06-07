@@ -1,29 +1,14 @@
-version: '3.8'
 services:
-  redis:
-    image: redis:7
-
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: flask run --host=0.0.0.0
-    ports:
-      - "5000:5000"
-    environment:
-      FLASK_APP: run.py
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-    depends_on:
-      - redis
+    env_file:
+      - .env
+    build: .
+    command: gunicorn wsgi:app --bind 0.0.0.0:5000
+
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: celery -A crypto_hunter_web.celery worker --loglevel=info
-    environment:
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-    depends_on:
-      - redis
+    env_file:
+      - .env
+    build: .
+    command: celery -A celery_worker.celery worker --loglevel=info
+

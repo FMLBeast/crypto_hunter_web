@@ -267,7 +267,7 @@ def create_celery_app(flask_app=None):
     if flask_app:
         # Integrate with Flask app context
         class ContextTask(celery.Task):
-            """Make celery tasks work with Flask app context"""
+            """makefile celery tasks work with Flask app context"""
 
             def __call__(self, *args, **kwargs):
                 with flask_app.app_context():

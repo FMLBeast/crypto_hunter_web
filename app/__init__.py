@@ -187,5 +187,5 @@ def setup_template_filters(app):
         return value[:length] + ('...' if len(value) > length else '')
 
 
-# Make create_app importable
+# makefile create_app importable
 __all__ = ['create_app']
