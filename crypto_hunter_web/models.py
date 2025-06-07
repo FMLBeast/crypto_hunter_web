@@ -1,12 +1,8 @@
 # crypto_hunter_web/models.py
 
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 import hashlib
-
-# Initialize SQLAlchemy
-db = SQLAlchemy()
-
+from . import db
+from datetime import datetime
 # Association table: PuzzleSession ↔ FileNode
 table_puzzle_files = db.Table(
     'puzzle_files',
