@@ -1,0 +1,334 @@
+<!-- templates/health/full_health.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health Check - Crypto Hunter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .status-healthy { @apply bg-green-100 text-green-800 border-green-200; }
+        .status-warning { @apply bg-yellow-100 text-yellow-800 border-yellow-200; }
+        .status-critical { @apply bg-red-100 text-red-800 border-red-200; }
+        .status-unknown { @apply bg-gray-100 text-gray-800 border-gray-200; }
+        
+        .health-card {
+            transition: all 0.3s ease;
+        }
+        .health-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading { animation: pulse 2s infinite; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <i class="fas fa-heartbeat text-2xl text-indigo-600 mr-3"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">System Health Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-500">Last Check: {{ health.timestamp if health.timestamp else 'Unknown' }}</span>
+                    <button onclick="location.reload()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                    <a href="{{ url_for('files.dashboard') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to App
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Overall Status Card -->
+        <div class="mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        {% if health.overall_status == 'healthy' %}
+                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                            </div>
+                        {% elif health.overall_status == 'warning' %}
+                            <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-exclamation-triangle text-yellow-600 text-2xl"></i>
+                            </div>
+                        {% elif health.overall_status == 'critical' %}
+                            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-times-circle text-red-600 text-2xl"></i>
+                            </div>
+                        {% else %}
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-question-circle text-gray-600 text-2xl"></i>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="ml-4">
+                            <h2 class="text-2xl font-bold text-gray-900 capitalize">
+                                System Status: {{ health.overall_status if health.overall_status else 'Unknown' }}
+                            </h2>
+                            <p class="text-gray-600">
+                                {% if health.summary %}
+                                    {{ health.summary.healthy_checks }}/{{ health.summary.total_checks }} checks passed 
+                                    ({{ "%.1f"|format(health.summary.health_percentage) }}% healthy)
+                                {% else %}
+                                    Health check failed
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-right">
+                        <div class="text-sm text-gray-500">Check Duration</div>
+                        <div class="text-lg font-semibold text-gray-900">{{ health.total_check_time if health.total_check_time else 'N/A' }}</div>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                {% if health.summary %}
+                <div class="mt-4">
+                    <div class="flex justify-between text-sm text-gray-600 mb-1">
+                        <span>System Health</span>
+                        <span>{{ "%.1f"|format(health.summary.health_percentage) }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="progress-bar h-2 rounded-full 
+                            {% if health.summary.health_percentage >= 80 %}bg-green-500
+                            {% elif health.summary.health_percentage >= 60 %}bg-yellow-500
+                            {% else %}bg-red-500{% endif %}" 
+                            style="width: {{ health.summary.health_percentage }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Critical Issues & Warnings -->
+        {% if health.critical_issues or health.warnings %}
+        <div class="mb-8">
+            {% if health.critical_issues %}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-4">
+                <div class="flex items-center mb-3">
+                    <i class="fas fa-exclamation-circle text-red-600 text-xl mr-2"></i>
+                    <h3 class="text-lg font-semibold text-red-800">Critical Issues ({{ health.critical_issues|length }})</h3>
+                </div>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for issue in health.critical_issues %}
+                    <li class="text-red-700">{{ issue }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if health.warnings %}
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <div class="flex items-center mb-3">
+                    <i class="fas fa-exclamation-triangle text-yellow-600 text-xl mr-2"></i>
+                    <h3 class="text-lg font-semibold text-yellow-800">Warnings ({{ health.warnings|length }})</h3>
+                </div>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for warning in health.warnings %}
+                    <li class="text-yellow-700">{{ warning }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Health Check Results Grid -->
+        {% if health.results %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {% for key, result in health.results.items() %}
+            <div class="health-card bg-white rounded-lg shadow border-l-4 
+                {% if result.status == 'healthy' %}border-green-500
+                {% elif result.status == 'warning' %}border-yellow-500
+                {% elif result.status == 'critical' %}border-red-500
+                {% else %}border-gray-500{% endif %}">
+                
+                <div class="p-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            {% if result.status == 'healthy' %}
+                                <i class="fas fa-check-circle text-green-500 text-xl mr-3"></i>
+                            {% elif result.status == 'warning' %}
+                                <i class="fas fa-exclamation-triangle text-yellow-500 text-xl mr-3"></i>
+                            {% elif result.status == 'critical' %}
+                                <i class="fas fa-times-circle text-red-500 text-xl mr-3"></i>
+                            {% else %}
+                                <i class="fas fa-question-circle text-gray-500 text-xl mr-3"></i>
+                            {% endif %}
+                            
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">{{ result.name }}</h3>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-{{ result.status }}">
+                                    {{ result.status|title }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {% if result.response_time %}
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">Response</div>
+                            <div class="text-sm font-medium text-gray-900">{{ result.response_time }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Details -->
+                    {% if result.details %}
+                    <div class="mt-4">
+                        <button onclick="toggleDetails('{{ key }}')" class="flex items-center text-sm text-indigo-600 hover:text-indigo-800">
+                            <span>Details</span>
+                            <i id="chevron-{{ key }}" class="fas fa-chevron-down ml-1"></i>
+                        </button>
+                        
+                        <div id="details-{{ key }}" class="hidden mt-2 space-y-1">
+                            {% for detail_key, detail_value in result.details.items() %}
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600 capitalize">{{ detail_key.replace('_', ' ') }}:</span>
+                                <span class="text-gray-900 font-medium">
+                                    {% if detail_value is none %}
+                                        <span class="text-gray-400">None</span>
+                                    {% else %}
+                                        {{ detail_value }}
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                            
+                            {% if result.error %}
+                            <div class="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                                <strong>Error:</strong> {{ result.error }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- System Information -->
+        {% if health.system_info %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-server mr-2"></i>System Information
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for key, value in health.system_info.items() %}
+                <div class="border-l-4 border-indigo-500 pl-4">
+                    <div class="text-sm text-gray-600 font-medium">{{ key.replace('_', ' ')|title }}</div>
+                    <div class="text-sm text-gray-900 mt-1">
+                        {% if value is mapping %}
+                            <details class="cursor-pointer">
+                                <summary class="text-indigo-600 hover:text-indigo-500">View Details</summary>
+                                <div class="mt-2 space-y-1">
+                                    {% for sub_key, sub_value in value.items() %}
+                                    <div><strong>{{ sub_key }}:</strong> {{ sub_value }}</div>
+                                    {% endfor %}
+                                </div>
+                            </details>
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- API Access -->
+        <div class="mt-8 bg-gray-100 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-code mr-2"></i>API Access
+            </h3>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">JSON Health Data:</span>
+                    <a href="/health/api" target="_blank" class="text-indigo-600 hover:text-indigo-500 font-medium text-sm">
+                        /health/api <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Simple Health Check:</span>
+                    <a href="/health" target="_blank" class="text-indigo-600 hover:text-indigo-500 font-medium text-sm">
+                        /health <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Fallback -->
+        {% if not health.results and not health.system_info %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center py-8">
+                <i class="fas fa-exclamation-triangle text-yellow-500 text-4xl mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Health Check Unavailable</h3>
+                <p class="text-gray-600 mb-4">Unable to perform comprehensive health checks at this time.</p>
+                <button onclick="location.reload()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                    <i class="fas fa-redo mr-2"></i>Retry
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function toggleDetails(key) {
+            const details = document.getElementById('details-' + key);
+            const chevron = document.getElementById('chevron-' + key);
+            
+            if (details.classList.contains('hidden')) {
+                details.classList.remove('hidden');
+                chevron.classList.remove('fa-chevron-down');
+                chevron.classList.add('fa-chevron-up');
+            } else {
+                details.classList.add('hidden');
+                chevron.classList.remove('fa-chevron-up');
+                chevron.classList.add('fa-chevron-down');
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            const refreshBtn = document.querySelector('button[onclick="location.reload()"]');
+            if (refreshBtn && !refreshBtn.disabled) {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-2 loading"></i>Auto-refreshing...';
+                setTimeout(() => location.reload(), 2000);
+            }
+        }, 30000);
+
+        // Add loading state to refresh button
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.querySelector('button[onclick="location.reload()"]');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    this.innerHTML = '<i class="fas fa-sync-alt mr-2 loading"></i>Refreshing...';
+                    this.disabled = true;
+                });
+            }
+        });
+    </script>
+</body>
+</html>

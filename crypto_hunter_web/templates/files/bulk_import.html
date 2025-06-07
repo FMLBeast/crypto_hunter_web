@@ -109,10 +109,13 @@
                             {% if import.total_files > 0 %}
                             <div class="flex items-center">
                                 <div class="w-full bg-gray-200 rounded-full h-2 mr-4">
-                                    <div class="bg-green-500 h-2 rounded-full" 
-                                         style="width: {{ (import.processed_files / import.total_files * 100)|round }}%"></div>
+                                    <!-- FIXED: Calculate progress using actual model fields -->
+                                    {% set processed = import.successful_imports + import.failed_imports %}
+                                    {% set progress = (processed / import.total_files * 100) if import.total_files > 0 else 0 %}
+                                    <div class="bg-green-500 h-2 rounded-full"
+                                         style="width: {{ progress|round }}%"></div>
                                 </div>
-                                <span class="text-sm text-gray-600">{{ import.processed_files }}/{{ import.total_files }}</span>
+                                <span class="text-sm text-gray-600">{{ processed }}/{{ import.total_files }}</span>
                             </div>
                             {% else %}
                             <span class="text-sm text-gray-500">-</span>
@@ -120,11 +123,9 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             <div>✅ {{ import.successful_imports }} imported</div>
-                            {% if import.duplicates_found > 0 %}
-                            <div>🔄 {{ import.duplicates_found }} duplicates</div>
-                            {% endif %}
-                            {% if import.errors_count > 0 %}
-                            <div>❌ {{ import.errors_count }} errors</div>
+                            <!-- FIXED: Use failed_imports instead of non-existent fields -->
+                            {% if import.failed_imports > 0 %}
+                            <div>❌ {{ import.failed_imports }} errors</div>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -152,7 +153,7 @@
     <!-- Tips and Guidelines -->
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Import Guidelines</h2>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <h3 class="font-medium text-gray-700 mb-3">
@@ -166,7 +167,7 @@
                     <li>• Include file sizes in bytes</li>
                 </ul>
             </div>
-            
+
             <div>
                 <h3 class="font-medium text-gray-700 mb-3">
                     <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>Important Notes

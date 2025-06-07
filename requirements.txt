@@ -36,3 +36,5 @@ requests==2.31.0
 
 # Health monitoring (new additions)
 psutil
+chardet
+logger

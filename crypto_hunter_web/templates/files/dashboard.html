@@ -30,6 +30,7 @@
                     <i class="fas fa-files-o text-blue-600 text-xl"></i>
                 </div>
                 <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Files</p>
                     <p class="text-3xl font-semibold text-gray-900">{{ total_files }}</p>
                 </div>
             </div>
@@ -42,7 +43,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">Analyzed</p>
-<p class="text-3xl font-semibold text-gray-900">{{ analyzed_files }}</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ analyzed_files }}</p>
                 </div>
             </div>
         </div>
@@ -54,7 +55,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">Pending</p>
-<p class="text-3xl font-semibold text-gray-900">{{ pending_files }}</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ pending_files }}</p>
                 </div>
             </div>
         </div>
@@ -65,8 +66,8 @@
                     <i class="fas fa-gem text-purple-600 text-xl"></i>
                 </div>
                 <div class="ml-4">
-                   <p class="text-3xl font-semibold text-gray-900">{{ total_files }}</p>
-<p class="text-3xl font-semibold text-gray-900">{{ total_files }}</p>
+                    <p class="text-sm font-medium text-gray-500">Root Files</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ root_files }}</p>
                 </div>
             </div>
         </div>
@@ -74,88 +75,89 @@
 
     <!-- Progress Bar -->
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Analysis Progress</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-chart-line mr-2"></i>Analysis Progress
+        </h2>
         <div class="w-full bg-gray-200 rounded-full h-4">
             <div class="bg-indigo-600 h-4 rounded-full transition-all duration-300" style="width: {{ progress_percentage }}%"></div>
         </div>
-        <p class="mt-2 text-sm text-gray-600">{{ "%.1f"|format(progress_percentage) }}% Complete</p>
+        <p class="mt-2 text-sm text-gray-600">{{ progress_percentage|round(1) }}% of files analyzed</p>
+
+        <div class="mt-4 flex justify-between text-sm">
+            <a href="{{ url_for('files.file_list') }}" class="text-indigo-600 hover:text-indigo-800">
+                Browse All Files →
+            </a>
+            <span class="text-gray-300">|</span>
+            <a href="{{ url_for('graph.visual_graph') }}" class="text-indigo-600 hover:text-indigo-800">
+                View Relationship Graph →
+            </a>
+        </div>
     </div>
 
-    <!-- Quick Actions -->
+    <!-- Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- SHA Search -->
+        <!-- Analysis Vectors -->
         <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-4">
-                <i class="fas fa-search mr-2"></i>Quick SHA Search
+                <i class="fas fa-crosshairs mr-2"></i>Analysis Vectors
             </h2>
-            <div class="space-y-4">
-                <div>
-                    <input type="text" id="sha-search" placeholder="Enter SHA256 hash..." 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% if vectors %}
+                <div class="space-y-3">
+                    {% for vector in vectors %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                        <div class="flex items-center">
+                            <span class="text-lg mr-3">🎯</span>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ vector.name }}</p>
+                                <p class="text-sm text-gray-600">{{ vector.description if vector.description else 'Analysis vector' }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-medium text-gray-900">{{ vector.difficulty if vector.difficulty else 5 }}/10</p>
+                            <div class="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                                <div class="h-2 rounded-full bg-indigo-500 transition-all duration-300"
+                                     style="width: {{ (vector.difficulty * 10) if vector.difficulty else 50 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                <div id="search-results" class="hidden">
-                    <!-- Search results will be populated here -->
+            {% else %}
+                <div class="text-center py-8">
+                    <i class="fas fa-crosshairs text-gray-300 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No analysis vectors configured</p>
                 </div>
-                <div class="flex space-x-2">
-                    <a href="{{ url_for('files.file_list') }}" class="text-indigo-600 hover:text-indigo-800 text-sm">
-                        Browse All Files →
-                    </a>
-                    <span class="text-gray-300">|</span>
-                    <a href="{{ url_for('graph.visual_graph') }}" class="text-indigo-600 hover:text-indigo-800 text-sm">
-                        View Relationship Graph →
-                    </a>
-                </div>
-            </div>
+            {% endif %}
         </div>
 
-        <!-- Recent Activity -->
+        <!-- Top Contributors -->
         <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-4">
-                <i class="fas fa-clock mr-2"></i>Analysis Vectors
+                <i class="fas fa-users mr-2"></i>Top Contributors
             </h2>
-            <div class="space-y-3">
-                {% for vector in vectors %}
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div class="flex items-center">
-                        <span class="text-lg mr-3">{{ vector.icon }}</span>
-                        <div>
-                            <p class="font-medium text-gray-900">{{ vector.name }}</p>
-                            <p class="text-sm text-gray-600">{{ vector.description }}</p>
+            {% if top_users %}
+                <div class="space-y-3">
+                    {% for user in top_users[:5] %}
+                    <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                <span class="text-indigo-600 font-semibold">{{ user.username[0].upper() }}</span>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-900">{{ user.display_name or user.username }}</p>
+                            <p class="text-sm text-gray-500">{{ user.display_points }} points • {{ user.display_level }}</p>
+                            <p class="text-xs text-gray-400">{{ user.display_contributions }} contributions</p>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-sm font-medium text-gray-900">{{ vector.findings_count }} findings</p>
-                        <div class="w-16 bg-gray-200 rounded-full h-2 mt-1">
-                            <div class="h-2 rounded-full transition-all duration-300" 
-                                 style="width: {{ vector.progress_percentage }}%; background-color: {{ vector.color }}"></div>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Contributors -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">
-            <i class="fas fa-trophy mr-2"></i>Top Contributors
-        </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for user in top_users %}
-            <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-                <div class="flex-shrink-0">
-                    <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <span class="text-indigo-600 font-semibold">{{ user.username[0].upper() }}</span>
-                    </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <i class="fas fa-users text-gray-300 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No active contributors</p>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-900">{{ user.display_name or user.username }}</p>
-                    <p class="text-sm text-gray-500">{{ user.points }} points • {{ user.level }}</p>
-                    <p class="text-xs text-gray-400">{{ user.contributions_count }} contributions</p>
-                </div>
-            </div>
-            {% endfor %}
+            {% endif %}
         </div>
     </div>
 
@@ -173,84 +175,61 @@
                 <i class="fas fa-project-diagram text-green-600 text-2xl mb-2"></i>
                 <p class="text-sm font-medium text-green-900">Relationship Graph</p>
             </a>
-<a href="{{ url_for('analysis.analysis_stats') }}" class="block p-4 text-center bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">                <i class="fas fa-chart-bar text-purple-600 text-2xl mb-2"></i>
+            <a href="{{ url_for('analysis.analysis_stats') }}" class="block p-4 text-center bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+                <i class="fas fa-chart-bar text-purple-600 text-2xl mb-2"></i>
                 <p class="text-sm font-medium text-purple-900">Statistics</p>
             </a>
-            <a href="{{ url_for('files.bulk_import') }}" class="block p-4 text-center bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
-                <i class="fas fa-upload text-yellow-600 text-2xl mb-2"></i>
-                <p class="text-sm font-medium text-yellow-900">Bulk Import</p>
+            <a href="{{ url_for('health.full_health') }}" class="block p-4 text-center bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                <i class="fas fa-heartbeat text-red-600 text-2xl mb-2"></i>
+                <p class="text-sm font-medium text-red-900">System Health</p>
             </a>
         </div>
     </div>
-</div>
-{% endblock %}
 
-{% block extra_scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Enhanced SHA search with live results
-    const searchInput = document.getElementById('sha-search');
-    const searchResults = document.getElementById('search-results');
-    let searchTimeout;
+    <!-- System Monitor Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-heartbeat mr-2"></i>System Monitor
+            </h2>
+            <a href="{{ url_for('health.full_health') }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                View Details →
+            </a>
+        </div>
 
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        const query = this.value.trim();
-        
-        if (query.length >= 4) {
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(`/api/search-sha?q=${encodeURIComponent(query)}`);
-                    const results = await response.json();
-                    displaySearchResults(results);
-                } catch (error) {
-                    console.error('Search error:', error);
-                    searchResults.innerHTML = '<p class="text-red-600 text-sm">Search error occurred</p>';
-                    searchResults.classList.remove('hidden');
-                }
-            }, 300);
-        } else {
-            searchResults.classList.add('hidden');
-        }
-    });
-
-    function displaySearchResults(results) {
-        if (results.length === 0) {
-            searchResults.innerHTML = '<p class="text-gray-500 text-sm">No files found</p>';
-        } else {
-            const resultsHtml = results.map(file => `
-                <div class="border-b border-gray-200 py-2 last:border-b-0">
-                    <a href="/files/${file.sha}" class="block hover:bg-gray-50 p-2 rounded">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="font-medium text-gray-900">${file.filename}</p>
-                                <p class="text-sm text-gray-500">${file.sha.substring(0, 16)}...</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    file.status === 'complete' ? 'bg-green-100 text-green-800' : 
-                                    file.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                    'bg-gray-100 text-gray-800'
-                                }">
-                                    ${file.status}
-                                </span>
-                            </div>
-                        </div>
-                    </a>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="text-center">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-database text-green-600"></i>
                 </div>
-            `).join('');
-            
-            searchResults.innerHTML = `<div class="border border-gray-200 rounded-md bg-white max-h-64 overflow-y-auto">${resultsHtml}</div>`;
-        }
-        searchResults.classList.remove('hidden');
-    }
+                <p class="text-xs text-gray-500">Database</p>
+                <p class="text-sm font-medium text-green-600">Online</p>
+            </div>
 
-    // Hide search results when clicking outside
-    document.addEventListener('click', function(event) {
-        if (!searchInput.contains(event.target) && !searchResults.contains(event.target)) {
-            searchResults.classList.add('hidden');
-        }
-    });
-});
-</script>
+            <div class="text-center">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-memory text-blue-600"></i>
+                </div>
+                <p class="text-xs text-gray-500">Redis</p>
+                <p class="text-sm font-medium text-blue-600">Connected</p>
+            </div>
+
+            <div class="text-center">
+                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-cogs text-purple-600"></i>
+                </div>
+                <p class="text-xs text-gray-500">Workers</p>
+                <p class="text-sm font-medium text-purple-600">Active</p>
+            </div>
+
+            <div class="text-center">
+                <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-tasks text-yellow-600"></i>
+                </div>
+                <p class="text-xs text-gray-500">Queue</p>
+                <p class="text-sm font-medium text-yellow-600">Normal</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
