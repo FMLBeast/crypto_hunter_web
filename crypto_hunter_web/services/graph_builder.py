@@ -1,42 +1,68 @@
-# crypto_hunter_web/services/graph_builder.py
-
+"""
+GraphBuilder: constructs a directed derivation graph of files for the puzzle.
+"""
+import csv
 import networkx as nx
+import click
+from flask.cli import with_appcontext
+from typing import Dict, Any, List
+from crypto_hunter_web.models import AnalysisFile, FileDerivation
 from crypto_hunter_web import db
-from crypto_hunter_web.models import FileNode, FileDerivation
 
-def build_derivation_graph():
-    """
-    Queries FileNode and FileDerivation tables and returns
-    a networkx.DiGraph where:
-      - each node is a FileNode.sha256
-      - node attrs include path, description, file_type, mime_type, size_bytes
-      - each edge is parent→child with attrs operation, tool, parameters
-    """
-    G = nx.DiGraph()
+class GraphBuilder:
+    """Builds and persists a file derivation graph using NetworkX and the DB."""
 
-    # 1) Add every file as a node
-    for f in FileNode.query:
-        G.add_node(
-            f.sha256,
-            path=f.path,
-            description=f.description,
-            file_type=f.file_type,
-            mime_type=f.mime_type,
-            size_bytes=f.size_bytes
-        )
+    @staticmethod
+    def parse_csv(csv_path: str) -> List[Dict[str, Any]]:
+        """Read CSV rows into dicts with sha, parent_sha, metadata."""
+        rows = []
+        with open(csv_path, newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append({
+                    'sha': row.get('sha256') or row.get('sha'),
+                    'parent_sha': row.get('parent_sha'),
+                    'path': row.get('path'),
+                    'description': row.get('description')
+                })
+        return rows
 
-    # 2) Add derivation edges
-    for d in FileDerivation.query:
-        # adjust these attribute names if yours differ
-        parent = d.parent_sha
-        child  = d.child_sha
+    @staticmethod
+    def build_graph(rows: List[Dict[str, Any]]) -> nx.DiGraph:
+        """Construct a NetworkX graph from parsed CSV data."""
+        g = nx.DiGraph()
+        for r in rows:
+            g.add_node(r['sha'], path=r['path'], description=r.get('description'))
+        for r in rows:
+            parent = r.get('parent_sha')
+            if parent and g.has_node(parent):
+                g.add_edge(parent, r['sha'])
+        return g
 
-        G.add_edge(
-            parent,
-            child,
-            operation=getattr(d, 'operation', None),
-            tool     =getattr(d, 'tool', None),
-            parameters=getattr(d, 'parameters', None)
-        )
+    @staticmethod
+    def persist_graph(graph: nx.DiGraph) -> None:
+        """Save edges to FileDerivation table."""
+        FileDerivation.query.delete()
+        db.session.flush()
+        for parent, child in graph.edges():
+            db.session.add(FileDerivation(parent_sha=parent, child_sha=child))
+        db.session.commit()
 
-    return G
+    @classmethod
+    def import_from_csv_and_build(cls, csv_path: str) -> None:
+        """Full pipeline: parse CSV, build graph, persist to DB."""
+        rows = cls.parse_csv(csv_path)
+        graph = cls.build_graph(rows)
+        cls.persist_graph(graph)
+
+
+@click.command('import-graph')
+@with_appcontext
+@click.argument('csv_path', default='file_report.csv')
+def import_graph(csv_path: str) -> None:
+    """CLI command: build derivation graph from CSV and commit."""
+    GraphBuilder.import_from_csv_and_build(csv_path)
+    click.echo(
+        f"Imported graph from {csv_path} and persisted "
+        f"{len(GraphBuilder.build_graph(GraphBuilder.parse_csv(csv_path)).edges())} edges."
+    )

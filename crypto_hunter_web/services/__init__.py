@@ -25,7 +25,6 @@ from .background_crypto import (
     system_health_check,
     cleanup_old_tasks,
     manage_priority_queue,
-    auto_analyze_new_files,
 )
 
 # LLM orchestrator
