@@ -1,41 +1,22 @@
-# Dockerfile
+# Use a slim Python base image
+FROM python:3.11-slim
 
-# 1. Base image
-FROM python:3.11.5-slim
+# Install system deps
+RUN apt-get update && apt-get install -y gcc libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Env vars (no inline comments)
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=run.py
-ENV FLASK_ENV=production
-ENV FLASK_DEBUG=0
-ENV CELERY_BROKER_URL=redis://redis:6379/0
-ENV CELERY_RESULT_BACKEND=redis://redis:6379/0
-ENV PATH="/root/.local/bin:${PATH}"
-
-# 3. Working directory
+# Set workdir
 WORKDIR /app
 
-# 4. System deps (including Ruby for zsteg)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential libssl-dev gcc \
-      ruby-full steghide binwalk exiftool foremost && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install zsteg gem
-RUN gem install zsteg
-
-# 5. Python deps
+# Copy requirements and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. App code
+# Copy the rest of the code
 COPY . .
 
-# 7. Expose port & add healthcheck
-EXPOSE 5000
-HEALTHCHECK --interval=30s --timeout=5s \
-  CMD curl -f http://localhost:5000/health || exit 1
+# Expose port
+EXPOSE 8000
 
-# 8. Default to Gunicorn (override in compose for worker)
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:5000"]
+# By default run Gunicorn (WSGI)
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8000", "--workers", "4"]

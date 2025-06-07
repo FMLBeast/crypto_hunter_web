@@ -1,18 +1,14 @@
-#!/usr/bin/env python3
-# celery_worker_entrypoint.py
-
+import os
 from crypto_hunter_web import create_app
 from crypto_hunter_web.services.celery_config import celery_app
 
-# Instantiate your Flask app (create_app() already registers all blueprints)
-app = create_app()
+# Create Flask app and push context so tasks can use `current_app`
+flask_app = create_app()
+flask_app.app_context().push()
 
-# Public health endpoint
-from flask import jsonify
-@app.route("/health")
-def health():
-    return jsonify(status="ok"), 200
+# (Optional) register a simple health‐check task
+@celery_app.task(name="health_check")
+def health_check():
+    return {"status": "ok"}
 
-# Allow direct run too
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+# Celery will run as `celery -A celery_worker_entrypoint.celery_app worker|beat`

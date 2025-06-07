@@ -1,83 +1,52 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  web:
-    build: .
-    env_file: .env
-    working_dir: /app
-    command:
-      - gunicorn
-      - "celery_worker_entrypoint:app"
-      - "--bind"
-      - "0.0.0.0:8000"
-      - "--workers"
-      - "4"
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./:/app
-      - ./user_files:/app/uploads
-    depends_on:
-      - redis
-
-  worker_crypto:
-    build: .
-    env_file: .env
-    working_dir: /app
-    command:
-      - celery
-      - "-A"
-      - "celery_worker_entrypoint:celery_app"
-      - worker
-      - "-Q"
-      - "crypto_main,crypto_priority,ethereum,cipher,hash_crack"
-      - "--concurrency=4"
-      - "--loglevel=info"
-    volumes:
-      - ./:/app
-      - ./user_files:/app/uploads
-    depends_on:
-      - redis
-
-  worker_llm:
-    build: .
-    env_file: .env
-    working_dir: /app
-    command:
-      - celery
-      - "-A"
-      - "celery_worker_entrypoint:celery_app"
-      - worker
-      - "-Q"
-      - "llm_analysis,llm_priority"
-      - "--concurrency=2"
-      - "--loglevel=info"
-    volumes:
-      - ./:/app
-      - ./user_files:/app/uploads
-    depends_on:
-      - redis
-
-  scheduler:
-    build: .
-    env_file: .env
-    working_dir: /app
-    command:
-      - celery
-      - "-A"
-      - "celery_worker_entrypoint:celery_app"
-      - beat
-      - "--loglevel=info"
-    volumes:
-      - ./:/app
-    depends_on:
-      - redis
-
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
 
-volumes:
-  redis_data:
+  web:
+    build: .
+    depends_on:
+      - redis
+    environment:
+      FLASK_APP: wsgi.py
+      FLASK_ENV: production
+      DATABASE_URL: sqlite:////app/instance/arweave_tracker.db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      REDIS_URL: redis://redis:6379/2
+      SECRET_KEY: bodhi
+    volumes:
+      - ./:/app
+      - ./logs:/var/log/hunter-web
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    depends_on:
+      - redis
+    command: ["celery", "-A", "celery_worker_entrypoint.celery_app", "worker", "--loglevel=INFO"]
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: sqlite:////app/instance/arweave_tracker.db
+      SECRET_KEY: bodhi
+    volumes:
+      - ./instance:/app/instance
+
+  beat:
+    build: .
+    depends_on:
+      - redis
+    command: ["celery", "-A", "celery_worker_entrypoint.celery_app", "beat", "--loglevel=INFO"]
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATABASE_URL: sqlite:////app/instance/arweave_tracker.db
+      SECRET_KEY: your-very-secret-key-change-this
+    volumes:
+      - ./instance:/app/instance
