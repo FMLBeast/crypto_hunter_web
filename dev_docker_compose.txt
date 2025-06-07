@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev  # Separate dev dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - DATABASE_URL=sqlite:////app/instance/arweave_tracker.db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - PYTHONUNBUFFERED=1  # Real-time logs
+      - PYTHONDONTWRITEBYTECODE=1  # No .pyc files
+    volumes:
+      # MOUNT SOURCE CODE - No more rebuilds!
+      - .:/app
+      - /app/instance  # Persist database
+    depends_on:
+      - redis
+    # Enable debugger attachment
+    stdin_open: true
+    tty: true
+    command: python -m flask run --host=0.0.0.0 --port=8000 --reload --debugger
+
+  # Optional worker for background tasks (only run when needed)
+  worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_URL=sqlite:////app/instance/arweave_tracker.db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    command: celery -A crypto_hunter_web.celery worker --loglevel=info
+    profiles: ["worker"]  # Only start when explicitly requested
+
+volumes:
+  redis_data:
