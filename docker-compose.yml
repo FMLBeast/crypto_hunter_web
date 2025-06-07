@@ -4,51 +4,72 @@ services:
   web:
     build: .
     env_file: .env
-    command: gunicorn celery_worker_entrypoint:app --bind 0.0.0.0:8000 --workers 4
+    working_dir: /app
+    command:
+      - gunicorn
+      - "celery_worker_entrypoint:app"
+      - "--bind"
+      - "0.0.0.0:8000"
+      - "--workers"
+      - "4"
     ports:
       - "8000:8000"
     volumes:
-      - ./user_files:/app/user_files
-      - ./data:/app/data
+      - ./:/app
+      - ./user_files:/app/uploads
     depends_on:
       - redis
 
   worker_crypto:
     build: .
     env_file: .env
-    command: >
-      celery -A celery_worker_entrypoint:celery_app worker
-      worker
-      -Q crypto_main,crypto_priority,ethereum,cipher,hash_crack
-      --concurrency=4
-      --loglevel=info
+    working_dir: /app
+    command:
+      - celery
+      - "-A"
+      - "celery_worker_entrypoint:celery_app"
+      - worker
+      - "-Q"
+      - "crypto_main,crypto_priority,ethereum,cipher,hash_crack"
+      - "--concurrency=4"
+      - "--loglevel=info"
     volumes:
-      - ./user_files:/app/user_files
-      - ./data:/app/data
+      - ./:/app
+      - ./user_files:/app/uploads
     depends_on:
       - redis
 
   worker_llm:
     build: .
     env_file: .env
-    command: >
-      celery -A celery_worker_entrypoint:celery_app worker
-      worker
-      -Q llm_analysis,llm_priority
-      --concurrency=2
-      --loglevel=info
+    working_dir: /app
+    command:
+      - celery
+      - "-A"
+      - "celery_worker_entrypoint:celery_app"
+      - worker
+      - "-Q"
+      - "llm_analysis,llm_priority"
+      - "--concurrency=2"
+      - "--loglevel=info"
     volumes:
-      - ./user_files:/app/user_files
-      - ./data:/app/data
+      - ./:/app
+      - ./user_files:/app/uploads
     depends_on:
       - redis
 
   scheduler:
     build: .
     env_file: .env
-    command: celery -A celery_worker_entrypoint:celery_app beat --loglevel=info
+    working_dir: /app
+    command:
+      - celery
+      - "-A"
+      - "celery_worker_entrypoint:celery_app"
+      - beat
+      - "--loglevel=info"
     volumes:
-      - ./data:/app/data
+      - ./:/app
     depends_on:
       - redis
 
