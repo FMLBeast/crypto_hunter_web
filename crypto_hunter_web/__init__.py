@@ -1,11 +1,12 @@
+# crypto_hunter_web/__init__.py
+
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-from crypto_hunter_web.services.graph_builder import import_graph
 
-# one shared instance
+# Extensions - define here, not in models
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
@@ -13,7 +14,7 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # core config
+    # Core config
     app.config.from_mapping(
         SECRET_KEY                    = os.getenv('SECRET_KEY', 'dev-secret'),
         SQLALCHEMY_DATABASE_URI       = os.getenv('DATABASE_URL', 'sqlite:///arweave_tracker.db'),
@@ -23,13 +24,16 @@ def create_app():
     )
     app.config.from_pyfile('config.py', silent=True)
 
-    # init extensions
+    # Init extensions
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    # now register the graph command:
-    app.cli.add_command(import_graph)
-    # register blueprints
+
+    # Import models AFTER db is initialized to ensure they can use it
+    with app.app_context():
+        from . import models  # This ensures models are registered
+
+    # Register blueprints
     from .routes.auth            import auth_bp
     from .routes.files           import files_bp
     from .routes.graph           import graph_bp
@@ -52,7 +56,7 @@ def create_app():
     app.register_blueprint(llm_crypto_api_bp, url_prefix='/llm')
     app.register_blueprint(search_api_bp, url_prefix='/search')
 
-    # register CLI commands
+    # Register CLI commands
     from .commands import register_commands
     register_commands(app)
 

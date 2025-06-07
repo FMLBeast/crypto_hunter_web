@@ -1,14 +1,71 @@
+version: '3.8'
+
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   web:
+    build: .
+    command: gunicorn wsgi:app --bind 0.0.0.0:5000 --workers 2
+    ports:
+      - "5000:5000"
     env_file:
       - .env
+    depends_on:
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+
+  worker-crypto:
     build: .
-    command: gunicorn wsgi:app --bind 0.0.0.0:5000
-
-
-  worker:
+    command: celery -A crypto_hunter_web.services.celery_config worker -Q crypto_main,crypto_priority -n crypto@%h --loglevel=info
     env_file:
       - .env
-    build: .
-    command: celery -A celery_worker.celery worker --loglevel=info
+    depends_on:
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
 
+  worker-llm:
+    build: .
+    command: celery -A crypto_hunter_web.services.celery_config worker -Q llm_main,llm_priority -n llm@%h --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
+
+  worker-monitor:
+    build: .
+    command: celery -A crypto_hunter_web.services.celery_config worker -Q monitor_queue -n monitor@%h --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+  beat:
+    build: .
+    command: celery -A crypto_hunter_web.services.celery_config beat --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+  flower:
+    build: .
+    command: celery -A crypto_hunter_web.services.celery_config flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:

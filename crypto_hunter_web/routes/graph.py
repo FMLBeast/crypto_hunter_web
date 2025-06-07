@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, jsonify
 import json
 
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.services.graph_builder import GraphBuilder
+from crypto_hunter_web.services.graph_builder import build_derivation_graph
 from crypto_hunter_web.utils.validators import validate_sha256
 
 graph_bp = Blueprint('graph', __name__)
