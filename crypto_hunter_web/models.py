@@ -1,423 +1,742 @@
-# crypto_hunter_web/models.py - COMPLETE FIXED VERSION
+# crypto_hunter_web/models.py - COMPLETE OPTIMIZED MODELS
 
-import hashlib
 import os
-from datetime import datetime
-from flask_login import UserMixin
-from sqlalchemy import JSON
-from werkzeug.security import generate_password_hash, check_password_hash
+import hashlib
+import json
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any, Union
+from enum import Enum
 
-# Import db from parent package
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy import Index, text, event, func
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import validates
+import uuid
+
+# Import db from main app
 from crypto_hunter_web import db
 
-# Association table for many-to-many relationship between PuzzleSession and FileNode
-table_puzzle_files = db.Table(
-    'puzzle_files',
-    db.Column('session_id', db.Integer, db.ForeignKey('puzzle_sessions.id'), primary_key=True),
-    db.Column('file_sha256', db.String(64), db.ForeignKey('file_nodes.sha256'), primary_key=True),
-    db.Column('added_at', db.DateTime, default=datetime.utcnow)
-)
+
+class UserLevel(Enum):
+    """User experience levels"""
+    ANALYST = "Analyst"
+    INTERMEDIATE = "Intermediate"
+    ADVANCED = "Advanced"
+    EXPERT = "Expert"
+    MASTER = "Master"
+
+
+class FileStatus(Enum):
+    """File analysis status"""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETE = "complete"
+    ERROR = "error"
+    ARCHIVED = "archived"
+
+
+class FindingStatus(Enum):
+    """Finding validation status"""
+    UNVERIFIED = "unverified"
+    CONFIRMED = "confirmed"
+    FALSE_POSITIVE = "false_positive"
+    NEEDS_REVIEW = "needs_review"
 
 
 class User(UserMixin, db.Model):
+    """Enhanced User model with security, audit, and gamification"""
     __tablename__ = 'users'
+    __table_args__ = (
+        Index('idx_user_username', 'username'),
+        Index('idx_user_email', 'email'),
+        Index('idx_user_active_created', 'is_active', 'created_at'),
+        Index('idx_user_points_level', 'points', 'level'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(256))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_active = db.Column(db.DateTime, default=datetime.utcnow)
-    is_active = db.Column(db.Boolean, default=True)
-    is_admin = db.Column(db.Boolean, default=False)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False, index=True)
 
-    # FIXED: Added missing attributes
-    display_name = db.Column(db.String(128))
-    points = db.Column(db.Integer, default=0)
-    level = db.Column(db.String(50), default='Analyst')
-    contributions_count = db.Column(db.Integer, default=0)
+    # Authentication
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    # Profile information
+    display_name = db.Column(db.String(100))
+    first_name = db.Column(db.String(50))
+    last_name = db.Column(db.String(50))
+    bio = db.Column(db.Text)
+    avatar_url = db.Column(db.String(255))
+
+    # Status and permissions
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
+    is_suspended = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Gamification
+    points = db.Column(db.Integer, default=0, nullable=False, index=True)
+    level = db.Column(db.Enum(UserLevel), default=UserLevel.ANALYST, nullable=False, index=True)
+    contributions_count = db.Column(db.Integer, default=0, nullable=False)
+    streak_days = db.Column(db.Integer, default=0, nullable=False)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = db.Column(db.DateTime, index=True)
+    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    login_count = db.Column(db.Integer, default=0, nullable=False)
+
+    # Security
+    two_factor_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    two_factor_secret = db.Column(db.String(32))
+    api_key_hash = db.Column(db.String(255))
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime)
+    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Preferences and settings
+    preferences = db.Column(JSON, default=dict)
+    timezone = db.Column(db.String(50), default='UTC')
+    notification_settings = db.Column(JSON, default=dict)
 
     # Relationships
-    annotations = db.relationship('Annotation', back_populates='user', lazy='dynamic')
-    sessions_created = db.relationship('PuzzleSession', back_populates='creator', lazy='dynamic')
-    assignments = db.relationship('FileAssignment', foreign_keys='FileAssignment.assigned_by',
-                                  back_populates='assigner', lazy='dynamic')
+    created_files = db.relationship('AnalysisFile', foreign_keys='AnalysisFile.created_by',
+                                    backref='creator', lazy='dynamic')
+    created_findings = db.relationship('Finding', backref='creator_user', lazy='dynamic')
+    vectors = db.relationship('Vector', backref='user', lazy='dynamic')
+    api_keys = db.relationship('ApiKey', backref='user', lazy='dynamic')
+    audit_logs = db.relationship('AuditLog', backref='user', lazy='dynamic')
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    @validates('email')
+    def validate_email(self, key, email):
+        """Validate email format"""
+        import re
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, email):
+            raise ValueError("Invalid email format")
+        return email.lower()
 
-    def check_password(self, password):
+    @validates('username')
+    def validate_username(self, key, username):
+        """Validate username format"""
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]{3,80}$', username):
+            raise ValueError("Username must be 3-80 characters, alphanumeric, underscore, or hyphen only")
+        return username.lower()
+
+    def set_password(self, password: str):
+        """Set password with security requirements"""
+        if len(password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256:100000')
+        self.password_changed_at = datetime.utcnow()
+
+    def check_password(self, password: str) -> bool:
+        """Check password against hash"""
         return check_password_hash(self.password_hash, password)
 
-    # FIXED: Added missing methods
-    def award_points(self, points, reason):
-        """Award points to user and update level"""
-        self.points = (self.points or 0) + points
-        self.contributions_count = (self.contributions_count or 0) + 1
+    def is_locked(self) -> bool:
+        """Check if account is locked"""
+        return self.locked_until and self.locked_until > datetime.utcnow()
+
+    def lock_account(self, duration_minutes: int = 30):
+        """Lock account for specified duration"""
+        self.locked_until = datetime.utcnow() + timedelta(minutes=duration_minutes)
+        self.failed_login_attempts += 1
+
+    def unlock_account(self):
+        """Unlock account and reset failed attempts"""
+        self.locked_until = None
+        self.failed_login_attempts = 0
+
+    def add_points(self, points: int, reason: str = None):
+        """Add points and update level"""
+        self.points += points
+        self.contributions_count += 1
 
         # Update level based on points
         if self.points >= 10000:
-            self.level = 'Master Analyst'
+            self.level = UserLevel.MASTER
         elif self.points >= 5000:
-            self.level = 'Senior Analyst'
+            self.level = UserLevel.EXPERT
         elif self.points >= 1000:
-            self.level = 'Expert Analyst'
-        elif self.points >= 500:
-            self.level = 'Advanced Analyst'
+            self.level = UserLevel.ADVANCED
+        elif self.points >= 250:
+            self.level = UserLevel.INTERMEDIATE
         else:
-            self.level = 'Analyst'
+            self.level = UserLevel.ANALYST
 
-    def can_verify_findings(self):
-        """Check if user can verify findings (expert level)"""
-        return self.is_admin or self.level in ['Expert Analyst', 'Senior Analyst', 'Master Analyst']
+    @hybrid_property
+    def full_name(self):
+        """Get user's full name"""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        return self.display_name or self.username
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert user to dictionary (safe for API)"""
+        return {
+            'id': self.public_id.hex,
+            'username': self.username,
+            'display_name': self.display_name,
+            'full_name': self.full_name,
+            'level': self.level.value,
+            'points': self.points,
+            'contributions_count': self.contributions_count,
+            'is_active': self.is_active,
+            'is_verified': self.is_verified,
+            'created_at': self.created_at.isoformat(),
+            'last_active': self.last_active.isoformat() if self.last_active else None,
+            'avatar_url': self.avatar_url,
+            'timezone': self.timezone
+        }
 
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<User {self.username}({self.level.value})>'
 
 
-class AuditLog(db.Model):
-    __tablename__ = 'audit_logs'
+class AnalysisFile(db.Model):
+    """Enhanced file model with comprehensive analysis tracking"""
+    __tablename__ = 'analysis_files'
+    __table_args__ = (
+        Index('idx_file_sha256', 'sha256_hash'),
+        Index('idx_file_status_priority', 'status', 'priority'),
+        Index('idx_file_type_size', 'file_type', 'file_size'),
+        Index('idx_file_parent', 'parent_file_sha'),
+        Index('idx_file_created', 'created_at'),
+        Index('idx_file_root', 'is_root_file'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    action = db.Column(db.String, nullable=False)
-    details = db.Column(db.Text, nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False, index=True)
 
+    # Core file information
+    filename = db.Column(db.String(255), nullable=False, index=True)
+    filepath = db.Column(db.Text)
+    original_path = db.Column(db.Text)
+    file_size = db.Column(db.BigInteger, nullable=False, index=True)
+    file_type = db.Column(db.String(100), index=True)
+    mime_type = db.Column(db.String(100))
 
-class PuzzleSession(db.Model):
-    __tablename__ = 'puzzle_sessions'
+    # Cryptographic hashes
+    sha256_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    md5_hash = db.Column(db.String(32), index=True)
+    sha1_hash = db.Column(db.String(40))
+    crc32 = db.Column(db.String(8))
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Analysis status and metadata
+    status = db.Column(db.Enum(FileStatus), default=FileStatus.PENDING, nullable=False, index=True)
+    priority = db.Column(db.Integer, default=5, nullable=False, index=True)  # 1-10 scale
+    confidence_score = db.Column(db.Float, default=0.0)  # AI confidence in analysis
+
+    # File classification
+    is_root_file = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    is_encrypted = db.Column(db.Boolean, default=False, nullable=False)
+    is_archive = db.Column(db.Boolean, default=False, nullable=False)
+    is_executable = db.Column(db.Boolean, default=False, nullable=False)
+    contains_crypto = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+    # Relationships and hierarchy
+    parent_file_sha = db.Column(db.String(64), db.ForeignKey('analysis_files.sha256_hash'), index=True)
+    extraction_depth = db.Column(db.Integer, default=0, nullable=False)
+
+    # Timestamps and tracking
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    is_active = db.Column(db.Boolean, default=True)
-    meta_data = db.Column(JSON)
+    analyzed_at = db.Column(db.DateTime)
+    last_accessed = db.Column(db.DateTime)
 
-    # Relationships
-    creator = db.relationship('User', back_populates='sessions_created')
-    files = db.relationship('FileNode', secondary=table_puzzle_files, back_populates='sessions')
-    annotations = db.relationship('Annotation', back_populates='session', lazy='dynamic')
+    # User tracking
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    analyzed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
-    def __repr__(self):
-        return f'<PuzzleSession {self.name}>'
-
-
-class FileNode(db.Model):
-    __tablename__ = 'file_nodes'
-
-    sha256 = db.Column(db.String(64), primary_key=True)
-    path = db.Column(db.String, nullable=False)
-    description = db.Column(db.String)
-    file_type = db.Column(db.String)
-    mime_type = db.Column(db.String)
-    size_bytes = db.Column(db.Integer)
-    creation_date = db.Column(db.DateTime)
-    modification_date = db.Column(db.DateTime)
-    entropy = db.Column(db.Float)
-    imported_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationships
-    sessions = db.relationship('PuzzleSession', secondary=table_puzzle_files, back_populates='files')
-    parent_derivations = db.relationship('FileDerivation', foreign_keys='FileDerivation.child_sha',
-                                         back_populates='child')
-    child_derivations = db.relationship('FileDerivation', foreign_keys='FileDerivation.parent_sha',
-                                        back_populates='parent')
-    annotations = db.relationship('Annotation', back_populates='file', lazy='dynamic')
-
-    def __repr__(self):
-        return f'<FileNode {self.sha256[:8]}...>'
-
-
-class FileDerivation(db.Model):
-    __tablename__ = 'file_derivations'
-
-    id = db.Column(db.Integer, primary_key=True)
-    parent_sha = db.Column(db.String(64), db.ForeignKey('file_nodes.sha256'), nullable=False)
-    child_sha = db.Column(db.String(64), db.ForeignKey('file_nodes.sha256'), nullable=False)
-    operation = db.Column(db.String(100))
-    tool = db.Column(db.String(100))
-    parameters = db.Column(db.Text)
-    confidence = db.Column(db.Float, default=1.0)
-    discovered_at = db.Column(db.DateTime, default=datetime.utcnow)
-    discovered_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-
-    # Relationships
-    parent = db.relationship('FileNode', foreign_keys=[parent_sha], back_populates='child_derivations')
-    child = db.relationship('FileNode', foreign_keys=[child_sha], back_populates='parent_derivations')
-
-    __table_args__ = (db.UniqueConstraint('parent_sha', 'child_sha'),)
-
-    def __repr__(self):
-        return f'<FileDerivation {self.parent_sha[:8]}...→{self.child_sha[:8]}...>'
-
-
-class Annotation(db.Model):
-    __tablename__ = 'annotations'
-
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text, nullable=False)
-    annotation_type = db.Column(db.String(50))  # 'note', 'finding', 'question', 'hypothesis'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Foreign keys
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    file_sha256 = db.Column(db.String(64), db.ForeignKey('file_nodes.sha256'))
-    session_id = db.Column(db.Integer, db.ForeignKey('puzzle_sessions.id'))
-
-    # Relationships
-    user = db.relationship('User', back_populates='annotations')
-    file = db.relationship('FileNode', back_populates='annotations')
-    session = db.relationship('PuzzleSession', back_populates='annotations')
-
-    def __repr__(self):
-        return f'<Annotation {self.id} by User {self.user_id}>'
-
-
-class BulkImport(db.Model):
-    __tablename__ = 'bulk_imports'
-
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(255))
-    total_files = db.Column(db.Integer, default=0)
-    successful_imports = db.Column(db.Integer, default=0)
-    failed_imports = db.Column(db.Integer, default=0)
-    status = db.Column(db.String(50), default='pending')
-    error_log = db.Column(db.Text)
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-
-    def __repr__(self):
-        return f'<BulkImport {self.filename}>'
-
-
-class FileAssignment(db.Model):
-    __tablename__ = 'file_assignments'
-
-    id = db.Column(db.Integer, primary_key=True)
-    file_sha256 = db.Column(db.String(64), db.ForeignKey('file_nodes.sha256'), nullable=False)
-    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    assigned_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(50), default='pending')
+    # Analysis metadata
+    analysis_metadata = db.Column(JSON, default=dict)
+    tags = db.Column(JSON, default=list)  # User-defined tags
     notes = db.Column(db.Text)
 
+    # Performance metrics
+    analysis_duration = db.Column(db.Float)  # seconds
+    processing_cost = db.Column(db.Float)  # AI processing cost
+
     # Relationships
-    file = db.relationship('FileNode', backref='assignments')
-    assignee = db.relationship('User', foreign_keys=[assigned_to], backref='received_assignments')
-    assigner = db.relationship('User', foreign_keys=[assigned_by], overlaps="assignments")
+    content_entries = db.relationship('FileContent', backref='file', lazy='dynamic', cascade='all, delete-orphan')
+    findings = db.relationship('Finding', backref='file', lazy='dynamic', cascade='all, delete-orphan')
+    vectors = db.relationship('Vector', backref='file', lazy='dynamic', cascade='all, delete-orphan')
+    child_files = db.relationship('AnalysisFile', backref=db.backref('parent_file', remote_side=[sha256_hash]),
+                                  lazy='dynamic')
 
-    def __repr__(self):
-        return f'<FileAssignment {self.file_sha256[:8]}... to User {self.assigned_to}>'
-
-
-# Analysis-related models
-class AnalysisFile(db.Model):
-    __tablename__ = 'analysis_files'
-
-    id = db.Column(db.Integer, primary_key=True)
-    sha256_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    filename = db.Column(db.String(255), nullable=False)
-    filepath = db.Column(db.String(512))
-    file_size = db.Column(db.Integer)
-    file_type = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    priority = db.Column(db.Integer, default=5)
-    status = db.Column(db.String(50), default='pending')
-    discovered_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    is_root_file = db.Column(db.Boolean, default=False)
-    node_color = db.Column(db.String(7), default='#gray')
-    meta_data = db.Column(JSON)
-
-    # FIXED: Added missing fields
-    md5_hash = db.Column(db.String(32))
-    parent_file_sha = db.Column(db.String(64))
-    extraction_method = db.Column(db.String(100))
-    depth_level = db.Column(db.Integer, default=0)
-
-    # FIXED: Added missing static methods
-    @staticmethod
-    def calculate_sha256(filepath):
-        """Calculate SHA256 hash of a file"""
-        if not os.path.exists(filepath):
-            return None
-
-        sha256_hash = hashlib.sha256()
-        try:
-            with open(filepath, "rb") as f:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            return sha256_hash.hexdigest()
-        except Exception as e:
-            print(f"Error calculating SHA256 for {filepath}: {e}")
-            return None
-
-    @staticmethod
-    def find_by_sha(sha256_hash):
+    @classmethod
+    def find_by_sha(cls, sha256: str) -> Optional['AnalysisFile']:
         """Find file by SHA256 hash"""
-        return AnalysisFile.query.filter_by(sha256_hash=sha256_hash).first()
+        return cls.query.filter_by(sha256_hash=sha256).first()
 
-    # FIXED: Added missing instance methods
-    def get_parents(self):
-        """Get parent files (files this was derived from)"""
-        # Simple implementation - could be enhanced with actual derivation relationships
-        if self.parent_file_sha:
-            parent = AnalysisFile.find_by_sha(self.parent_file_sha)
-            return [parent] if parent else []
-        return []
+    @classmethod
+    def find_by_public_id(cls, public_id: str) -> Optional['AnalysisFile']:
+        """Find file by public ID"""
+        try:
+            return cls.query.filter_by(public_id=uuid.UUID(public_id)).first()
+        except ValueError:
+            return None
 
-    def get_children(self):
-        """Get child files (files derived from this)"""
-        # Simple implementation - could be enhanced with actual derivation relationships
-        return AnalysisFile.query.filter_by(parent_file_sha=self.sha256_hash).all()
+    @validates('filename')
+    def validate_filename(self, key, filename):
+        """Validate and sanitize filename"""
+        if not filename or len(filename.strip()) == 0:
+            raise ValueError("Filename cannot be empty")
+        # Remove directory traversal attempts
+        import os
+        clean_name = os.path.basename(filename.strip())
+        if len(clean_name) > 255:
+            clean_name = clean_name[:255]
+        return clean_name
+
+    @validates('priority')
+    def validate_priority(self, key, priority):
+        """Validate priority range"""
+        if not isinstance(priority, int) or priority < 1 or priority > 10:
+            raise ValueError("Priority must be integer between 1-10")
+        return priority
+
+    def mark_as_analyzed(self, user_id: int, duration: float = None, cost: float = None):
+        """Mark file as analyzed"""
+        self.status = FileStatus.COMPLETE
+        self.analyzed_at = datetime.utcnow()
+        self.analyzed_by = user_id
+        if duration:
+            self.analysis_duration = duration
+        if cost:
+            self.processing_cost = cost
+
+    def add_tag(self, tag: str):
+        """Add tag to file"""
+        if not self.tags:
+            self.tags = []
+        tag = tag.strip().lower()
+        if tag and tag not in self.tags:
+            self.tags.append(tag)
+
+    def remove_tag(self, tag: str):
+        """Remove tag from file"""
+        if self.tags and tag in self.tags:
+            self.tags.remove(tag)
+
+    @hybrid_property
+    def file_size_human(self):
+        """Human readable file size"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if self.file_size < 1024.0:
+                return f"{self.file_size:.1f} {unit}"
+            self.file_size /= 1024.0
+        return f"{self.file_size:.1f} PB"
+
+    @hybrid_property
+    def has_content(self):
+        """Check if file has any content entries"""
+        return self.content_entries.count() > 0
+
+    @hybrid_property
+    def has_findings(self):
+        """Check if file has any findings"""
+        return self.findings.count() > 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert file to dictionary"""
+        return {
+            'id': self.public_id.hex,
+            'filename': self.filename,
+            'file_size': self.file_size,
+            'file_size_human': self.file_size_human,
+            'file_type': self.file_type,
+            'mime_type': self.mime_type,
+            'sha256_hash': self.sha256_hash,
+            'status': self.status.value,
+            'priority': self.priority,
+            'confidence_score': self.confidence_score,
+            'is_root_file': self.is_root_file,
+            'is_encrypted': self.is_encrypted,
+            'contains_crypto': self.contains_crypto,
+            'created_at': self.created_at.isoformat(),
+            'analyzed_at': self.analyzed_at.isoformat() if self.analyzed_at else None,
+            'tags': self.tags or [],
+            'notes': self.notes,
+            'content_count': self.content_entries.count(),
+            'findings_count': self.findings.count(),
+            'creator': self.creator.username if self.creator else None
+        }
 
     def __repr__(self):
-        return f'<AnalysisFile {self.filename}>'
+        return f'<AnalysisFile {self.filename}({self.status.value})>'
 
 
 class FileContent(db.Model):
-    __tablename__ = 'file_contents'
+    """File content storage with multiple content types"""
+    __tablename__ = 'file_content'
+    __table_args__ = (
+        Index('idx_content_file_type', 'file_id', 'content_type'),
+        Index('idx_content_extracted', 'extracted_at'),
+        Index('idx_content_size', 'content_size'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    content_type = db.Column(db.String(50))
-    content_text = db.Column(db.Text)
-    content_bytes = db.Column(db.LargeBinary)
-    content_size = db.Column(db.Integer)
-    extracted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False, index=True)
+
+    # Content classification
+    content_type = db.Column(db.String(50), nullable=False, index=True)  # text, binary, hex, etc.
+    content_format = db.Column(db.String(20), default='text')  # text, json, binary
+    encoding = db.Column(db.String(20), default='utf-8')
+
+    # Content storage
+    content_text = db.Column(db.Text)  # For text content
+    content_bytes = db.Column(db.LargeBinary)  # For binary content
+    content_json = db.Column(JSON)  # For structured content
+    content_size = db.Column(db.Integer, nullable=False, index=True)
+
+    # Content metadata
+    checksum = db.Column(db.String(64))  # SHA256 of content
+    compression_used = db.Column(db.Boolean, default=False)
+    is_truncated = db.Column(db.Boolean, default=False)
+    truncated_at = db.Column(db.Integer)  # Byte position where truncated
+
+    # Extraction information
+    extracted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    extracted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    extraction_method = db.Column(db.String(50))  # manual, auto, ai, etc.
+    extraction_metadata = db.Column(JSON, default=dict)
+
+    # Quality metrics
+    confidence_score = db.Column(db.Float, default=1.0)
+    quality_score = db.Column(db.Float, default=1.0)
+
+    @validates('content_type')
+    def validate_content_type(self, key, content_type):
+        """Validate content type"""
+        valid_types = [
+            'raw_binary', 'extracted_text', 'hex_dump', 'strings_output',
+            'crypto_analysis', 'llm_analysis', 'metadata', 'exif_data',
+            'archive_listing', 'disassembly', 'network_data', 'registry_data'
+        ]
+        if content_type not in valid_types:
+            raise ValueError(f"Invalid content type: {content_type}")
+        return content_type
+
+    def get_content(self) -> Union[str, bytes, dict]:
+        """Get content in appropriate format"""
+        if self.content_format == 'json' and self.content_json is not None:
+            return self.content_json
+        elif self.content_format == 'binary' and self.content_bytes is not None:
+            return self.content_bytes
+        else:
+            return self.content_text or ""
+
+    def set_content(self, content: Union[str, bytes, dict], content_format: str = None):
+        """Set content with automatic format detection"""
+        if isinstance(content, dict):
+            self.content_json = content
+            self.content_format = 'json'
+            self.content_size = len(str(content))
+        elif isinstance(content, bytes):
+            self.content_bytes = content
+            self.content_format = 'binary'
+            self.content_size = len(content)
+        else:
+            self.content_text = str(content)
+            self.content_format = 'text'
+            self.content_size = len(self.content_text)
+
+        # Generate checksum
+        content_str = str(content).encode('utf-8') if not isinstance(content, bytes) else content
+        self.checksum = hashlib.sha256(content_str).hexdigest()
 
     def __repr__(self):
-        return f'<FileContent {self.content_type} for file_id={self.file_id}>'
-
-
-class Vector(db.Model):
-    __tablename__ = 'vectors'
-
-    id = db.Column(db.Integer, primary_key=True)
-    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    vector_type = db.Column(db.String(50))
-    vector_data = db.Column(JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationship
-    file = db.relationship('AnalysisFile', backref='vectors')
-
-    def __repr__(self):
-        return f'<Vector {self.vector_type} for file_id={self.file_id}>'
+        return f'<FileContent {self.content_type}({self.content_size} bytes)>'
 
 
 class Finding(db.Model):
+    """Analysis findings with classification and validation"""
     __tablename__ = 'findings'
+    __table_args__ = (
+        Index('idx_finding_file_type', 'file_id', 'finding_type'),
+        Index('idx_finding_status_confidence', 'status', 'confidence_level'),
+        Index('idx_finding_created', 'created_at'),
+        Index('idx_finding_priority', 'priority'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    vector_id = db.Column(db.Integer, db.ForeignKey('vectors.id'))
-    analyst_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    finding_type = db.Column(db.String(100))
-    title = db.Column(db.String(255))
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False, index=True)
+
+    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False, index=True)
+
+    # Finding classification
+    finding_type = db.Column(db.String(50), nullable=False, index=True)
+    category = db.Column(db.String(50), index=True)
+    title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
-    confidence = db.Column(db.Float, default=0.5)
-    confidence_level = db.Column(db.Integer, default=5)
-    technical_details = db.Column(db.Text)
-    extracted_data = db.Column(db.Text)
-    next_steps = db.Column(db.Text)
-    impact_level = db.Column(db.String(20), default='low')
-    is_breakthrough = db.Column(db.Boolean, default=False)
-    status = db.Column(db.String(50), default='pending')
-    meta_data = db.Column(JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
-    # Relationships
-    file = db.relationship('AnalysisFile', backref='findings')
-    vector = db.relationship('Vector', backref='findings')
-    analyst = db.relationship('User', foreign_keys=[analyst_id])
+    # Location information
+    byte_offset = db.Column(db.BigInteger)
+    byte_length = db.Column(db.Integer)
+    line_number = db.Column(db.Integer)
+    context = db.Column(db.Text)
+
+    # Classification and validation
+    status = db.Column(db.Enum(FindingStatus), default=FindingStatus.UNVERIFIED, nullable=False, index=True)
+    confidence_level = db.Column(db.Integer, default=5, nullable=False, index=True)  # 1-10
+    priority = db.Column(db.Integer, default=5, nullable=False, index=True)  # 1-10
+    severity = db.Column(db.String(20), default='medium')  # low, medium, high, critical
+
+    # Content and evidence
+    evidence_data = db.Column(JSON, default=dict)
+    raw_data = db.Column(db.Text)
+    pattern_matched = db.Column(db.String(255))
+
+    # Analysis metadata
+    analysis_method = db.Column(db.String(50))  # regex, ai, manual, etc.
+    analysis_metadata = db.Column(JSON, default=dict)
+    false_positive_reason = db.Column(db.Text)
+
+    # Timestamps and tracking
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    validated_at = db.Column(db.DateTime)
+
+    # User tracking
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    validated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Quality metrics
+    user_rating = db.Column(db.Integer)  # 1-5 user rating
+    ai_confidence = db.Column(db.Float)  # AI model confidence
+
+    @validates('confidence_level')
+    def validate_confidence(self, key, confidence):
+        """Validate confidence level"""
+        if not isinstance(confidence, int) or confidence < 1 or confidence > 10:
+            raise ValueError("Confidence level must be integer between 1-10")
+        return confidence
+
+    @validates('priority')
+    def validate_priority(self, key, priority):
+        """Validate priority"""
+        if not isinstance(priority, int) or priority < 1 or priority > 10:
+            raise ValueError("Priority must be integer between 1-10")
+        return priority
+
+    @validates('severity')
+    def validate_severity(self, key, severity):
+        """Validate severity"""
+        valid_severities = ['low', 'medium', 'high', 'critical']
+        if severity not in valid_severities:
+            raise ValueError(f"Severity must be one of: {valid_severities}")
+        return severity
+
+    def mark_as_confirmed(self, user_id: int, notes: str = None):
+        """Mark finding as confirmed"""
+        self.status = FindingStatus.CONFIRMED
+        self.validated_by = user_id
+        self.validated_at = datetime.utcnow()
+        if notes:
+            self.description += f"\n\nValidation Notes: {notes}"
+
+    def mark_as_false_positive(self, user_id: int, reason: str):
+        """Mark finding as false positive"""
+        self.status = FindingStatus.FALSE_POSITIVE
+        self.validated_by = user_id
+        self.validated_at = datetime.utcnow()
+        self.false_positive_reason = reason
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert finding to dictionary"""
+        return {
+            'id': self.public_id.hex,
+            'finding_type': self.finding_type,
+            'category': self.category,
+            'title': self.title,
+            'description': self.description,
+            'status': self.status.value,
+            'confidence_level': self.confidence_level,
+            'priority': self.priority,
+            'severity': self.severity,
+            'byte_offset': self.byte_offset,
+            'byte_length': self.byte_length,
+            'context': self.context,
+            'evidence_data': self.evidence_data,
+            'analysis_method': self.analysis_method,
+            'created_at': self.created_at.isoformat(),
+            'validated_at': self.validated_at.isoformat() if self.validated_at else None,
+            'creator': self.creator_user.username if self.creator_user else None
+        }
 
     def __repr__(self):
-        return f'<Finding {self.title}>'
+        return f'<Finding {self.finding_type}({self.status.value})>'
 
 
-class RegionOfInterest(db.Model):
-    __tablename__ = 'regions_of_interest'
+class Vector(db.Model):
+    """Vector embeddings for semantic search"""
+    __tablename__ = 'vectors'
+    __table_args__ = (
+        Index('idx_vector_file_type', 'file_id', 'vector_type'),
+        Index('idx_vector_created', 'created_at'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    start_offset = db.Column(db.Integer)
-    end_offset = db.Column(db.Integer)
-    region_type = db.Column(db.String(50))
+    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Vector information
+    vector_type = db.Column(db.String(50), nullable=False, index=True)  # content, filename, metadata
+    embedding_model = db.Column(db.String(50), nullable=False)  # openai, sentence-transformers, etc.
+    vector_data = db.Column(JSON, nullable=False)  # The actual vector
+    dimension = db.Column(db.Integer, nullable=False)
+
+    # Source information
+    source_text = db.Column(db.Text)
+    source_metadata = db.Column(JSON, default=dict)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Vector {self.vector_type}({self.dimension}D)>'
+
+
+class ApiKey(db.Model):
+    """API key management for users"""
+    __tablename__ = 'api_keys'
+    __table_args__ = (
+        Index('idx_apikey_user_active', 'user_id', 'is_active'),
+        Index('idx_apikey_hash', 'key_hash'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Key information
+    name = db.Column(db.String(100), nullable=False)
+    key_hash = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    key_prefix = db.Column(db.String(8), nullable=False)  # First 8 chars for identification
+
+    # Status and permissions
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    permissions = db.Column(JSON, default=list)  # List of allowed endpoints/actions
+    rate_limit = db.Column(db.Integer, default=1000)  # Requests per hour
+
+    # Usage tracking
+    last_used = db.Column(db.DateTime)
+    usage_count = db.Column(db.Integer, default=0, nullable=False)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime)
+
+    def is_expired(self) -> bool:
+        """Check if API key is expired"""
+        return self.expires_at and self.expires_at < datetime.utcnow()
+
+    def __repr__(self):
+        return f'<ApiKey {self.name}({self.key_prefix}...)>'
+
+
+class AuditLog(db.Model):
+    """Audit log for security and compliance"""
+    __tablename__ = 'audit_logs'
+    __table_args__ = (
+        Index('idx_audit_user_action', 'user_id', 'action'),
+        Index('idx_audit_timestamp', 'timestamp'),
+        Index('idx_audit_ip', 'ip_address'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+
+    # Action information
+    action = db.Column(db.String(100), nullable=False, index=True)
+    resource_type = db.Column(db.String(50))
+    resource_id = db.Column(db.String(100))
     description = db.Column(db.Text)
-    meta_data = db.Column(JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationship
-    file = db.relationship('AnalysisFile', backref='regions')
+    # Request context
+    ip_address = db.Column(db.String(45), index=True)  # IPv6 compatible
+    user_agent = db.Column(db.Text)
+    request_id = db.Column(db.String(36))
 
-    def __repr__(self):
-        return f'<RegionOfInterest {self.region_type} in file_id={self.file_id}>'
+    # Result information
+    success = db.Column(db.Boolean, nullable=False, index=True)
+    error_message = db.Column(db.Text)
+    metadata = db.Column(JSON, default=dict)
 
+    # Timestamp
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-class Attachment(db.Model):
-    __tablename__ = 'attachments'
-
-    id = db.Column(db.Integer, primary_key=True)
-    finding_id = db.Column(db.Integer, db.ForeignKey('findings.id'), nullable=False)
-    filename = db.Column(db.String(255))
-    filepath = db.Column(db.String(512))
-    file_type = db.Column(db.String(100))
-    description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationship
-    finding = db.relationship('Finding', backref='attachments')
-
-    def __repr__(self):
-        return f'<Attachment {self.filename}>'
-
-
-# Combination-related models (for steganography analysis)
-class CombinationSource(db.Model):
-    __tablename__ = 'combination_sources'
-
-    id = db.Column(db.Integer, primary_key=True)
-    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    source_type = db.Column(db.String(50))
-    source_data = db.Column(JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    @classmethod
+    def log_action(cls, user_id: int, action: str, description: str = None,
+                   resource_type: str = None, resource_id: str = None,
+                   success: bool = True, error_message: str = None,
+                   ip_address: str = None, metadata: dict = None):
+        """Create audit log entry"""
+        log_entry = cls(
+            user_id=user_id,
+            action=action,
+            description=description,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            success=success,
+            error_message=error_message,
+            ip_address=ip_address,
+            metadata=metadata or {}
+        )
+        db.session.add(log_entry)
+        return log_entry
 
     def __repr__(self):
-        return f'<CombinationSource {self.source_type}>'
+        return f'<AuditLog {self.action}({self.timestamp})>'
 
 
-class CombinationRelationship(db.Model):
-    __tablename__ = 'combination_relationships'
-
-    id = db.Column(db.Integer, primary_key=True)
-    source1_id = db.Column(db.Integer, db.ForeignKey('combination_sources.id'), nullable=False)
-    source2_id = db.Column(db.Integer, db.ForeignKey('combination_sources.id'), nullable=False)
-    relationship_type = db.Column(db.String(50))
-    confidence = db.Column(db.Float, default=0.5)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f'<CombinationRelationship {self.relationship_type}>'
+# Database event handlers for automatic updates
+@event.listens_for(User, 'before_update')
+def user_before_update(mapper, connection, target):
+    """Update user timestamps and validation"""
+    target.updated_at = datetime.utcnow()
 
 
-class ExtractionRelationship(db.Model):
-    __tablename__ = 'extraction_relationships'
+@event.listens_for(AnalysisFile, 'before_update')
+def file_before_update(mapper, connection, target):
+    """Update file timestamps"""
+    target.updated_at = datetime.utcnow()
 
-    id = db.Column(db.Integer, primary_key=True)
-    parent_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    child_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
-    extraction_method = db.Column(db.String(100))
-    extraction_tool = db.Column(db.String(100))
-    extraction_parameters = db.Column(db.Text)
-    confidence = db.Column(db.Float, default=1.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def __repr__(self):
-        return f'<ExtractionRelationship {self.extraction_method}>'
+@event.listens_for(Finding, 'before_update')
+def finding_before_update(mapper, connection, target):
+    """Update finding timestamps"""
+    target.updated_at = datetime.utcnow()
+
+
+# Create all indexes after model definitions
+def create_indexes():
+    """Create additional performance indexes"""
+    try:
+        # Full-text search indexes (PostgreSQL specific)
+        db.engine.execute(text('''
+                               CREATE INDEX IF NOT EXISTS idx_files_fulltext
+                                   ON analysis_files USING gin(to_tsvector('english', filename || ' ' || COALESCE (notes, '')))
+                               '''))
+
+        db.engine.execute(text('''
+                               CREATE INDEX IF NOT EXISTS idx_findings_fulltext
+                                   ON findings USING gin(to_tsvector('english', title || ' ' || COALESCE (description, '')))
+                               '''))
+    except Exception as e:
+        # Fallback for SQLite or other databases
+        pass
+
+
+# Export all models
+__all__ = [
+    'User', 'AnalysisFile', 'FileContent', 'Finding', 'Vector',
+    'ApiKey', 'AuditLog', 'UserLevel', 'FileStatus', 'FindingStatus'
+]

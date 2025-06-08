@@ -7,7 +7,7 @@ import os
 from crypto_hunter_web.models import db
 from crypto_hunter_web.models import AnalysisFile
 from crypto_hunter_web.models import ExtractionRelationship
-from crypto_hunter_web.extractors import get_extractor
+from crypto_hunter_web.services.extractors import get_extractor
 
 class ExtractionEngine:
     """Orchestrate steganography extraction operations"""

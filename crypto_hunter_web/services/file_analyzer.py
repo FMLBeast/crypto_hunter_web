@@ -10,7 +10,6 @@ import hashlib
 import re
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
-import magic
 from contextlib import contextmanager
 from datetime import datetime
 

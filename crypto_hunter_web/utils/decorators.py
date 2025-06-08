@@ -1,216 +1,727 @@
-"""
-Custom decorators for enhanced functionality
-"""
+# crypto_hunter_web/utils/decorators.py - COMPLETE DECORATOR UTILITIES
 
-import functools
 import time
-import hashlib
-from collections import defaultdict, deque
-from flask import request, jsonify, session
+import json
+import logging
+import functools
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Callable, Union
+from flask import request, jsonify, current_app, g, session, make_response
+from flask_login import current_user
+import redis
+from werkzeug.exceptions import TooManyRequests
 
-# Rate limiting storage
-rate_limit_storage = defaultdict(deque)
+from crypto_hunter_web.models import db, AuditLog, ApiKey
+from crypto_hunter_web.services.security_service import SecurityService
 
-# Cache storage
-cache_storage = {}
+logger = logging.getLogger(__name__)
 
-def rate_limit(max_requests=100, window_seconds=3600, per_user=True):
-    """Rate limiting decorator"""
+
+class RateLimitExceeded(Exception):
+    """Rate limit exceeded exception"""
+
+    def __init__(self, limit: int, window: int, retry_after: int = None):
+        self.limit = limit
+        self.window = window
+        self.retry_after = retry_after
+        super().__init__(f"Rate limit exceeded: {limit} requests per {window} seconds")
+
+
+def rate_limit(limit: str = "100 per hour", per_user: bool = True,
+               key_func: Callable = None, methods: List[str] = None):
+    """
+    Rate limiting decorator with flexible configuration
+
+    Args:
+        limit: Rate limit string like "10 per minute", "100 per hour"
+        per_user: Whether to apply limit per user or globally
+        key_func: Custom function to generate rate limit key
+        methods: HTTP methods to apply rate limiting to
+    """
+
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
-            # Determine the key for rate limiting
-            if per_user and 'user_id' in session:
-                key = f"user_{session['user_id']}"
+            # Check if rate limiting should be applied
+            if methods and request.method not in methods:
+                return f(*args, **kwargs)
+
+            # Parse rate limit
+            try:
+                rate_parts = limit.split()
+                rate_count = int(rate_parts[0])
+                rate_period = rate_parts[2]  # per minute/hour/day
+
+                # Convert to seconds
+                period_map = {
+                    'second': 1, 'seconds': 1,
+                    'minute': 60, 'minutes': 60,
+                    'hour': 3600, 'hours': 3600,
+                    'day': 86400, 'days': 86400
+                }
+
+                window_seconds = period_map.get(rate_period, 3600)
+
+            except (ValueError, IndexError, KeyError):
+                logger.error(f"Invalid rate limit format: {limit}")
+                return f(*args, **kwargs)
+
+            # Generate rate limit key
+            if key_func:
+                rate_key = key_func()
+            elif per_user and current_user.is_authenticated:
+                rate_key = f"rate_limit:user:{current_user.id}:{request.endpoint}"
             else:
-                key = request.remote_addr
-            
-            now = time.time()
-            window_start = now - window_seconds
-            
-            # Clean old entries
-            while rate_limit_storage[key] and rate_limit_storage[key][0] < window_start:
-                rate_limit_storage[key].popleft()
-            
-            # Check if limit exceeded
-            if len(rate_limit_storage[key]) >= max_requests:
-                return jsonify({
+                rate_key = f"rate_limit:ip:{request.remote_addr}:{request.endpoint}"
+
+            # Check rate limit
+            allowed, info = SecurityService.check_rate_limit(
+                rate_key, rate_count, window_seconds
+            )
+
+            if not allowed:
+                # Log rate limit violation
+                AuditLog.log_action(
+                    user_id=current_user.id if current_user.is_authenticated else None,
+                    action='rate_limit_exceeded',
+                    description=f'Rate limit exceeded for {request.endpoint}',
+                    ip_address=request.remote_addr,
+                    success=False,
+                    metadata={
+                        'rate_limit': limit,
+                        'endpoint': request.endpoint,
+                        'method': request.method
+                    }
+                )
+
+                # Return rate limit error
+                response = jsonify({
                     'error': 'Rate limit exceeded',
-                    'retry_after': int(rate_limit_storage[key][0] + window_seconds - now)
-                }), 429
-            
-            # Add current request
-            rate_limit_storage[key].append(now)
-            
-            return f(*args, **kwargs)
+                    'message': f'Maximum {rate_count} requests per {rate_period}',
+                    'retry_after': info.get('retry_after', window_seconds)
+                })
+                response.status_code = 429
+                response.headers['Retry-After'] = str(info.get('retry_after', window_seconds))
+                response.headers['X-RateLimit-Limit'] = str(rate_count)
+                response.headers['X-RateLimit-Remaining'] = '0'
+                response.headers['X-RateLimit-Reset'] = str(int(time.time()) + window_seconds)
+
+                return response
+
+            # Add rate limit headers to successful responses
+            response = make_response(f(*args, **kwargs))
+            response.headers['X-RateLimit-Limit'] = str(rate_count)
+            response.headers['X-RateLimit-Remaining'] = str(info.get('remaining', rate_count))
+            response.headers['X-RateLimit-Reset'] = str(int(time.time()) + window_seconds)
+
+            return response
+
         return decorated_function
+
     return decorator
 
-def cache_result(timeout_seconds=300, key_func=None):
-    """Cache function results"""
+
+def require_api_key(permissions: List[str] = None, optional: bool = False):
+    """
+    Require valid API key for endpoint access
+
+    Args:
+        permissions: Required permissions for the API key
+        optional: If True, API key is optional but will be validated if provided
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Get API key from header
+            api_key = request.headers.get('X-API-Key') or request.headers.get('Authorization', '').replace('Bearer ',
+                                                                                                           '')
+
+            if not api_key:
+                if optional:
+                    g.api_key = None
+                    return f(*args, **kwargs)
+
+                return jsonify({
+                    'error': 'API key required',
+                    'message': 'Provide API key in X-API-Key header'
+                }), 401
+
+            # Validate API key
+            api_key_obj = SecurityService.validate_api_key(api_key)
+            if not api_key_obj:
+                return jsonify({
+                    'error': 'Invalid API key',
+                    'message': 'API key is invalid or expired'
+                }), 401
+
+            # Check permissions
+            if permissions:
+                key_permissions = api_key_obj.permissions or []
+                if not any(perm in key_permissions for perm in permissions):
+                    return jsonify({
+                        'error': 'Insufficient permissions',
+                        'message': f'API key requires permissions: {permissions}'
+                    }), 403
+
+            # Store API key in request context
+            g.api_key = api_key_obj
+            g.api_user = api_key_obj.user
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def api_endpoint(require_json: bool = False, validate_schema: Dict = None,
+                 max_content_length: int = None):
+    """
+    Mark function as API endpoint with automatic JSON handling
+
+    Args:
+        require_json: Whether request must contain JSON
+        validate_schema: JSON schema to validate against
+        max_content_length: Maximum request content length
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check content length
+            if max_content_length and request.content_length:
+                if request.content_length > max_content_length:
+                    return jsonify({
+                        'error': 'Request too large',
+                        'message': f'Maximum content length is {max_content_length} bytes'
+                    }), 413
+
+            # Check for JSON requirement
+            if require_json:
+                if not request.is_json:
+                    return jsonify({
+                        'error': 'JSON required',
+                        'message': 'Request must contain JSON data'
+                    }), 400
+
+                # Validate JSON schema
+                if validate_schema:
+                    try:
+                        data = request.get_json()
+                        # Simple schema validation (in production, use jsonschema library)
+                        if 'required' in validate_schema:
+                            for field in validate_schema['required']:
+                                if field not in data:
+                                    return jsonify({
+                                        'error': 'Validation error',
+                                        'message': f'Missing required field: {field}'
+                                    }), 400
+
+                        if 'properties' in validate_schema:
+                            for field, field_schema in validate_schema['properties'].items():
+                                if field in data and 'type' in field_schema:
+                                    expected_type = field_schema['type']
+                                    actual_value = data[field]
+
+                                    # Type checking
+                                    type_map = {
+                                        'string': str,
+                                        'integer': int,
+                                        'number': (int, float),
+                                        'boolean': bool,
+                                        'array': list,
+                                        'object': dict
+                                    }
+
+                                    if expected_type in type_map:
+                                        if not isinstance(actual_value, type_map[expected_type]):
+                                            return jsonify({
+                                                'error': 'Validation error',
+                                                'message': f'Field {field} must be of type {expected_type}'
+                                            }), 400
+
+                    except Exception as e:
+                        return jsonify({
+                            'error': 'JSON parsing error',
+                            'message': str(e)
+                        }), 400
+
+            # Set API response headers
+            response = f(*args, **kwargs)
+
+            if hasattr(response, 'headers'):
+                response.headers['Content-Type'] = 'application/json'
+                response.headers['X-API-Version'] = '1.0'
+                response.headers['X-Request-ID'] = getattr(g, 'request_id', 'unknown')
+
+            return response
+
+        return decorated_function
+
+    return decorator
+
+
+def require_permissions(*permissions):
+    """
+    Require specific permissions for endpoint access
+
+    Args:
+        permissions: Required permission strings
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({
+                    'error': 'Authentication required',
+                    'message': 'Please log in to access this resource'
+                }), 401
+
+            # Check if user has required permissions
+            for permission in permissions:
+                resource, action = permission.split(':', 1) if ':' in permission else (permission, 'read')
+
+                if not SecurityService.check_permission(current_user, resource, action):
+                    return jsonify({
+                        'error': 'Insufficient permissions',
+                        'message': f'Permission required: {permission}'
+                    }), 403
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def admin_required(f):
+    """Require admin privileges"""
+
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return jsonify({
+                'error': 'Authentication required',
+                'message': 'Please log in to access this resource'
+            }), 401
+
+        if not current_user.is_admin:
+            return jsonify({
+                'error': 'Admin access required',
+                'message': 'This resource requires administrator privileges'
+            }), 403
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def cache_response(timeout: int = 300, key_func: Callable = None,
+                   vary_on_user: bool = False, cache_empty: bool = False):
+    """
+    Cache response for specified timeout
+
+    Args:
+        timeout: Cache timeout in seconds
+        key_func: Custom function to generate cache key
+        vary_on_user: Whether to include user ID in cache key
+        cache_empty: Whether to cache empty/null responses
+    """
+
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
             # Generate cache key
             if key_func:
-                cache_key = key_func(*args, **kwargs)
+                cache_key = key_func()
             else:
-                key_data = f"{f.__name__}_{str(args)}_{str(sorted(kwargs.items()))}"
-                cache_key = hashlib.md5(key_data.encode()).hexdigest()
-            
-            # Check cache
-            if cache_key in cache_storage:
-                cached_result, timestamp = cache_storage[cache_key]
-                if time.time() - timestamp < timeout_seconds:
-                    return cached_result
-            
-            # Compute result and cache it
-            result = f(*args, **kwargs)
-            cache_storage[cache_key] = (result, time.time())
-            
-            # Clean old cache entries periodically
-            if len(cache_storage) > 1000:
-                _clean_cache()
-            
-            return result
-        return decorated_function
-    return decorator
+                base_key = f"cache:{request.endpoint}:{request.method}"
 
-def _clean_cache():
-    """Clean expired cache entries"""
-    current_time = time.time()
-    expired_keys = []
-    
-    for key, (_, timestamp) in cache_storage.items():
-        if current_time - timestamp > 3600:  # 1 hour max
-            expired_keys.append(key)
-    
-    for key in expired_keys:
-        del cache_storage[key]
+                # Include query parameters
+                if request.args:
+                    query_string = "&".join(f"{k}={v}" for k, v in sorted(request.args.items()))
+                    base_key += f":{query_string}"
 
-def require_permission(permission):
-    """Require specific permission for access"""
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'user_id' not in session:
-                return jsonify({'error': 'Authentication required'}), 401
-            
-            from crypto_hunter_web import User
-            user = User.query.get(session['user_id'])
-            
-            if not user:
-                return jsonify({'error': 'User not found'}), 401
-            
-            # Check permissions based on user role
-            permissions = {
-                'admin': ['read', 'write', 'delete', 'admin'],
-                'expert': ['read', 'write', 'verify'],
-                'analyst': ['read', 'write']
-            }
-            
-            user_permissions = permissions.get(user.role, ['read'])
-            
-            if permission not in user_permissions:
-                return jsonify({'error': 'Insufficient permissions'}), 403
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+                # Include user ID if required
+                if vary_on_user and current_user.is_authenticated:
+                    base_key += f":user:{current_user.id}"
 
-def log_activity(action_type):
-    """Log user activity"""
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            from crypto_hunter_web.services import AuthService
-            
-            start_time = time.time()
-            
+                cache_key = base_key
+
+            # Try to get from cache
             try:
-                result = f(*args, **kwargs)
-                
-                # Log successful action
-                duration = time.time() - start_time
-                AuthService.log_action(
-                    action_type,
-                    f"Action completed in {duration:.2f}s",
-                    session.get('user_id')
-                )
-                
-                return result
-                
+                redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
+                cached_response = redis_client.get(cache_key)
+
+                if cached_response:
+                    response_data = json.loads(cached_response)
+                    response = jsonify(response_data)
+                    response.headers['X-Cache'] = 'HIT'
+                    return response
+
             except Exception as e:
-                # Log failed action
-                duration = time.time() - start_time
-                AuthService.log_action(
-                    f"{action_type}_failed",
-                    f"Action failed after {duration:.2f}s: {str(e)}",
-                    session.get('user_id')
-                )
-                raise
-                
-        return decorated_function
-    return decorator
+                logger.warning(f"Cache read failed: {e}")
 
-def validate_json_schema(schema):
-    """Validate JSON request against schema"""
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not request.is_json:
-                return jsonify({'error': 'Content-Type must be application/json'}), 400
-            
-            data = request.get_json()
-            
-            # Simple schema validation
-            for field, field_type in schema.items():
-                if field not in data:
-                    return jsonify({'error': f'Missing required field: {field}'}), 400
-                
-                if not isinstance(data[field], field_type):
-                    return jsonify({'error': f'Invalid type for field {field}'}), 400
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-def compress_response(min_size=1000):
-    """Compress large responses"""
-    def decorator(f):
-        @functools.wraps(f)
-        def decorated_function(*args, **kwargs):
+            # Execute function
             response = f(*args, **kwargs)
-            
-            # Simple compression hint for large responses
-            if hasattr(response, 'data') and len(response.data) > min_size:
-                response.headers['Vary'] = 'Accept-Encoding'
-            
+
+            # Cache response
+            try:
+                if hasattr(response, 'get_json'):
+                    response_data = response.get_json()
+
+                    # Check if we should cache empty responses
+                    if not cache_empty and not response_data:
+                        return response
+
+                    # Cache the response
+                    redis_client.setex(
+                        cache_key,
+                        timeout,
+                        json.dumps(response_data)
+                    )
+
+                    response.headers['X-Cache'] = 'MISS'
+
+            except Exception as e:
+                logger.warning(f"Cache write failed: {e}")
+
             return response
+
         return decorated_function
+
     return decorator
 
 
-def track_api_usage(f):
-    """Decorator to track API usage"""
+def measure_performance(track_db_queries: bool = True, log_slow: float = 1.0):
+    """
+    Measure and log endpoint performance
 
-    @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        start_time = time.time()
+    Args:
+        track_db_queries: Whether to track database query count
+        log_slow: Log requests slower than this many seconds
+    """
 
-        try:
-            result = f(*args, **kwargs)
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            start_time = time.time()
 
-            # Log successful API call
-            execution_time = time.time() - start_time
-            print(f"API: {f.__name__} completed in {execution_time:.3f}s")
+            # Track database queries if requested
+            if track_db_queries:
+                # This would integrate with SQLAlchemy events
+                # For now, we'll just track timing
+                g.query_count = 0
+                g.query_time = 0
 
-            return result
+            try:
+                # Execute function
+                result = f(*args, **kwargs)
 
-        except Exception as e:
-            # Log failed API call
-            execution_time = time.time() - start_time
-            print(f"API: {f.__name__} failed after {execution_time:.3f}s - {str(e)}")
-            raise
+                # Calculate performance metrics
+                end_time = time.time()
+                duration = end_time - start_time
 
-    return decorated_function
+                # Log performance
+                performance_data = {
+                    'endpoint': request.endpoint,
+                    'method': request.method,
+                    'duration': duration,
+                    'status_code': getattr(result, 'status_code', 200),
+                    'user_id': current_user.id if current_user.is_authenticated else None,
+                    'ip_address': request.remote_addr
+                }
+
+                if track_db_queries:
+                    performance_data.update({
+                        'db_queries': getattr(g, 'query_count', 0),
+                        'db_time': getattr(g, 'query_time', 0)
+                    })
+
+                # Log slow requests
+                if duration > log_slow:
+                    logger.warning(f"Slow request: {request.endpoint} took {duration:.2f}s",
+                                   extra=performance_data)
+
+                # Add performance headers
+                if hasattr(result, 'headers'):
+                    result.headers['X-Response-Time'] = f"{duration:.3f}s"
+                    if track_db_queries:
+                        result.headers['X-DB-Queries'] = str(getattr(g, 'query_count', 0))
+
+                return result
+
+            except Exception as e:
+                # Log error with performance data
+                end_time = time.time()
+                duration = end_time - start_time
+
+                logger.error(f"Endpoint error: {request.endpoint} failed after {duration:.2f}s: {e}",
+                             extra={'duration': duration, 'error': str(e)})
+                raise
+
+        return decorated_function
+
+    return decorator
+
+
+def validate_content_type(*allowed_types):
+    """
+    Validate request content type
+
+    Args:
+        allowed_types: Allowed content types (e.g., 'application/json')
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            if request.method in ['POST', 'PUT', 'PATCH']:
+                content_type = request.content_type
+
+                if not content_type:
+                    return jsonify({
+                        'error': 'Content-Type required',
+                        'message': 'Request must specify Content-Type header'
+                    }), 400
+
+                # Check against allowed types
+                content_type_base = content_type.split(';')[0].strip()
+                if content_type_base not in allowed_types:
+                    return jsonify({
+                        'error': 'Invalid Content-Type',
+                        'message': f'Allowed types: {", ".join(allowed_types)}'
+                    }), 415
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def log_api_access(include_request_body: bool = False, include_response: bool = False):
+    """
+    Log API access for audit purposes
+
+    Args:
+        include_request_body: Whether to log request body (be careful with sensitive data)
+        include_response: Whether to log response data
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Prepare audit data
+            audit_data = {
+                'endpoint': request.endpoint,
+                'method': request.method,
+                'url': request.url,
+                'args': dict(request.args),
+                'user_agent': request.headers.get('User-Agent'),
+                'referer': request.headers.get('Referer')
+            }
+
+            # Include request body if requested (and safe)
+            if include_request_body and request.is_json:
+                try:
+                    audit_data['request_body'] = request.get_json()
+                except Exception:
+                    audit_data['request_body'] = '<invalid json>'
+
+            start_time = datetime.utcnow()
+
+            try:
+                # Execute function
+                result = f(*args, **kwargs)
+
+                # Include response if requested
+                if include_response and hasattr(result, 'get_json'):
+                    try:
+                        audit_data['response'] = result.get_json()
+                    except Exception:
+                        audit_data['response'] = '<not json>'
+
+                # Log successful access
+                AuditLog.log_action(
+                    user_id=current_user.id if current_user.is_authenticated else None,
+                    action='api_access',
+                    description=f'API access: {request.method} {request.endpoint}',
+                    ip_address=request.remote_addr,
+                    success=True,
+                    metadata=audit_data
+                )
+
+                return result
+
+            except Exception as e:
+                # Log failed access
+                audit_data['error'] = str(e)
+
+                AuditLog.log_action(
+                    user_id=current_user.id if current_user.is_authenticated else None,
+                    action='api_access_failed',
+                    description=f'API access failed: {request.method} {request.endpoint}',
+                    ip_address=request.remote_addr,
+                    success=False,
+                    error_message=str(e),
+                    metadata=audit_data
+                )
+
+                raise
+
+        return decorated_function
+
+    return decorator
+
+
+def require_https(redirect: bool = False):
+    """
+    Require HTTPS for endpoint access
+
+    Args:
+        redirect: Whether to redirect HTTP to HTTPS (vs. return error)
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not request.is_secure and not current_app.debug:
+                if redirect:
+                    # Redirect to HTTPS
+                    url = request.url.replace('http://', 'https://', 1)
+                    return redirect(url, code=301)
+                else:
+                    return jsonify({
+                        'error': 'HTTPS required',
+                        'message': 'This endpoint requires HTTPS'
+                    }), 400
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def handle_exceptions(default_status: int = 500, log_errors: bool = True):
+    """
+    Handle exceptions with consistent error responses
+
+    Args:
+        default_status: Default HTTP status for unhandled exceptions
+        log_errors: Whether to log exceptions
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+
+            except ValueError as e:
+                if log_errors:
+                    logger.warning(f"ValueError in {request.endpoint}: {e}")
+                return jsonify({
+                    'error': 'Invalid input',
+                    'message': str(e)
+                }), 400
+
+            except PermissionError as e:
+                if log_errors:
+                    logger.warning(f"Permission error in {request.endpoint}: {e}")
+                return jsonify({
+                    'error': 'Permission denied',
+                    'message': 'Insufficient permissions'
+                }), 403
+
+            except FileNotFoundError as e:
+                if log_errors:
+                    logger.warning(f"File not found in {request.endpoint}: {e}")
+                return jsonify({
+                    'error': 'Resource not found',
+                    'message': 'Requested resource does not exist'
+                }), 404
+
+            except Exception as e:
+                if log_errors:
+                    logger.error(f"Unhandled exception in {request.endpoint}: {e}", exc_info=True)
+
+                # Don't expose internal errors in production
+                if current_app.debug:
+                    error_message = str(e)
+                else:
+                    error_message = 'An internal error occurred'
+
+                return jsonify({
+                    'error': 'Internal error',
+                    'message': error_message
+                }), default_status
+
+        return decorated_function
+
+    return decorator
+
+
+# Convenience decorators
+def json_api(require_auth: bool = True, rate_limit_val: str = "100 per hour"):
+    """Convenience decorator for JSON APIs"""
+
+    def decorator(f):
+        decorators = [
+            api_endpoint(require_json=True),
+            rate_limit(rate_limit_val),
+            handle_exceptions(),
+            measure_performance()
+        ]
+
+        if require_auth:
+            decorators.append(require_permissions('api:access'))
+
+        # Apply decorators in reverse order
+        for dec in reversed(decorators):
+            f = dec(f)
+
+        return f
+
+    return decorator
+
+
+def public_api(rate_limit_val: str = "1000 per hour"):
+    """Convenience decorator for public APIs"""
+
+    def decorator(f):
+        decorators = [
+            api_endpoint(),
+            rate_limit(rate_limit_val, per_user=False),
+            handle_exceptions(),
+            measure_performance()
+        ]
+
+        for dec in reversed(decorators):
+            f = dec(f)
+
+        return f
+
+    return decorator
+
+
+# Export all decorators
+__all__ = [
+    'rate_limit',
+    'require_api_key',
+    'api_endpoint',
+    'require_permissions',
+    'admin_required',
+    'cache_response',
+    'measure_performance',
+    'validate_content_type',
+    'log_api_access',
+    'require_https',
+    'handle_exceptions',
+    'json_api',
+    'public_api',
+    'RateLimitExceeded'
+]

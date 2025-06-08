@@ -1,0 +1,1118 @@
+<!-- templates/analysis/comprehensive_analysis.html -->
+{% extends "base.html" %}
+
+{% block title %}Forensics Analysis - {{ file.filename }}{% endblock %}
+
+{% block head %}
+<style>
+    .tool-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .tool-card {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        transition: all 0.2s;
+        border-left: 4px solid #e5e7eb;
+    }
+
+    .tool-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-1px);
+    }
+
+    .tool-card.steganography { border-left-color: #8b5cf6; }
+    .tool-card.binary { border-left-color: #ef4444; }
+    .tool-card.crypto { border-left-color: #f59e0b; }
+    .tool-card.network { border-left-color: #06b6d4; }
+    .tool-card.audio { border-left-color: #10b981; }
+
+    .tool-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .status-available {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+    .status-unavailable {
+        background: #fecaca;
+        color: #dc2626;
+        border: 1px solid #fca5a5;
+    }
+    .status-running {
+        background: #fef3c7;
+        color: #d97706;
+        border: 1px solid #fde68a;
+    }
+    .status-complete {
+        background: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #93c5fd;
+    }
+
+    .confidence-bar {
+        width: 100%;
+        height: 0.5rem;
+        background: #f3f4f6;
+        border-radius: 0.25rem;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        transition: width 0.6s ease;
+        background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+    }
+
+    .analysis-workflow {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 2px dashed #cbd5e1;
+        border-radius: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        margin: 2rem 0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .workflow-step {
+        display: inline-block;
+        background: white;
+        border: 3px solid #e2e8f0;
+        border-radius: 50%;
+        width: 4rem;
+        height: 4rem;
+        line-height: 3.4rem;
+        margin: 0 1rem;
+        font-weight: 700;
+        font-size: 1.2rem;
+        position: relative;
+        z-index: 10;
+        transition: all 0.3s ease;
+    }
+
+    .workflow-step.active {
+        border-color: #3b82f6;
+        background: #3b82f6;
+        color: white;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        animation: pulse 2s infinite;
+    }
+
+    .workflow-step.complete {
+        border-color: #10b981;
+        background: #10b981;
+        color: white;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .findings-panel {
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        background: #fafafa;
+    }
+
+    .finding-item {
+        padding: 1rem;
+        border-left: 4px solid #e5e7eb;
+        margin-bottom: 0.75rem;
+        background: white;
+        border-radius: 0 0.5rem 0.5rem 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }
+
+    .finding-item:hover {
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transform: translateX(2px);
+    }
+
+    .finding-crypto { border-left-color: #f59e0b; }
+    .finding-stego { border-left-color: #8b5cf6; }
+    .finding-binary { border-left-color: #ef4444; }
+    .finding-network { border-left-color: #06b6d4; }
+    .finding-metadata { border-left-color: #10b981; }
+
+    .analysis-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .analysis-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .analysis-button.secondary {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .analysis-button.danger {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ffa8a8 100%);
+    }
+
+    .progress-ring {
+        transform: rotate(-90deg);
+    }
+
+    .progress-ring-circle {
+        stroke-dasharray: 283;
+        stroke-dashoffset: 283;
+        transition: stroke-dashoffset 0.5s ease;
+        fill: transparent;
+        stroke: #3b82f6;
+        stroke-width: 8;
+    }
+
+    .results-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .result-card {
+        background: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+
+    .result-card h3 {
+        color: #1f2937;
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .metric-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .notification {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        border-left: 4px solid #10b981;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+
+    .notification.show {
+        transform: translateX(0);
+    }
+
+    .notification.error {
+        border-left-color: #ef4444;
+    }
+
+    .notification.warning {
+        border-left-color: #f59e0b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">🔬 Forensics Analysis</h1>
+                <p class="text-gray-600 mt-1">{{ file.filename }} ({{ file.file_type }})</p>
+                <div class="flex items-center mt-3 space-x-6">
+                    <span class="text-sm text-gray-500">
+                        <i class="fas fa-hdd mr-1"></i>
+                        Size: {{ file.file_size|filesizeformat }}
+                    </span>
+                    <span class="text-sm text-gray-500">
+                        <i class="fas fa-fingerprint mr-1"></i>
+                        SHA256: <code class="bg-gray-100 px-2 py-1 rounded">{{ file.sha256_hash[:16] }}...</code>
+                    </span>
+                    <span class="text-sm text-gray-500">
+                        <i class="fas fa-clock mr-1"></i>
+                        Uploaded: {{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </span>
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <button id="start-comprehensive-analysis" class="analysis-button">
+                    <i class="fas fa-play"></i>
+                    Comprehensive Analysis
+                </button>
+                <button id="start-quick-scan" class="analysis-button secondary">
+                    <i class="fas fa-zap"></i>
+                    Quick Scan
+                </button>
+                <button id="get-recommendations" class="analysis-button" style="background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);">
+                    <i class="fas fa-lightbulb"></i>
+                    Get Recommendations
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Workflow -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">
+            <i class="fas fa-route mr-2 text-indigo-600"></i>
+            Analysis Workflow
+        </h2>
+        <div class="analysis-workflow" id="workflow-container">
+            <div class="workflow-step" data-step="1">1</div>
+            <i class="fas fa-arrow-right text-gray-400 mx-2"></i>
+            <div class="workflow-step" data-step="2">2</div>
+            <i class="fas fa-arrow-right text-gray-400 mx-2"></i>
+            <div class="workflow-step" data-step="3">3</div>
+            <i class="fas fa-arrow-right text-gray-400 mx-2"></i>
+            <div class="workflow-step" data-step="4">4</div>
+            <i class="fas fa-arrow-right text-gray-400 mx-2"></i>
+            <div class="workflow-step" data-step="5">5</div>
+
+            <div class="mt-6 text-sm text-gray-600">
+                <div class="grid grid-cols-5 gap-4">
+                    <div class="text-center">
+                        <div class="font-semibold text-purple-600">Steganography</div>
+                        <div class="text-xs mt-1">ZSteg, Steghide, StegSeek</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold text-red-600">Binary Analysis</div>
+                        <div class="text-xs mt-1">Binwalk, Foremost, Radare2</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold text-yellow-600">Crypto Patterns</div>
+                        <div class="text-xs mt-1">Addresses, Keys, Signatures</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold text-blue-600">String Analysis</div>
+                        <div class="text-xs mt-1">Patterns, Encodings, Metadata</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-semibold text-green-600">AI Analysis</div>
+                        <div class="text-xs mt-1">LLM insights, Recommendations</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="workflow-progress" class="mt-6 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700">Progress</span>
+                <span id="progress-percentage" class="text-sm text-gray-500">0%</span>
+            </div>
+            <div class="bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-500 relative" style="width: 0%">
+                    <div class="absolute inset-0 bg-white opacity-30 animate-pulse"></div>
+                </div>
+            </div>
+            <div id="current-stage" class="text-sm text-gray-600 mt-2 font-medium">Initializing...</div>
+        </div>
+    </div>
+
+    <!-- Available Tools -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">
+            <i class="fas fa-tools mr-2 text-indigo-600"></i>
+            Available Forensics Tools
+        </h2>
+        <div class="tool-grid" id="tools-grid">
+            <!-- Tools will be populated by JavaScript -->
+            <div class="tool-card steganography">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">🔍 Steganography</h3>
+                    <span class="tool-status status-available">Loading...</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">Detect hidden data in images and audio files</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">Tools: zsteg, steghide, stegseek, outguess</div>
+                </div>
+            </div>
+
+            <div class="tool-card binary">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">⚙️ Binary Analysis</h3>
+                    <span class="tool-status status-available">Loading...</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">Extract and analyze embedded files</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">Tools: binwalk, foremost, radare2, bulk_extractor</div>
+                </div>
+            </div>
+
+            <div class="tool-card crypto">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">🔐 Cryptocurrency</h3>
+                    <span class="tool-status status-available">Built-in</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">Detect crypto addresses, keys, and patterns</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">Bitcoin, Ethereum, Monero, and 15+ more</div>
+                </div>
+            </div>
+
+            <div class="tool-card network">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">🌐 Network Analysis</h3>
+                    <span class="tool-status status-available">Loading...</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">Analyze network captures and protocols</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">Tools: wireshark, tcpdump, nmap</div>
+                </div>
+            </div>
+
+            <div class="tool-card audio">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">🎵 Audio/Video</h3>
+                    <span class="tool-status status-available">Loading...</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">Audio steganography and spectral analysis</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">Tools: sox, ffmpeg, audacity</div>
+                </div>
+            </div>
+
+            <div class="tool-card">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900">🧠 AI Analysis</h3>
+                    <span class="tool-status status-available">Available</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3">AI-powered pattern recognition and insights</p>
+                <div class="space-y-2">
+                    <div class="text-xs text-gray-500">GPT-4, Claude, Custom models</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Findings -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">
+                <i class="fas fa-search mr-2 text-indigo-600"></i>
+                Real-time Findings
+                <span id="findings-count" class="text-sm text-gray-500 ml-2">(0 findings)</span>
+            </h2>
+            <div class="flex space-x-2">
+                <button id="export-findings" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">
+                    <i class="fas fa-download mr-1"></i>Export
+                </button>
+                <button id="clear-findings" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">
+                    <i class="fas fa-trash mr-1"></i>Clear
+                </button>
+            </div>
+        </div>
+        <div id="findings-panel" class="findings-panel">
+            <div class="text-center text-gray-500 py-12">
+                <i class="fas fa-search text-4xl mb-4 text-gray-300"></i>
+                <p class="text-lg font-medium">Start analysis to see findings in real-time</p>
+                <p class="text-sm mt-2">Findings will appear here as tools complete their analysis</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Results -->
+    <div id="results-section" class="hidden">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                <i class="fas fa-chart-bar mr-2 text-indigo-600"></i>
+                Analysis Results
+            </h2>
+            <div id="results-content" class="results-grid">
+                <!-- Results will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendations Modal -->
+    <div id="recommendations-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                <div class="p-6 border-b">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Analysis Recommendations</h3>
+                        <button id="close-recommendations" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="recommendations-content" class="p-6">
+                    <!-- Recommendations will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Container -->
+<div id="notification" class="notification">
+    <div class="flex items-center">
+        <i id="notification-icon" class="fas fa-check-circle mr-2 text-green-600"></i>
+        <span id="notification-message">Analysis started successfully</span>
+    </div>
+</div>
+
+<script>
+class ForensicsAnalysisUI {
+    constructor() {
+        this.fileHash = '{{ file.sha256_hash }}';
+        this.currentTaskId = null;
+        this.findings = [];
+        this.tools = {};
+        this.progressInterval = null;
+
+        this.initializeEventListeners();
+        this.loadAvailableTools();
+        this.checkExistingAnalysis();
+    }
+
+    initializeEventListeners() {
+        // Analysis buttons
+        document.getElementById('start-comprehensive-analysis').addEventListener('click', () => {
+            this.startComprehensiveAnalysis();
+        });
+
+        document.getElementById('start-quick-scan').addEventListener('click', () => {
+            this.startQuickScan();
+        });
+
+        document.getElementById('get-recommendations').addEventListener('click', () => {
+            this.showRecommendations();
+        });
+
+        // Modal events
+        document.getElementById('close-recommendations').addEventListener('click', () => {
+            this.hideRecommendations();
+        });
+
+        // Finding controls
+        document.getElementById('export-findings').addEventListener('click', () => {
+            this.exportFindings();
+        });
+
+        document.getElementById('clear-findings').addEventListener('click', () => {
+            this.clearFindings();
+        });
+
+        // Close modal on outside click
+        document.getElementById('recommendations-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'recommendations-modal') {
+                this.hideRecommendations();
+            }
+        });
+    }
+
+    async loadAvailableTools() {
+        try {
+            const response = await fetch('/background/tools/status');
+            const data = await response.json();
+
+            if (data.success) {
+                this.tools = data.tools;
+                this.updateToolsGrid(data.tool_info);
+            }
+        } catch (error) {
+            console.error('Failed to load tools status:', error);
+            this.showNotification('Failed to load tools status', 'error');
+        }
+    }
+
+    updateToolsGrid(toolInfo) {
+        const toolCategories = {
+            'Steganography': ['zsteg', 'steghide', 'stegseek', 'outguess'],
+            'Binary Analysis': ['binwalk', 'foremost', 'bulk_extractor', 'radare2'],
+            'Audio/Video': ['sox', 'ffmpeg'],
+            'Network': ['wireshark', 'tcpdump'],
+            'Crypto': ['hashcat', 'john']
+        };
+
+        const grid = document.getElementById('tools-grid');
+        const existingCards = grid.querySelectorAll('.tool-card');
+
+        existingCards.forEach((card, index) => {
+            const statusElement = card.querySelector('.tool-status');
+            const category = Object.keys(toolCategories)[index];
+
+            if (category && toolCategories[category]) {
+                const tools = toolCategories[category];
+                const availableTools = tools.filter(tool => this.tools[tool]);
+                const totalTools = tools.length;
+
+                if (availableTools.length === totalTools) {
+                    statusElement.textContent = 'All Available';
+                    statusElement.className = 'tool-status status-available';
+                } else if (availableTools.length > 0) {
+                    statusElement.textContent = `${availableTools.length}/${totalTools} Available`;
+                    statusElement.className = 'tool-status status-running';
+                } else {
+                    statusElement.textContent = 'Unavailable';
+                    statusElement.className = 'tool-status status-unavailable';
+                }
+            }
+        });
+    }
+
+    async startComprehensiveAnalysis() {
+        try {
+            this.showNotification('Starting comprehensive analysis...', 'info');
+
+            const response = await fetch(`/background/analyze/${this.fileHash}/comprehensive`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    analysis_types: ['steganography', 'binary_analysis', 'crypto_patterns', 'strings', 'metadata']
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.currentTaskId = data.task_id;
+                this.startProgressMonitoring();
+                this.showNotification('Comprehensive analysis started successfully!', 'success');
+            } else {
+                this.showNotification('Failed to start analysis: ' + data.error, 'error');
+            }
+        } catch (error) {
+            this.showNotification('Network error: ' + error.message, 'error');
+        }
+    }
+
+    async startQuickScan() {
+        try {
+            this.showNotification('Starting quick scan...', 'info');
+
+            const response = await fetch(`/background/analyze/${this.fileHash}/steganography`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.currentTaskId = data.task_id;
+                this.startProgressMonitoring();
+                this.showNotification('Quick scan started successfully!', 'success');
+            } else {
+                this.showNotification('Failed to start quick scan: ' + data.error, 'error');
+            }
+        } catch (error) {
+            this.showNotification('Network error: ' + error.message, 'error');
+        }
+    }
+
+    startProgressMonitoring() {
+        const progressContainer = document.getElementById('workflow-progress');
+        progressContainer.classList.remove('hidden');
+
+        this.updateWorkflowProgress(0, 'Initializing analysis...');
+
+        this.progressInterval = setInterval(() => {
+            this.checkProgress();
+        }, 2000);
+
+        // Disable analysis buttons
+        document.getElementById('start-comprehensive-analysis').disabled = true;
+        document.getElementById('start-quick-scan').disabled = true;
+    }
+
+    async checkProgress() {
+        if (!this.currentTaskId) return;
+
+        try {
+            const response = await fetch(`/background/progress/${this.currentTaskId}`);
+            const data = await response.json();
+
+            if (data.state === 'PROGRESS') {
+                this.updateWorkflowProgress(data.meta.progress, data.meta.stage);
+                this.updateWorkflowSteps(data.meta.progress);
+            } else if (data.state === 'SUCCESS') {
+                this.updateWorkflowProgress(100, 'Analysis complete!');
+                this.updateWorkflowSteps(100);
+                this.loadResults(data.result);
+                this.completeAnalysis();
+                this.showNotification('Analysis completed successfully!', 'success');
+            } else if (data.state === 'FAILURE') {
+                this.showNotification('Analysis failed: ' + (data.meta.error || 'Unknown error'), 'error');
+                this.completeAnalysis();
+            }
+        } catch (error) {
+            console.error('Failed to check progress:', error);
+        }
+    }
+
+    updateWorkflowProgress(progress, stage) {
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-percentage');
+        const stageText = document.getElementById('current-stage');
+
+        progressBar.style.width = progress + '%';
+        progressText.textContent = Math.round(progress) + '%';
+        stageText.textContent = stage;
+    }
+
+    updateWorkflowSteps(progress) {
+        const steps = document.querySelectorAll('.workflow-step');
+        const currentStep = Math.ceil(progress / 20); // 5 steps total
+
+        steps.forEach((step, index) => {
+            const stepNumber = index + 1;
+            step.classList.remove('active', 'complete');
+
+            if (stepNumber < currentStep) {
+                step.classList.add('complete');
+            } else if (stepNumber === currentStep && progress < 100) {
+                step.classList.add('active');
+            } else if (progress === 100) {
+                step.classList.add('complete');
+            }
+        });
+    }
+
+    completeAnalysis() {
+        clearInterval(this.progressInterval);
+
+        // Re-enable analysis buttons
+        document.getElementById('start-comprehensive-analysis').disabled = false;
+        document.getElementById('start-quick-scan').disabled = false;
+
+        this.currentTaskId = null;
+
+        // Reload results
+        setTimeout(() => {
+            this.loadExistingResults();
+        }, 1000);
+    }
+
+    async loadResults(results) {
+        document.getElementById('results-section').classList.remove('hidden');
+        const content = document.getElementById('results-content');
+
+        // Add findings from results
+        if (results.forensics_results && results.forensics_results.findings) {
+            results.forensics_results.findings.forEach(finding => {
+                this.addFinding({
+                    type: finding.type || 'unknown',
+                    title: finding.subtype || finding.type || 'Finding',
+                    description: finding.description || 'No description available',
+                    tool: finding.tool || 'unknown',
+                    confidence: finding.confidence || 0.5,
+                    details: finding
+                });
+            });
+        }
+
+        content.innerHTML = `
+            <div class="result-card">
+                <h3><i class="fas fa-chart-pie text-blue-600"></i>Analysis Summary</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center">
+                        <div class="metric-value text-blue-600">${results.findings_count || 0}</div>
+                        <div class="metric-label">Total Findings</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-green-600">${results.tools_executed || 0}</div>
+                        <div class="metric-label">Tools Used</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-purple-600">${Math.round(results.execution_time || 0)}s</div>
+                        <div class="metric-label">Execution Time</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-orange-600">${Math.round((results.confidence_score || 0) * 100)}%</div>
+                        <div class="metric-label">Confidence</div>
+                    </div>
+                </div>
+            </div>
+            <div class="result-card">
+                <h3><i class="fas fa-cogs text-gray-600"></i>Quick Actions</h3>
+                <div class="space-y-3">
+                    <button onclick="window.open('/api/files/${this.fileHash}/report.pdf')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md text-sm transition-colors">
+                        <i class="fas fa-download mr-2"></i>Download Full Report
+                    </button>
+                    <button onclick="forensicsUI.shareAnalysis()" class="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md text-sm transition-colors">
+                        <i class="fas fa-share mr-2"></i>Share Analysis
+                    </button>
+                    <button onclick="forensicsUI.startAdditionalAnalysis()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md text-sm transition-colors">
+                        <i class="fas fa-plus mr-2"></i>Run Additional Analysis
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    async checkExistingAnalysis() {
+        try {
+            const response = await fetch(`/background/results/${this.fileHash}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.has_results) {
+                    this.loadExistingResults(data);
+                }
+            }
+        } catch (error) {
+            console.log('No existing analysis found');
+        }
+    }
+
+    async loadExistingResults(data = null) {
+        if (!data) {
+            try {
+                const response = await fetch(`/background/results/${this.fileHash}`);
+                if (response.ok) {
+                    data = await response.json();
+                }
+            } catch (error) {
+                return;
+            }
+        }
+
+        if (data && data.has_results) {
+            // Load existing findings
+            if (data.findings) {
+                data.findings.forEach(finding => {
+                    this.addFinding({
+                        type: finding.type,
+                        title: finding.type.replace('_', ' ').toUpperCase(),
+                        description: finding.description,
+                        tool: 'previous analysis',
+                        confidence: finding.confidence,
+                        details: finding.details
+                    });
+                });
+            }
+
+            // Show results section
+            document.getElementById('results-section').classList.remove('hidden');
+
+            // Update summary
+            if (data.summary) {
+                this.updateResultsSummary(data.summary);
+            }
+        }
+    }
+
+    updateResultsSummary(summary) {
+        const content = document.getElementById('results-content');
+        content.innerHTML = `
+            <div class="result-card">
+                <h3><i class="fas fa-chart-pie text-blue-600"></i>Existing Analysis</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center">
+                        <div class="metric-value text-blue-600">${summary.total_findings || 0}</div>
+                        <div class="metric-label">Total Findings</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-green-600">${summary.total_analyses || 0}</div>
+                        <div class="metric-label">Analyses Run</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-orange-600">${Math.round((summary.average_confidence || 0) * 100)}%</div>
+                        <div class="metric-label">Avg Confidence</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-purple-600">${summary.analysis_types ? summary.analysis_types.length : 0}</div>
+                        <div class="metric-label">Analysis Types</div>
+                    </div>
+                </div>
+            </div>
+            <div class="result-card">
+                <h3><i class="fas fa-redo text-gray-600"></i>Continue Analysis</h3>
+                <div class="space-y-3">
+                    <button onclick="forensicsUI.startComprehensiveAnalysis()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md text-sm transition-colors">
+                        <i class="fas fa-plus mr-2"></i>Run Additional Tools
+                    </button>
+                    <button onclick="forensicsUI.startAIAnalysis()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md text-sm transition-colors">
+                        <i class="fas fa-brain mr-2"></i>AI Analysis
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    addFinding(finding) {
+        this.findings.push(finding);
+        this.renderFindings();
+    }
+
+    renderFindings() {
+        const panel = document.getElementById('findings-panel');
+        const count = document.getElementById('findings-count');
+
+        count.textContent = `(${this.findings.length} findings)`;
+
+        if (this.findings.length === 0) {
+            panel.innerHTML = `
+                <div class="text-center text-gray-500 py-12">
+                    <i class="fas fa-search text-4xl mb-4 text-gray-300"></i>
+                    <p class="text-lg font-medium">No findings yet...</p>
+                    <p class="text-sm mt-2">Start an analysis to discover hidden content</p>
+                </div>
+            `;
+            return;
+        }
+
+        panel.innerHTML = this.findings.map((finding, index) => `
+            <div class="finding-item finding-${finding.type}" data-finding-index="${index}">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="font-semibold text-gray-900">${finding.title}</div>
+                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">${finding.type}</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-3">${finding.description}</div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <span class="text-xs text-gray-500">
+                                    <i class="fas fa-wrench mr-1"></i>
+                                    ${finding.tool}
+                                </span>
+                                <div class="flex items-center">
+                                    <span class="text-xs text-gray-500 mr-2">Confidence:</span>
+                                    <div class="confidence-bar w-20">
+                                        <div class="confidence-fill" style="width: ${finding.confidence * 100}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 ml-2">${Math.round(finding.confidence * 100)}%</span>
+                                </div>
+                            </div>
+                            <button class="text-indigo-600 hover:text-indigo-800 text-sm" onclick="forensicsUI.showFindingDetails(${index})">
+                                <i class="fas fa-external-link-alt mr-1"></i>Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async showRecommendations() {
+        try {
+            const response = await fetch(`/background/recommend/${this.fileHash}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.renderRecommendations(data.recommendations);
+                document.getElementById('recommendations-modal').classList.remove('hidden');
+            } else {
+                this.showNotification('Failed to get recommendations: ' + data.error, 'error');
+            }
+        } catch (error) {
+            this.showNotification('Network error: ' + error.message, 'error');
+        }
+    }
+
+    renderRecommendations(recommendations) {
+        const content = document.getElementById('recommendations-content');
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                ${recommendations.map(rec => `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="font-medium text-gray-900">${rec.method}</span>
+                                    <span class="text-xs px-2 py-1 rounded-full ${rec.priority === 'high' ? 'bg-red-100 text-red-600' : rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'}">${rec.priority}</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">${rec.description}</p>
+                                <div class="flex items-center">
+                                    <span class="text-xs text-gray-500 mr-2">Confidence:</span>
+                                    <div class="confidence-bar w-16">
+                                        <div class="confidence-fill" style="width: ${rec.confidence * 100}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 ml-2">${Math.round(rec.confidence * 100)}%</span>
+                                </div>
+                            </div>
+                            <button class="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm" onclick="forensicsUI.runRecommendedAnalysis('${rec.type}', '${rec.method}')">
+                                Run
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    hideRecommendations() {
+        document.getElementById('recommendations-modal').classList.add('hidden');
+    }
+
+    async runRecommendedAnalysis(type, method) {
+        this.hideRecommendations();
+
+        if (type === 'comprehensive') {
+            this.startComprehensiveAnalysis();
+        } else if (type === 'steganography') {
+            this.startQuickScan();
+        } else {
+            this.showNotification(`Running ${method} analysis...`, 'info');
+            // Implement specific tool execution
+        }
+    }
+
+    exportFindings() {
+        if (this.findings.length === 0) {
+            this.showNotification('No findings to export', 'warning');
+            return;
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + "Type,Title,Description,Tool,Confidence\n"
+            + this.findings.map(f => `"${f.type}","${f.title}","${f.description}","${f.tool}","${f.confidence}"`).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `forensics_findings_${this.fileHash.substring(0, 8)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        this.showNotification('Findings exported successfully', 'success');
+    }
+
+    clearFindings() {
+        this.findings = [];
+        this.renderFindings();
+        this.showNotification('Findings cleared', 'info');
+    }
+
+    showFindingDetails(index) {
+        const finding = this.findings[index];
+        alert(`Finding Details:\n\nType: ${finding.type}\nTool: ${finding.tool}\nConfidence: ${Math.round(finding.confidence * 100)}%\n\nDetails: ${JSON.stringify(finding.details, null, 2)}`);
+    }
+
+    showNotification(message, type = 'success') {
+        const notification = document.getElementById('notification');
+        const icon = document.getElementById('notification-icon');
+        const messageEl = document.getElementById('notification-message');
+
+        // Update content
+        messageEl.textContent = message;
+
+        // Update styling based on type
+        notification.className = `notification ${type}`;
+
+        if (type === 'success') {
+            icon.className = 'fas fa-check-circle mr-2 text-green-600';
+        } else if (type === 'error') {
+            icon.className = 'fas fa-exclamation-circle mr-2 text-red-600';
+        } else if (type === 'warning') {
+            icon.className = 'fas fa-exclamation-triangle mr-2 text-yellow-600';
+        } else {
+            icon.className = 'fas fa-info-circle mr-2 text-blue-600';
+        }
+
+        // Show notification
+        notification.classList.add('show');
+
+        // Auto hide after 5 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 5000);
+    }
+
+    // Additional methods for future features
+    async startAIAnalysis() {
+        try {
+            const response = await fetch(`/background/analyze/${this.fileHash}/ai`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    analysis_type: 'comprehensive',
+                    expert_mode: 'crypto_expert'
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.currentTaskId = data.task_id;
+                this.startProgressMonitoring();
+                this.showNotification('AI analysis started successfully!', 'success');
+            } else {
+                this.showNotification('Failed to start AI analysis: ' + data.error, 'error');
+            }
+        } catch (error) {
+            this.showNotification('Network error: ' + error.message, 'error');
+        }
+    }
+
+    shareAnalysis() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            this.showNotification('Analysis URL copied to clipboard', 'success');
+        }).catch(() => {
+            this.showNotification('Failed to copy URL', 'error');
+        });
+    }
+
+    startAdditionalAnalysis() {
+        this.showRecommendations();
+    }
+}
+
+// Initialize the UI when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    window.forensicsUI = new ForensicsAnalysisUI();
+});
+
+// Make it globally accessible
+window.ForensicsAnalysisUI = ForensicsAnalysisUI;
+</script>
+{% endblock %}

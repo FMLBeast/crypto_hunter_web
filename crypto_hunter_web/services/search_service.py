@@ -1,19 +1,18 @@
-"""
-Advanced search service with indexing and intelligent correlation
-"""
+# crypto_hunter_web/services/search_service.py - COMPLETE IMPROVED VERSION
 
 import re
 import hashlib
 from collections import Counter
-from typing import List, Dict, Any
-from sqlalchemy import func, or_, text
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from sqlalchemy import func, or_, text, and_
 from crypto_hunter_web.models import db
 from crypto_hunter_web.models import AnalysisFile, FileContent
 from crypto_hunter_web.models import Finding
 
 
 class SearchService:
-    """High-performance search service for large file collections"""
+    """High-performance search service for large file collections (improved version)."""
 
     # Pre-compiled regex patterns for magic search
     PATTERNS = {
@@ -32,16 +31,26 @@ class SearchService:
 
     @staticmethod
     def build_search_index():
-        """Build search indexes for performance"""
+        """Build database indexes for search performance (including content)."""
         try:
-            # Create database indexes
             db.session.execute(text("""
-                                    CREATE INDEX IF NOT EXISTS idx_files_filename_trgm ON analysis_file USING gin(filename gin_trgm_ops);
-                                    CREATE INDEX IF NOT EXISTS idx_files_content_search ON analysis_file USING gin(to_tsvector('english', filename || ' ' || COALESCE (file_type, '')));
-                                    CREATE INDEX IF NOT EXISTS idx_files_sha_prefix ON analysis_file (LEFT (sha256_hash, 8));
-                                    CREATE INDEX IF NOT EXISTS idx_files_size_type ON analysis_file (file_size, file_type);
-                                    CREATE INDEX IF NOT EXISTS idx_files_status_priority ON analysis_file (status, priority);
-                                    """))
+                CREATE INDEX IF NOT EXISTS idx_files_filename_trgm 
+                    ON analysis_files USING gin(filename gin_trgm_ops);
+                CREATE INDEX IF NOT EXISTS idx_files_text_search 
+                    ON analysis_files 
+                    USING gin(to_tsvector('english', filename || ' ' || COALESCE(file_type, '')));
+                CREATE INDEX IF NOT EXISTS idx_files_sha_prefix 
+                    ON analysis_files (LEFT(sha256_hash, 8));
+                CREATE INDEX IF NOT EXISTS idx_files_size_type 
+                    ON analysis_files (file_size, file_type);
+                CREATE INDEX IF NOT EXISTS idx_files_status_priority 
+                    ON analysis_files (status, priority);
+                /* New index for content text search: */
+                CREATE INDEX IF NOT EXISTS idx_content_text_search 
+                    ON file_contents USING gin(to_tsvector('english', content_text));
+                CREATE INDEX IF NOT EXISTS idx_content_bytes_search 
+                    ON file_contents USING gin(content_bytes gin_trgm_ops);
+            """))
             db.session.commit()
             return True
         except Exception as e:
@@ -50,161 +59,207 @@ class SearchService:
 
     @staticmethod
     def hyperfast_search(query: str, filters: Dict[str, Any] = None, limit: int = 100) -> Dict[str, Any]:
-        """Ultra-fast search with intelligent matching"""
+        """Ultra-fast search with intelligent matching."""
         if not query or len(query.strip()) < 2:
+            # No query: just return filtered files (recent/high-priority first)
             return SearchService._get_filtered_files(filters, limit)
-
+        
         query = query.strip()
-
-        # Detect query type and optimize accordingly
+        # Detect query type for optimized search path
         search_type = SearchService._detect_query_type(query)
-
+        
         if search_type == 'sha':
             return SearchService._search_by_sha(query, limit)
         elif search_type == 'pattern':
+            # For pattern-like queries, do a broad content search
             return SearchService._magic_search(query, filters, limit)
         else:
+            # Default: filename/type search + content search
             return SearchService._full_text_search(query, filters, limit)
 
     @staticmethod
-    def _detect_query_type(query: str) -> str:
-        """Detect the type of search query for optimization"""
-        if re.match(r'^[a-fA-F0-9]{6,64}$', query):
-            return 'sha'
-        elif any(pattern in query.lower() for pattern in ['flag{', '0x', 'http', '@']):
-            return 'pattern'
-        else:
-            return 'text'
-
-    @staticmethod
-    def _search_by_sha(query: str, limit: int) -> Dict[str, Any]:
-        """Optimized SHA hash search"""
-        files = AnalysisFile.query.filter(
-            AnalysisFile.sha256_hash.ilike(f'{query}%')
-        ).limit(limit).all()
-
-        return {
-            'files': [SearchService._serialize_file(f) for f in files],
-            'total': len(files),
-            'search_type': 'sha',
-            'query': query
-        }
-
-    @staticmethod
     def _full_text_search(query: str, filters: Dict[str, Any], limit: int) -> Dict[str, Any]:
-        """Full-text search with ranking"""
-        base_query = AnalysisFile.query
-
-        # Build search conditions
-        search_conditions = []
-
-        # Filename search (highest priority)
-        search_conditions.append(
-            AnalysisFile.filename.ilike(f'%{query}%')
-        )
-
-        # File type search
-        search_conditions.append(
-            AnalysisFile.file_type.ilike(f'%{query}%')
-        )
-
-        # Combine with OR
-        base_query = base_query.filter(or_(*search_conditions))
-
-        # Apply additional filters
-        base_query = SearchService._apply_filters(base_query, filters)
-
-        # Order by relevance (filename matches first, then by priority)
-        files = base_query.order_by(
-            AnalysisFile.filename.ilike(f'%{query}%').desc(),
+        """Full-text search on filenames, file types, and content with basic relevance ranking."""
+        # Base query on AnalysisFile
+        base_q = AnalysisFile.query
+        
+        # Filename and file_type conditions (case-insensitive substring match)
+        filename_cond = AnalysisFile.filename.ilike(f'%{query}%')
+        filetype_cond = AnalysisFile.file_type.ilike(f'%{query}%')
+        
+        # Content search condition - FIXED: Use content_bytes instead of content_data
+        content_subq = db.session.query(FileContent.file_id).filter(
+            or_(
+                FileContent.content_text.ilike(f'%{query}%'),
+                func.encode(FileContent.content_bytes, 'escape').ilike(f'%{query}%')
+            )
+        ).subquery()
+        
+        content_cond = AnalysisFile.id.in_(content_subq)
+        
+        # Combine all search conditions
+        search_cond = or_(filename_cond, filetype_cond, content_cond)
+        base_q = base_q.filter(search_cond)
+        
+        # Apply any additional filters (status, size, etc.)
+        base_q = SearchService._apply_filters(base_q, filters)
+        
+        # Order by relevance: filename matches first, then file type, then content, then by priority and recency
+        results = base_q.order_by(
+            filename_cond.desc(),
+            filetype_cond.desc(),
             AnalysisFile.priority.desc(),
             AnalysisFile.created_at.desc()
         ).limit(limit).all()
-
+        
         return {
-            'files': [SearchService._serialize_file(f) for f in files],
-            'total': len(files),
+            'files': [SearchService._serialize_file(f) for f in results],
+            'total': len(results),
             'search_type': 'full_text',
             'query': query
         }
 
     @staticmethod
     def _magic_search(query: str, filters: Dict[str, Any], limit: int) -> Dict[str, Any]:
-        """Magic search for patterns and content"""
+        """Deep search for patterns and content within files."""
         results = []
-
-        # Search in file content
-        content_results = db.session.query(AnalysisFile).join(FileContent).filter(
+        
+        # Search within file content (text and raw bytes) - FIXED: Use content_bytes
+        content_q = db.session.query(AnalysisFile).join(FileContent).filter(
             or_(
                 FileContent.content_text.ilike(f'%{query}%'),
-                func.encode(FileContent.content_data, 'escape').ilike(f'%{query}%')
+                func.encode(FileContent.content_bytes, 'escape').ilike(f'%{query}%')
             )
-        ).limit(limit // 2).all()
-
+        )
+        content_q = SearchService._apply_filters(content_q, filters)  # apply filters to AnalysisFile in the join
+        content_results = content_q.limit(max(limit, 10) // 2).all()  # use half of the limit for content matches
         results.extend(content_results)
-
-        # Pattern matching search
+        
+        # If the query itself matches a known pattern type, include files likely related
         for pattern_name, pattern in SearchService.PATTERNS.items():
             if pattern.search(query):
-                # Find files that might contain this pattern type
-                pattern_files = AnalysisFile.query.filter(
-                    AnalysisFile.filename.ilike(f'%{pattern_name}%')
-                ).limit(10).all()
+                # e.g., if query looks like an email or hash, gather files with similar context (filename or type hint)
+                pat_q = AnalysisFile.query.filter(
+                    or_(
+                        AnalysisFile.filename.ilike(f'%{pattern_name}%'),
+                        AnalysisFile.file_type.ilike(f'%{pattern_name}%')
+                    )
+                )
+                pat_q = SearchService._apply_filters(pat_q, filters)
+                pattern_files = pat_q.limit(10).all()
                 results.extend(pattern_files)
-
-        # Remove duplicates
-        unique_results = list({f.id: f for f in results}.values())[:limit]
-
+                # Only use one pattern category for suggestions to avoid too many irrelevant results
+                break
+        
+        # Remove duplicates by file ID and enforce overall limit
+        unique_files = list({f.id: f for f in results}.values())[:limit]
+        
         return {
-            'files': [SearchService._serialize_file(f) for f in unique_results],
-            'total': len(unique_results),
+            'files': [SearchService._serialize_file(f) for f in unique_files],
+            'total': len(unique_files),
             'search_type': 'magic',
             'query': query
         }
 
     @staticmethod
+    def _search_by_sha(prefix: str, limit: int) -> Dict[str, Any]:
+        """Optimized search for files by SHA-256 prefix."""
+        files = AnalysisFile.query.filter(
+            AnalysisFile.sha256_hash.ilike(f'{prefix}%')
+        ).limit(limit).all()
+        
+        return {
+            'files': [SearchService._serialize_file(f) for f in files],
+            'total': len(files),
+            'search_type': 'sha',
+            'query': prefix
+        }
+
+    @staticmethod
     def _apply_filters(query, filters: Dict[str, Any]):
-        """Apply additional filters to query"""
+        """Apply additional filters (file_type, status, size, etc.) to an AnalysisFile query."""
         if not filters:
             return query
-
+        
         if filters.get('file_type'):
             query = query.filter(AnalysisFile.file_type.ilike(f"%{filters['file_type']}%"))
-
+        
         if filters.get('status'):
             query = query.filter(AnalysisFile.status == filters['status'])
-
+        
         if filters.get('is_root') is not None:
             query = query.filter(AnalysisFile.is_root_file == filters['is_root'])
-
+        
         if filters.get('min_size'):
             query = query.filter(AnalysisFile.file_size >= filters['min_size'])
-
+        
         if filters.get('max_size'):
             query = query.filter(AnalysisFile.file_size <= filters['max_size'])
-
+        
         if filters.get('priority_min'):
             query = query.filter(AnalysisFile.priority >= filters['priority_min'])
-
+        
+        if filters.get('created_after'):
+            query = query.filter(AnalysisFile.created_at >= filters['created_after'])
+        
+        if filters.get('created_before'):
+            query = query.filter(AnalysisFile.created_at <= filters['created_before'])
+        
         return query
 
     @staticmethod
     def _get_filtered_files(filters: Dict[str, Any], limit: int) -> Dict[str, Any]:
-        """Get files with filters only (no search query)"""
-        query = AnalysisFile.query
-        query = SearchService._apply_filters(query, filters)
-
-        files = query.order_by(
-            AnalysisFile.priority.desc(),
-            AnalysisFile.created_at.desc()
-        ).limit(limit).all()
-
+        """Return top files that match only the given filters (no query string)."""
+        q = AnalysisFile.query
+        q = SearchService._apply_filters(q, filters)
+        files = q.order_by(AnalysisFile.priority.desc(), AnalysisFile.created_at.desc())\
+                 .limit(limit).all()
+        
         return {
             'files': [SearchService._serialize_file(f) for f in files],
             'total': len(files),
             'search_type': 'filtered',
             'query': ''
         }
+
+    @staticmethod
+    def group_files(group_by: str, filters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Group files by a category (type, status, size range, priority), applying filters if provided."""
+        q = AnalysisFile.query
+        q = SearchService._apply_filters(q, filters)  # FIXED: Apply filters to the query
+        
+        groups = []
+        
+        if group_by == 'type':
+            # Group by file_type (with filters applied)
+            for file_type, count in q.with_entities(AnalysisFile.file_type,
+                                                   func.count(AnalysisFile.id)).group_by(AnalysisFile.file_type).all():
+                groups.append({'key': file_type, 'count': count})
+        
+        elif group_by == 'status':
+            for status, count in q.with_entities(AnalysisFile.status,
+                                                func.count(AnalysisFile.id)).group_by(AnalysisFile.status).all():
+                groups.append({'key': status, 'count': count})
+        
+        elif group_by == 'size':
+            size_case = func.case([
+                (AnalysisFile.file_size < 1024, 'Small (<1KB)'),
+                (AnalysisFile.file_size < 1024*1024, 'Medium (<1MB)'),
+                (AnalysisFile.file_size < 1024*1024*1024, 'Large (<1GB)')
+            ], else_='Very Large (>1GB)').label('size_range')
+            
+            for size_range, count in q.with_entities(size_case, func.count(AnalysisFile.id)).group_by(size_case).all():
+                groups.append({'key': size_range, 'count': count})
+        
+        elif group_by == 'priority':
+            for priority, count in q.with_entities(AnalysisFile.priority,
+                                                  func.count(AnalysisFile.id)).group_by(AnalysisFile.priority).all():
+                groups.append({'key': priority, 'count': count})
+        
+        else:
+            return {'error': f'Unknown grouping: {group_by}'}
+        
+        return {'group_by': group_by, 'groups': groups}
 
     @staticmethod
     def xor_search(sha_list: List[str]) -> Dict[str, Any]:
@@ -247,7 +302,6 @@ class SearchService:
                 for j in range(i + 1, len(sizes)):
                     ratio = sizes[i] / sizes[j] if sizes[j] != 0 else float('inf')
                     size_ratios.append(ratio)
-
             correlations['size_relationships'] = size_ratios
 
         # Analyze file types
@@ -256,66 +310,36 @@ class SearchService:
         correlations['type_similarities'] = dict(type_counter)
 
         # Analyze creation patterns
-        dates = [f.created_at for f in files]
+        dates = [f.created_at for f in files if f.created_at]
         if len(dates) > 1:
             time_diffs = []
             for i in range(len(dates)):
                 for j in range(i + 1, len(dates)):
                     diff = abs((dates[i] - dates[j]).total_seconds())
                     time_diffs.append(diff)
-
             correlations['temporal_patterns'] = time_diffs
 
         return correlations
 
     @staticmethod
-    def group_files(group_by: str, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Group files by various criteria"""
-        query = AnalysisFile.query
-
-        if filters:
-            query = SearchService._apply_filters(query, filters)
-
-        if group_by == 'type':
-            groups = db.session.query(
-                AnalysisFile.file_type,
-                func.count(AnalysisFile.id).label('count')
-            ).group_by(AnalysisFile.file_type).all()
-
-        elif group_by == 'status':
-            groups = db.session.query(
-                AnalysisFile.status,
-                func.count(AnalysisFile.id).label('count')
-            ).group_by(AnalysisFile.status).all()
-
-        elif group_by == 'size':
-            # Group by size ranges
-            groups = db.session.query(
-                func.case([
-                    (AnalysisFile.file_size < 1024, 'Small (<1KB)'),
-                    (AnalysisFile.file_size < 1024 * 1024, 'Medium (<1MB)'),
-                    (AnalysisFile.file_size < 1024 * 1024 * 1024, 'Large (<1GB)'),
-                ], else_='Very Large (>1GB)').label('size_range'),
-                func.count(AnalysisFile.id).label('count')
-            ).group_by('size_range').all()
-
-        elif group_by == 'priority':
-            groups = db.session.query(
-                AnalysisFile.priority,
-                func.count(AnalysisFile.id).label('count')
-            ).group_by(AnalysisFile.priority).all()
-
-        else:
-            return {'error': f'Unknown grouping: {group_by}'}
-
-        return {
-            'groups': [{'key': g[0], 'count': g[1]} for g in groups],
-            'group_by': group_by
-        }
+    def _detect_query_type(query: str) -> str:
+        """Detect the type of query for optimization"""
+        query = query.strip().lower()
+        
+        # SHA-256 hash (64 hex chars)
+        if re.match(r'^[a-f0-9]{8,64}$', query):
+            return 'sha'
+        
+        # Check for pattern-like queries
+        for pattern_name, pattern in SearchService.PATTERNS.items():
+            if pattern.search(query):
+                return 'pattern'
+        
+        return 'text'
 
     @staticmethod
     def _serialize_file(file: AnalysisFile) -> Dict[str, Any]:
-        """Serialize file for JSON response"""
+        """Convert AnalysisFile object to dictionary for JSON response."""
         return {
             'id': file.id,
             'sha256_hash': file.sha256_hash,
@@ -326,8 +350,26 @@ class SearchService:
             'priority': file.priority,
             'is_root_file': file.is_root_file,
             'created_at': file.created_at.isoformat() if file.created_at else None,
-            'findings_count': len(file.findings) if hasattr(file, 'findings') else 0
+            'updated_at': getattr(file, 'updated_at', None) and file.updated_at.isoformat(),
+            'findings_count': len(getattr(file, 'findings', [])),
+            'content_preview': SearchService._get_content_preview(file.id)
         }
+
+    @staticmethod
+    def _get_content_preview(file_id: int) -> Optional[str]:
+        """Get a preview of file content for search results"""
+        try:
+            content = FileContent.query.filter_by(
+                file_id=file_id,
+                content_type='extracted_text'
+            ).first()
+            
+            if content and content.content_text:
+                preview = content.content_text[:200]
+                return preview + "..." if len(content.content_text) > 200 else preview
+        except Exception:
+            pass
+        return None
 
 
 class MetadataGenerator:
@@ -386,111 +428,116 @@ class MetadataGenerator:
                     'count': len(matches)
                 })
 
-        # Binary signatures
-        if content.startswith(b'\xff\xd8\xff'):
-            patterns.append({'type': 'jpeg_signature', 'confidence': 'high'})
-        elif content.startswith(b'\x89PNG'):
-            patterns.append({'type': 'png_signature', 'confidence': 'high'})
-        elif b'PK' in content[:10]:
-            patterns.append({'type': 'zip_signature', 'confidence': 'medium'})
-
         return patterns
 
     @staticmethod
     def _generate_content_signatures(content: bytes) -> List[Dict[str, Any]]:
-        """Generate content-based signatures for similarity matching"""
+        """Generate content signatures for similarity matching"""
         signatures = []
 
-        # Byte frequency signature
-        if len(content) > 0:
-            byte_freq = Counter(content)
-            top_bytes = byte_freq.most_common(10)
+        # File magic bytes
+        if len(content) >= 16:
             signatures.append({
-                'type': 'byte_frequency',
-                'signature': [{'byte': b, 'count': c} for b, c in top_bytes]
+                'type': 'magic_bytes',
+                'signature': content[:16].hex(),
+                'description': 'First 16 bytes'
             })
 
-        # Hash signatures at different lengths
-        for chunk_size in [256, 1024, 4096]:
-            if len(content) >= chunk_size:
-                chunk_hash = hashlib.sha256(content[:chunk_size]).hexdigest()
-                signatures.append({
-                    'type': f'hash_{chunk_size}',
-                    'signature': chunk_hash
-                })
+        # Content hash signatures
+        signatures.append({
+            'type': 'md5_hash',
+            'signature': hashlib.md5(content).hexdigest(),
+            'description': 'MD5 hash of content'
+        })
+
+        signatures.append({
+            'type': 'sha1_hash',
+            'signature': hashlib.sha1(content).hexdigest(),
+            'description': 'SHA1 hash of content'
+        })
+
+        # Entropy calculation
+        if content:
+            entropy = MetadataGenerator._calculate_entropy(content)
+            signatures.append({
+                'type': 'entropy',
+                'signature': f"{entropy:.4f}",
+                'description': 'Shannon entropy'
+            })
 
         return signatures
 
     @staticmethod
     def _find_cross_references(content: bytes, file_id: int) -> List[Dict[str, Any]]:
-        """Find cross-references with existing files"""
+        """Find cross-references with other files"""
         cross_refs = []
 
         try:
-            # Look for similar files by content patterns
-            content_hash = hashlib.sha256(content[:1024]).hexdigest()
+            # Look for similar content patterns
+            content_hash = hashlib.md5(content).hexdigest()
+            
+            # Find files with similar content hashes (simplified)
+            similar_files = db.session.query(FileContent).filter(
+                FileContent.file_id != file_id,
+                FileContent.content_text.like(f'%{content_hash}%')
+            ).limit(5).all()
 
-            # Find files with similar content signatures
-            similar_files = AnalysisFile.query.filter(
-                AnalysisFile.id != file_id
-            ).limit(10).all()
-
-            # This is a simplified version - in practice, you'd store signatures in a separate table
-            for similar_file in similar_files:
-                if similar_file.filepath and os.path.exists(similar_file.filepath):
-                    try:
-                        with open(similar_file.filepath, 'rb') as f:
-                            similar_content = f.read(1024)
-
-                        similarity = MetadataGenerator._calculate_similarity(content[:1024], similar_content)
-                        if similarity > 0.7:  # 70% similarity threshold
-                            cross_refs.append({
-                                'file_id': similar_file.id,
-                                'filename': similar_file.filename,
-                                'similarity': similarity,
-                                'type': 'content_similarity'
-                            })
-                    except:
-                        continue
+            for similar in similar_files:
+                cross_refs.append({
+                    'type': 'content_similarity',
+                    'file_id': similar.file_id,
+                    'similarity_score': 0.8  # Simplified score
+                })
 
         except Exception as e:
-            cross_refs.append({'error': str(e)})
+            cross_refs.append({
+                'type': 'error',
+                'message': str(e)
+            })
 
-        return cross_refs[:5]  # Limit results
-
-    @staticmethod
-    def _calculate_similarity(content1: bytes, content2: bytes) -> float:
-        """Calculate similarity between two byte sequences"""
-        if len(content1) == 0 or len(content2) == 0:
-            return 0.0
-
-        # Simple byte-level similarity
-        min_len = min(len(content1), len(content2))
-        matches = sum(1 for i in range(min_len) if content1[i] == content2[i])
-
-        return matches / min_len
+        return cross_refs
 
     @staticmethod
     def _generate_intelligence_hints(content: bytes, metadata: Dict[str, Any]) -> List[str]:
-        """Generate intelligence hints for investigation"""
+        """Generate intelligence hints based on content analysis"""
         hints = []
 
-        # Check for steganography indicators
-        if any(p['type'] in ['base64', 'hex_string'] for p in metadata.get('magic_patterns', [])):
-            hints.append("File contains base64/hex data - potential steganography")
+        # Check entropy
+        if 'content_signatures' in metadata:
+            for sig in metadata['content_signatures']:
+                if sig['type'] == 'entropy':
+                    entropy = float(sig['signature'])
+                    if entropy > 7.5:
+                        hints.append("High entropy content - possible encryption or compression")
+                    elif entropy < 1.0:
+                        hints.append("Low entropy content - likely plain text or structured data")
 
-        # Check for multiple file signatures
-        signatures = [p for p in metadata.get('magic_patterns', []) if 'signature' in p['type']]
-        if len(signatures) > 1:
-            hints.append("Multiple file signatures detected - possible file concatenation")
-
-        # Check for encryption indicators
-        if len(set(content)) > 200:  # High entropy
-            hints.append("High entropy detected - possible encryption or compression")
-
-        # Check for flag patterns
-        flag_patterns = [p for p in metadata.get('magic_patterns', []) if p['type'] == 'flag']
-        if flag_patterns:
-            hints.append("Flag patterns detected - likely CTF challenge file")
+        # Check for crypto patterns
+        if 'magic_patterns' in metadata:
+            pattern_types = {p['type'] for p in metadata['magic_patterns']}
+            if 'base64' in pattern_types:
+                hints.append("Contains Base64 encoded data")
+            if any(p.startswith('hash_') for p in pattern_types):
+                hints.append("Contains cryptographic hashes")
+            if 'key' in pattern_types:
+                hints.append("May contain cryptographic keys or passwords")
 
         return hints
+
+    @staticmethod
+    def _calculate_entropy(data: bytes) -> float:
+        """Calculate Shannon entropy of data"""
+        if len(data) == 0:
+            return 0
+
+        byte_counts = [0] * 256
+        for byte in data:
+            byte_counts[byte] += 1
+
+        entropy = 0
+        for count in byte_counts:
+            if count > 0:
+                frequency = count / len(data)
+                entropy -= frequency * (frequency.bit_length() - 1)
+
+        return entropy
