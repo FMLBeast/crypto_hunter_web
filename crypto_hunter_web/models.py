@@ -668,7 +668,7 @@ class AuditLog(db.Model):
     # Result information
     success = db.Column(db.Boolean, nullable=False, index=True)
     error_message = db.Column(db.Text)
-    metadata = db.Column(JSON, default=dict)
+    auditlog_metadata = db.Column(JSON, default=dict)
 
     # Timestamp
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
