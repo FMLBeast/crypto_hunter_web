@@ -87,10 +87,8 @@ services:
     image: crypto-hunter:latest
     container_name: crypto-hunter-worker
     restart: unless-stopped
-    command: celery -A crypto_hunter_web.celery_app worker --loglevel=info --concurrency=4
-    environment:
-      <<: *common-env
-      C_FORCE_ROOT: "true"
+    command: celery -A crypto_hunter_web.services.celery_app worker --loglevel=info --concurrency=4
+    environment: *common-env
     volumes:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
@@ -110,7 +108,7 @@ services:
     image: crypto-hunter:latest
     container_name: crypto-hunter-beat
     restart: unless-stopped
-    command: celery -A crypto_hunter_web.celery_app beat --loglevel=info
+    command: celery -A crypto_hunter_web.services.celery_app beat --loglevel=info
     environment: *common-env
     volumes:
       - logs_data:/app/logs
@@ -126,7 +124,7 @@ services:
     image: crypto-hunter:latest
     container_name: crypto-hunter-flower
     restart: unless-stopped
-    command: celery -A crypto_hunter_web.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin123}
+    command: celery -A crypto_hunter_web.services.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin123}
     environment: *common-env
     networks:
       - crypto-hunter-network

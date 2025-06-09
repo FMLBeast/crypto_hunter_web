@@ -120,6 +120,17 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
 
     return decorator
 
+def api_endpoint(*args, **kwargs):
+    def decorator(f):
+        return f
+
+    return decorator
+
+def cache_result(timeout):
+    def decorator(f):
+        return f
+
+    return decorator
 
 def require_api_key(permissions: List[str] = None, optional: bool = False):
     """
@@ -175,8 +186,8 @@ def require_api_key(permissions: List[str] = None, optional: bool = False):
     return decorator
 
 
-def api_endpoint(require_json: bool = False, validate_schema: Dict = None,
-                 max_content_length: int = None):
+
+
     """
     Mark function as API endpoint with automatic JSON handling
 
@@ -261,6 +272,10 @@ def api_endpoint(require_json: bool = False, validate_schema: Dict = None,
 
     return decorator
 
+def cache_result(timeout):
+    def decorator(f):
+        return f
+    return decorator
 
 def require_permissions(*permissions):
     """

@@ -4,59 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Crypto Hunter - Arweave Puzzle #11{% endblock %}</title>
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+
     <!-- Custom CSS -->
     <style>
         /* Custom animations and utilities */
         .fade-in {
             animation: fadeIn 0.5s ease-in;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
+
         .slide-in-right {
             animation: slideInRight 0.3s ease-out;
         }
-        
+
         @keyframes slideInRight {
             from { transform: translateX(100%); }
             to { transform: translateX(0); }
         }
-        
+
         .pulse-slow {
             animation: pulse 3s infinite;
         }
-        
+
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
-        
+
         ::-webkit-scrollbar-track {
             background: #f1f5f9;
         }
-        
+
         ::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 4px;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
-        
+
         /* Loading spinner */
         .spinner {
             border: 3px solid #f3f4f6;
@@ -66,49 +66,49 @@
             height: 20px;
             animation: spin 1s linear infinite;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         /* Custom gradient backgrounds */
         .bg-gradient-crypto {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
-        
+
         .bg-gradient-analysis {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
-        
+
         /* Notification styles */
         .notification-enter {
             transform: translateX(100%);
             opacity: 0;
         }
-        
+
         .notification-enter-active {
             transform: translateX(0);
             opacity: 1;
             transition: transform 0.3s ease-out, opacity 0.3s ease-out;
         }
-        
+
         /* File upload drag and drop */
         .file-upload-area {
             transition: all 0.3s ease;
         }
-        
+
         .file-upload-area.drag-over {
             border-color: #4f46e5;
             background-color: #eef2ff;
         }
-        
+
         /* Status indicators */
         .status-indicator {
             position: relative;
             display: inline-block;
         }
-        
+
         .status-indicator::before {
             content: '';
             position: absolute;
@@ -119,20 +119,20 @@
             border-radius: 50%;
             border: 2px solid white;
         }
-        
+
         .status-indicator.online::before {
             background-color: #10b981;
         }
-        
+
         .status-indicator.busy::before {
             background-color: #f59e0b;
         }
-        
+
         .status-indicator.offline::before {
             background-color: #ef4444;
         }
     </style>
-    
+
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -150,25 +150,25 @@
                             </span>
                         </a>
                     </div>
-                    
+
                     <!-- Desktop navigation -->
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="{{ url_for('dashboard.index') }}" 
+                        <a href="{{ url_for('dashboard.index') }}"
                            class="{% if request.endpoint == 'dashboard.index' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                         </a>
-                        
-                        <a href="{{ url_for('files.file_list') }}" 
+
+                        <a href="{{ url_for('files.file_list') }}"
                            class="{% if request.endpoint and 'files' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-folder mr-2"></i>Files
                         </a>
-                        
-                        <a href="{{ url_for('analysis.vector_list') }}" 
+
+                        <a href="{{ url_for('analysis.vector_list') }}"
                            class="{% if request.endpoint and 'analysis' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-crosshairs mr-2"></i>Analysis
                         </a>
-                        
-                        <a href="{{ url_for('graph.visual_graph') }}" 
+
+                        <a href="{{ url_for('graph.visual_graph') }}"
                            class="{% if request.endpoint and 'graph' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-project-diagram mr-2"></i>Graph
                         </a>
@@ -182,21 +182,21 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
-                        <input type="text" id="global-search" 
-                               placeholder="Search files, hashes..." 
+                        <input type="text" id="global-search"
+                               placeholder="Search files, hashes..."
                                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     </div>
-                    
+
                     <!-- Upload button -->
-                    <a href="{{ url_for('files.upload') }}" 
+                    <a href="{{ url_for('files.upload') }}"
                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center">
                         <i class="fas fa-upload mr-2"></i>Upload
                     </a>
-                    
+
                     <!-- User menu -->
                     {% if current_user.is_authenticated %}
                     <div class="relative" x-data="{ open: false }">
-                        <button @click="open = !open" 
+                        <button @click="open = !open"
                                 class="bg-white flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             <span class="sr-only">Open user menu</span>
                             {% if current_user.avatar_url %}
@@ -213,7 +213,7 @@
                                 <i class="fas fa-chevron-down ml-1 text-gray-400"></i>
                             </div>
                         </button>
-                        
+
                         <div x-show="open" @click.away="open = false"
                              x-transition:enter="transition ease-out duration-200"
                              x-transition:enter-start="transform opacity-0 scale-95"
@@ -223,22 +223,22 @@
                              x-transition:leave-end="transform opacity-0 scale-95"
                              class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
                             <div class="py-1">
-                                <a href="{{ url_for('auth.profile') }}" 
+                                <a href="{{ url_for('auth.profile') }}"
                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-user mr-2"></i>Profile
                                 </a>
-                                <a href="{{ url_for('auth.settings') }}" 
+                                <a href="{{ url_for('auth.settings') }}"
                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-cog mr-2"></i>Settings
                                 </a>
                                 {% if current_user.is_admin %}
-                                <a href="{{ url_for('admin.dashboard') }}" 
+                                <a href="{{ url_for('admin.dashboard') }}"
                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-shield-alt mr-2"></i>Admin
                                 </a>
                                 {% endif %}
                                 <div class="border-t border-gray-100"></div>
-                                <a href="{{ url_for('auth.logout') }}" 
+                                <a href="{{ url_for('auth.logout') }}"
                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-sign-out-alt mr-2"></i>Logout
                                 </a>
@@ -247,12 +247,12 @@
                     </div>
                     {% else %}
                     <div class="flex items-center space-x-2">
-                        <a href="{{ url_for('auth.login') }}" 
+                        <a href="{{ url_for('auth.login') }}"
                            class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                             Login
                         </a>
                         {% if config.ENABLE_REGISTRATION %}
-                        <a href="{{ url_for('auth.register') }}" 
+                        <a href="{{ url_for('auth.register') }}"
                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                             Register
                         </a>
@@ -275,19 +275,19 @@
         <!-- Mobile menu -->
         <div class="sm:hidden hidden" id="mobile-menu">
             <div class="pt-2 pb-3 space-y-1">
-                <a href="{{ url_for('dashboard.index') }}" 
+                <a href="{{ url_for('dashboard.index') }}"
                    class="{% if request.endpoint == 'dashboard.index' %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Dashboard
                 </a>
-                <a href="{{ url_for('files.file_list') }}" 
+                <a href="{{ url_for('files.file_list') }}"
                    class="{% if request.endpoint and 'files' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Files
                 </a>
-                <a href="{{ url_for('analysis.vector_list') }}" 
+                <a href="{{ url_for('analysis.vector_list') }}"
                    class="{% if request.endpoint and 'analysis' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Analysis
                 </a>
-                <a href="{{ url_for('graph.visual_graph') }}" 
+                <a href="{{ url_for('graph.visual_graph') }}"
                    class="{% if request.endpoint and 'graph' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Graph
                 </a>
@@ -317,7 +317,7 @@
                         {{ message }}
                     </div>
                     <div class="ml-auto pl-3">
-                        <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()"
                                 class="text-gray-400 hover:text-gray-600">
                             <i class="fas fa-times"></i>
                         </button>
@@ -362,7 +362,7 @@
 
     <!-- JavaScript Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    
+
     <!-- Common JavaScript -->
     <script>
         // Global search functionality
@@ -406,7 +406,7 @@
                 type === 'success' ? 'bg-green-100 border border-green-400 text-green-700' :
                 'bg-blue-100 border border-blue-400 text-blue-700'
             }`;
-            
+
             notification.innerHTML = `
                 <div class="flex items-start">
                     <div class="flex-shrink-0">
@@ -418,22 +418,22 @@
                     </div>
                     <div class="ml-3 flex-1">${message}</div>
                     <div class="ml-auto pl-3">
-                        <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()"
                                 class="text-gray-400 hover:text-gray-600">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(notification);
-            
+
             // Trigger animation
             setTimeout(() => {
                 notification.classList.add('notification-enter-active');
                 notification.classList.remove('notification-enter');
             }, 10);
-            
+
             // Auto remove
             if (duration > 0) {
                 setTimeout(() => {
@@ -452,7 +452,7 @@
 
         // CSRF token for AJAX requests
         function getCSRFToken() {
-            return document.querySelector('meta[name=csrf-token]') ? 
+            return document.querySelector('meta[name=csrf-token]') ?
                    document.querySelector('meta[name=csrf-token]').getAttribute('content') : null;
         }
 
@@ -476,7 +476,7 @@
             if (typeof $ !== 'undefined') {
                 setupAjax();
             }
-            
+
             // Initialize tooltips if present
             if (typeof bootstrap !== 'undefined') {
                 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -488,24 +488,24 @@
 
         // WebSocket connection for real-time updates (if supported)
         let websocket = null;
-        
+
         function initWebSocket() {
             if ('WebSocket' in window) {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
-                
+
                 try {
                     websocket = new WebSocket(wsUrl);
-                    
+
                     websocket.onopen = function() {
                         console.log('WebSocket connected');
                     };
-                    
+
                     websocket.onmessage = function(event) {
                         const data = JSON.parse(event.data);
                         handleWebSocketMessage(data);
                     };
-                    
+
                     websocket.onclose = function() {
                         console.log('WebSocket disconnected');
                         // Reconnect after 5 seconds
@@ -534,7 +534,7 @@
         // Initialize WebSocket on page load
         // initWebSocket();
     </script>
-    
+
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

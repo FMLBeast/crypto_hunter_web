@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc, and_, or_
-
+from typing import Optional,Dict, Any
 from crypto_hunter_web.models import db, AnalysisFile, Finding, Vector, User, FileContent
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.utils.validators import validate_sha256

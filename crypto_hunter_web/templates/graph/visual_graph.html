@@ -217,7 +217,7 @@
             <div class="bg-white rounded-lg shadow p-4">
                 <div class="graph-container" style="height: 600px; position: relative;">
                     <svg id="graph-svg" class="graph-svg" width="100%" height="100%"></svg>
-                    
+
                     <!-- Graph Controls -->
                     <div class="graph-controls flex flex-col space-y-2">
                         <button onclick="zoomIn()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
@@ -233,7 +233,7 @@
                             <i class="fas fa-pause"></i>
                         </button>
                     </div>
-                    
+
                     <!-- Legend -->
                     <div class="graph-legend">
                         <div class="text-xs font-bold mb-2">Legend</div>
@@ -260,12 +260,12 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Minimap -->
                     <div class="minimap">
                         <svg id="minimap-svg" width="100%" height="100%"></svg>
                     </div>
-                    
+
                     <!-- Tooltip -->
                     <div id="tooltip" class="tooltip"></div>
                 </div>
@@ -289,7 +289,7 @@
                             <option value="tree" {% if graph_metadata.layout_type == 'tree' %}selected{% endif %}>Tree</option>
                         </select>
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Node Size</label>
                         <select id="node-size" onchange="updateNodeSizes()" class="w-full border border-gray-300 rounded-md px-3 py-2">
@@ -299,7 +299,7 @@
                             <option value="connections">By Connections</option>
                         </select>
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Show Elements</label>
                         <div class="space-y-2">
@@ -321,7 +321,7 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">File Types</label>
                         <div class="space-y-2">
@@ -343,7 +343,7 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Analysis Status</label>
                         <div class="space-y-2">
@@ -483,34 +483,34 @@ function initializeGraph() {
     svg = d3.select("#graph-svg");
     const container = svg.node().parentNode;
     const rect = container.getBoundingClientRect();
-    
+
     svg.attr("width", rect.width).attr("height", rect.height);
-    
+
     // Setup zoom
     zoom = d3.zoom()
         .scaleExtent([0.1, 10])
         .on("zoom", zoomed);
-    
+
     svg.call(zoom);
-    
+
     // Main group for graph elements
     g = svg.append("g");
-    
+
     // Setup simulation
     simulation = d3.forceSimulation(graphData.nodes)
         .force("link", d3.forceLink(graphData.edges).id(d => d.id).distance(50))
         .force("charge", d3.forceManyBody().strength(-200))
         .force("center", d3.forceCenter(rect.width / 2, rect.height / 2))
         .force("collision", d3.forceCollide().radius(d => Math.max(8, getNodeRadius(d)) + 2));
-    
+
     // Create graph elements
     createLinks();
     createNodes();
     createLabels();
-    
+
     // Start simulation
     simulation.on("tick", ticked);
-    
+
     // Setup minimap
     setupMinimap();
 }
@@ -522,7 +522,7 @@ function createLinks() {
         .enter().append("line")
         .attr("class", d => `link ${d.type || ''}`)
         .attr("stroke-width", d => d.weight || 1);
-    
+
     return links;
 }
 
@@ -546,7 +546,7 @@ function createNodes() {
         .on("click", nodeClicked)
         .on("mouseover", showTooltip)
         .on("mouseout", hideTooltip);
-    
+
     return nodes;
 }
 
@@ -557,7 +557,7 @@ function createLabels() {
         .enter().append("text")
         .attr("class", "node-label")
         .text(d => d.filename.length > 15 ? d.filename.substring(0, 12) + "..." : d.filename);
-    
+
     return labels;
 }
 
@@ -577,7 +577,7 @@ function getNodeRadius(d) {
 
 function getNodeColor(d) {
     if (d.is_root_file) return "#9f7aea";
-    
+
     switch(d.file_type) {
         case 'image': return "#4299e1";
         case 'archive': return "#ed8936";
@@ -593,11 +593,11 @@ function ticked() {
         .attr("y1", d => d.source.y)
         .attr("x2", d => d.target.x)
         .attr("y2", d => d.target.y);
-    
+
     g.selectAll("circle")
         .attr("cx", d => d.x)
         .attr("cy", d => d.y);
-    
+
     g.selectAll("text")
         .attr("x", d => d.x)
         .attr("y", d => d.y + 3);
@@ -611,17 +611,17 @@ function zoomed(event) {
 // Node interactions
 function nodeClicked(event, d) {
     event.stopPropagation();
-    
+
     // Clear previous selection
     g.selectAll(".node").classed("selected", false);
-    
+
     // Select new node
     d3.select(this).classed("selected", true);
     selectedNode = d;
-    
+
     // Show node info
     showNodeInfo(d);
-    
+
     // Highlight connected nodes
     highlightConnectedNodes(d);
 }
@@ -629,7 +629,7 @@ function nodeClicked(event, d) {
 function showNodeInfo(d) {
     const panel = document.getElementById('node-info');
     const content = document.getElementById('node-info-content');
-    
+
     content.innerHTML = `
         <div class="space-y-3">
             <div>
@@ -663,7 +663,7 @@ function showNodeInfo(d) {
             </div>
         </div>
     `;
-    
+
     panel.classList.remove('hidden');
 }
 
@@ -671,10 +671,10 @@ function highlightConnectedNodes(d) {
     // Reset all nodes
     g.selectAll(".node").style("opacity", 0.3);
     g.selectAll(".link").style("opacity", 0.1);
-    
+
     // Highlight selected node
     g.selectAll(".node").filter(n => n.id === d.id).style("opacity", 1);
-    
+
     // Highlight connected nodes and edges
     g.selectAll(".link").filter(l => l.source.id === d.id || l.target.id === d.id)
         .style("opacity", 0.8)
@@ -737,12 +737,12 @@ function fitToView() {
     const height = bounds.height;
     const midX = bounds.x + width / 2;
     const midY = bounds.y + height / 2;
-    
+
     if (width == 0 || height == 0) return;
-    
+
     const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
     const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
-    
+
     svg.transition()
         .duration(750)
         .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
@@ -766,21 +766,21 @@ function resetGraph() {
     selectedNode = null;
     filteredNodes.clear();
     filteredEdges.clear();
-    
+
     // Reset visual state
     g.selectAll(".node")
         .classed("selected", false)
         .style("opacity", 1);
     g.selectAll(".link").style("opacity", 1);
-    
+
     // Hide node info
     document.getElementById('node-info').classList.add('hidden');
-    
+
     // Reset form controls
     document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
     document.getElementById('layout-type').value = 'force';
     document.getElementById('node-size').value = 'file-size';
-    
+
     // Restart simulation
     simulation.alpha(1).restart();
 }
@@ -788,7 +788,7 @@ function resetGraph() {
 // Layout changes
 function changeLayout() {
     const layoutType = document.getElementById('layout-type').value;
-    
+
     switch(layoutType) {
         case 'hierarchical':
             applyHierarchicalLayout();
@@ -816,13 +816,13 @@ function applyCircularLayout() {
     const radius = Math.min(svg.attr("width"), svg.attr("height")) / 2 - 50;
     const centerX = svg.attr("width") / 2;
     const centerY = svg.attr("height") / 2;
-    
+
     graphData.nodes.forEach((d, i) => {
         const angle = (i / graphData.nodes.length) * 2 * Math.PI;
         d.fx = centerX + radius * Math.cos(angle);
         d.fy = centerY + radius * Math.sin(angle);
     });
-    
+
     simulation.alpha(0.3).restart();
 }
 
@@ -834,7 +834,7 @@ function toggleLabels() {
 
 function filterRootOnly() {
     const rootOnly = document.getElementById('show-root-only').checked;
-    
+
     if (rootOnly) {
         g.selectAll(".node").style("display", d => d.is_root_file ? "block" : "none");
         g.selectAll(".node-label").style("display", d => d.is_root_file ? "block" : "none");
@@ -859,15 +859,15 @@ function showShortestPath() {
     // Populate file selectors
     const sourceSelect = document.getElementById('path-source');
     const targetSelect = document.getElementById('path-target');
-    
+
     sourceSelect.innerHTML = '';
     targetSelect.innerHTML = '';
-    
+
     graphData.nodes.forEach(node => {
         sourceSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
         targetSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
     });
-    
+
     document.getElementById('path-modal').classList.remove('hidden');
     document.getElementById('path-modal').classList.add('flex');
 }
@@ -880,22 +880,22 @@ function closePathModal() {
 function findPath() {
     const sourceId = document.getElementById('path-source').value;
     const targetId = document.getElementById('path-target').value;
-    
+
     if (sourceId === targetId) {
         showNotification('Source and target must be different', 'warning');
         return;
     }
-    
+
     // Find shortest path using Dijkstra's algorithm
     const path = findShortestPath(sourceId, targetId);
-    
+
     if (path.length === 0) {
         showNotification('No path found between selected files', 'error');
     } else {
         highlightPath(path);
         showNotification(`Path found with ${path.length - 1} hops`, 'success');
     }
-    
+
     closePathModal();
 }
 
@@ -903,17 +903,17 @@ function findShortestPath(sourceId, targetId) {
     // Simple BFS implementation
     const visited = new Set();
     const queue = [[sourceId, [sourceId]]];
-    
+
     while (queue.length > 0) {
         const [currentId, path] = queue.shift();
-        
+
         if (currentId === targetId) {
             return path;
         }
-        
+
         if (visited.has(currentId)) continue;
         visited.add(currentId);
-        
+
         // Find connected nodes
         graphData.edges.forEach(edge => {
             if (edge.source.id === currentId && !visited.has(edge.target.id)) {
@@ -923,7 +923,7 @@ function findShortestPath(sourceId, targetId) {
             }
         });
     }
-    
+
     return [];
 }
 
@@ -931,13 +931,13 @@ function highlightPath(path) {
     // Reset all nodes and edges
     g.selectAll(".node").style("opacity", 0.2);
     g.selectAll(".link").style("opacity", 0.1);
-    
+
     // Highlight path nodes
     g.selectAll(".node").filter(d => path.includes(d.id)).style("opacity", 1);
-    
+
     // Highlight path edges
     for (let i = 0; i < path.length - 1; i++) {
-        g.selectAll(".link").filter(d => 
+        g.selectAll(".link").filter(d =>
             (d.source.id === path[i] && d.target.id === path[i + 1]) ||
             (d.source.id === path[i + 1] && d.target.id === path[i])
         ).style("opacity", 1).style("stroke", "#ffd700").style("stroke-width", 3);
@@ -952,12 +952,12 @@ function exportGraph() {
         metadata: {{ graph_metadata|tojson }},
         timestamp: new Date().toISOString()
     };
-    
+
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
+
     const exportFileDefaultName = `crypto_hunter_graph_${new Date().toISOString().split('T')[0]}.json`;
-    
+
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);

@@ -1,0 +1,767 @@
+{ % extends
+"base.html" %}
+
+{ % block
+title %}Analysis
+Findings - Crypto
+Hunter
+{ % endblock %}
+
+{ % block
+content %}
+< div
+
+
+class ="space-y-6" >
+
+< !-- Header -->
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< div
+
+
+class ="flex items-center justify-between" >
+
+< div >
+< h1
+
+
+class ="text-2xl font-bold text-gray-900" > Analysis Findings < / h1 >
+
+< p
+
+
+class ="text-gray-600" > Security findings and cryptocurrency analysis results < / p >
+
+< / div >
+< div
+
+
+class ="flex space-x-4" >
+
+< a
+href = "{{ url_for('dashboard.index') }}"
+
+
+class ="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md" >
+
+< i
+
+
+class ="fas fa-arrow-left mr-2" > < / i > Back to Dashboard
+
+< / a >
+< button
+onclick = "refreshFindings()"
+
+
+class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
+
+< i
+
+
+class ="fas fa-sync-alt mr-2" > < / i > Refresh
+
+< / button >
+< / div >
+< / div >
+< / div >
+
+< !-- Stats
+Cards -->
+< div
+
+
+class ="grid grid-cols-1 md:grid-cols-4 gap-6" >
+
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< div
+
+
+class ="flex items-center" >
+
+< div
+
+
+class ="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center" >
+
+< i
+
+
+class ="fas fa-search text-blue-600" > < / i >
+
+< / div >
+< div
+
+
+class ="ml-4" >
+
+< p
+
+
+class ="text-sm font-medium text-gray-500" > Total Findings < / p >
+
+< p
+
+
+class ="text-2xl font-semibold text-gray-900" > {{stats.total_findings if stats else 0}} < / p >
+
+< / div >
+< / div >
+< / div >
+
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< div
+
+
+class ="flex items-center" >
+
+< div
+
+
+class ="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center" >
+
+< i
+
+
+class ="fas fa-coins text-yellow-600" > < / i >
+
+< / div >
+< div
+
+
+class ="ml-4" >
+
+< p
+
+
+class ="text-sm font-medium text-gray-500" > Crypto Findings < / p >
+
+< p
+
+
+class ="text-2xl font-semibold text-gray-900" > {{stats.crypto_findings if stats else 0}} < / p >
+
+< / div >
+< / div >
+< / div >
+
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< div
+
+
+class ="flex items-center" >
+
+< div
+
+
+class ="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center" >
+
+< i
+
+
+class ="fas fa-check-circle text-green-600" > < / i >
+
+< / div >
+< div
+
+
+class ="ml-4" >
+
+< p
+
+
+class ="text-sm font-medium text-gray-500" > High Confidence < / p >
+
+< p
+
+
+class ="text-2xl font-semibold text-gray-900" > {{stats.high_confidence if stats else 0}} < / p >
+
+< / div >
+< / div >
+< / div >
+
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< div
+
+
+class ="flex items-center" >
+
+< div
+
+
+class ="w-8 h-8 bg-red-100 rounded-md flex items-center justify-center" >
+
+< i
+
+
+class ="fas fa-exclamation-triangle text-red-600" > < / i >
+
+< / div >
+< div
+
+
+class ="ml-4" >
+
+< p
+
+
+class ="text-sm font-medium text-gray-500" > Unverified < / p >
+
+< p
+
+
+class ="text-2xl font-semibold text-gray-900" > {{stats.unverified if stats else 0}} < / p >
+
+< / div >
+< / div >
+< / div >
+< / div >
+
+< !-- Filters -->
+< div
+
+
+class ="bg-white rounded-lg shadow-sm p-6" >
+
+< form
+method = "GET"
+
+
+class ="space-y-4" >
+
+< div
+
+
+class ="grid grid-cols-1 md:grid-cols-4 gap-4" >
+
+< div >
+< label
+
+
+class ="block text-sm font-medium text-gray-700 mb-2" > Search < / label >
+
+< input
+type = "text"
+name = "search"
+value = "{{ request.args.get('search', '') }}"
+placeholder = "Search findings..."
+
+
+class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
+
+< / div >
+< div >
+< label
+
+
+class ="block text-sm font-medium text-gray-700 mb-2" > Category < / label >
+
+< select
+name = "category"
+
+
+class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
+
+< option
+value = "" > All
+Categories < / option >
+< option
+value = "crypto"
+{ % if request.args.get('category') == 'crypto' %}selected
+{ % endif %} > Cryptocurrency < / option >
+< option
+value = "technical"
+{ % if request.args.get('category') == 'technical' %}selected
+{ % endif %} > Technical < / option >
+< option
+value = "malware"
+{ % if request.args.get('category') == 'malware' %}selected
+{ % endif %} > Malware < / option >
+< option
+value = "steganography"
+{ % if request.args.get('category') == 'steganography' %}selected
+{ % endif %} > Steganography < / option >
+< / select >
+< / div >
+< div >
+< label
+
+
+class ="block text-sm font-medium text-gray-700 mb-2" > Type < / label >
+
+< select
+name = "finding_type"
+
+
+class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
+
+< option
+value = "" > All
+Types < / option >
+< option
+value = "wallet_address"
+{ % if request.args.get('finding_type') == 'wallet_address' %}selected
+{ % endif %} > Wallet
+Address < / option >
+< option
+value = "private_key"
+{ % if request.args.get('finding_type') == 'private_key' %}selected
+{ % endif %} > Private
+Key < / option >
+< option
+value = "seed_phrase"
+{ % if request.args.get('finding_type') == 'seed_phrase' %}selected
+{ % endif %} > Seed
+Phrase < / option >
+< option
+value = "api_key"
+{ % if request.args.get('finding_type') == 'api_key' %}selected
+{ % endif %} > API
+Key < / option >
+< / select >
+< / div >
+< div >
+< label
+
+
+class ="block text-sm font-medium text-gray-700 mb-2" > Status < / label >
+
+< select
+name = "status"
+
+
+class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
+
+< option
+value = "" > All
+Statuses < / option >
+< option
+value = "verified"
+{ % if request.args.get('status') == 'verified' %}selected
+{ % endif %} > Verified < / option >
+< option
+value = "unverified"
+{ % if request.args.get('status') == 'unverified' %}selected
+{ % endif %} > Unverified < / option >
+< option
+value = "false_positive"
+{ % if request.args.get('status') == 'false_positive' %}selected
+{ % endif %} > False
+Positive < / option >
+< / select >
+< / div >
+< / div >
+< div
+
+
+class ="flex space-x-4" >
+
+< button
+type = "submit"
+
+
+class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
+
+< i
+
+
+class ="fas fa-filter mr-2" > < / i > Apply Filters
+
+< / button >
+< a
+href = "{{ url_for('analysis.findings_list') }}"
+
+
+class ="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md" >
+
+< i
+
+
+class ="fas fa-times mr-2" > < / i > Clear
+
+< / a >
+< / div >
+< / form >
+< / div >
+
+< !-- Findings
+List -->
+< div
+
+
+class ="bg-white rounded-lg shadow-sm" >
+
+< div
+
+
+class ="px-6 py-4 border-b border-gray-200" >
+
+< h3
+
+
+class ="text-lg font-medium text-gray-900" > Findings Results < / h3 >
+
+< p
+
+
+class ="text-sm text-gray-500 mt-1" >
+
+
+{ % if findings %}
+Showing
+{{findings.items | length}}
+of
+{{findings.total}}
+findings
+{ % else %}
+No
+findings
+found
+{ % endif %}
+< / p >
+< / div >
+
+{ % if findings and findings.items %}
+< div
+
+
+class ="divide-y divide-gray-200" >
+
+
+{ %
+for finding in findings.items %}
+< div
+
+
+class ="p-6 hover:bg-gray-50 transition-colors" >
+
+< div
+
+
+class ="flex items-start justify-between" >
+
+< div
+
+
+class ="flex-1" >
+
+< div
+
+
+class ="flex items-center space-x-3" >
+
+
+{ % if finding.category == 'crypto' %}
+< i
+
+
+class ="fas fa-coins text-yellow-600" > < / i >
+
+
+{ % elif finding.category == 'technical' %}
+< i
+
+
+class ="fas fa-cog text-blue-600" > < / i >
+
+
+{ % elif finding.category == 'malware' %}
+< i
+
+
+class ="fas fa-bug text-red-600" > < / i >
+
+
+{ % else %}
+< i
+
+
+class ="fas fa-search text-gray-600" > < / i >
+
+
+{ % endif %}
+< h4
+
+
+class ="text-lg font-medium text-gray-900" >
+
+< a
+href = "#"
+
+
+class ="hover:text-indigo-600" > {{finding.title}} < / a >
+
+< / h4 >
+< / div >
+
+< p
+
+
+class ="text-gray-600 mt-2" > {{finding.description}} < / p >
+
+< div
+
+
+class ="flex items-center space-x-4 mt-3 text-sm text-gray-500" >
+
+< span > < i
+
+
+class ="fas fa-file mr-1" > < / i > {{finding.file.filename if finding.file else 'Unknown file'}} < / span >
+
+< span > < i
+
+
+class ="fas fa-tag mr-1" > < / i > {{finding.finding_type}} < / span >
+
+< span > < i
+
+
+class ="fas fa-calendar mr-1" > < / i > {{finding.created_at.strftime('%Y-%m-%d %H:%M') if finding.created_at else 'Unknown date'}} < / span >
+
+< / div >
+< / div >
+
+< div
+
+
+class ="flex flex-col items-end space-y-2" >
+
+< !-- Confidence
+Score -->
+< div
+
+
+class ="flex items-center space-x-2" >
+
+< span
+
+
+class ="text-sm text-gray-500" > Confidence:<
+
+    / span >
+< span
+
+
+class ="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+
+
+{ % if finding.confidence_level >= 8 %}bg - green - 100
+text - green - 800
+{ % elif finding.confidence_level >= 6 %}bg - yellow - 100
+text - yellow - 800
+{ % else %}bg - red - 100
+text - red - 800
+{ % endif %}">
+{{(finding.confidence_level * 10) | round}} %
+< / span >
+< / div >
+
+< !-- Status -->
+< span
+
+
+class ="inline-flex items-center px-2 py-1 rounded text-xs font-medium
+
+
+{ % if finding.verified %}bg - green - 100
+text - green - 800
+{ % elif finding.false_positive %}bg - red - 100
+text - red - 800
+{ % else %}bg - gray - 100
+text - gray - 800
+{ % endif %}">
+{ % if finding.verified %}Verified
+{ % elif finding.false_positive %}False
+Positive
+{ % else %}Unverified
+{ % endif %}
+< / span >
+
+< !-- Actions -->
+< div
+
+
+class ="flex space-x-2" >
+
+< button
+onclick = "viewFinding('{{ finding.public_id }}')"
+
+
+class ="text-indigo-600 hover:text-indigo-800 text-sm" >
+
+< i
+
+
+class ="fas fa-eye" > < / i >
+
+< / button >
+< button
+onclick = "verifyFinding('{{ finding.public_id }}')"
+
+
+class ="text-green-600 hover:text-green-800 text-sm" >
+
+< i
+
+
+class ="fas fa-check" > < / i >
+
+< / button >
+< / div >
+< / div >
+< / div >
+< / div >
+{ % endfor %}
+< / div >
+
+< !-- Pagination -->
+{ % if findings and findings.pages > 1 %}
+< div
+
+
+class ="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6" >
+
+< div
+
+
+class ="flex-1 flex justify-between sm:hidden" >
+
+
+{ % if findings.has_prev %}
+< a
+href = "{{ url_for('analysis.findings_list', page=findings.prev_num) }}"
+
+
+class ="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" >
+
+
+Previous
+< / a >
+{ % endif %}
+{ % if findings.has_next %}
+< a
+href = "{{ url_for('analysis.findings_list', page=findings.next_num) }}"
+
+
+class ="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" >
+
+
+Next
+< / a >
+{ % endif %}
+< / div >
+< / div >
+{ % endif %}
+
+{ % else %}
+< !-- Empty
+State -->
+< div
+
+
+class ="text-center py-12" >
+
+< i
+
+
+class ="fas fa-search text-gray-400 text-4xl mb-4" > < / i >
+
+< h3
+
+
+class ="text-lg font-medium text-gray-900 mb-2" > No findings found < / h3 >
+
+< p
+
+
+class ="text-gray-600 mb-6" > Upload and analyze files to see security findings here.< / p >
+
+< a
+href = "{{ url_for('dashboard.index') }}"
+
+
+class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
+
+< i
+
+
+class ="fas fa-upload mr-2" > < / i > Upload Files
+
+< / a >
+< / div >
+{ % endif %}
+< / div >
+< / div >
+
+< script >
+function
+refreshFindings()
+{
+    window.location.reload();
+}
+
+function
+viewFinding(findingId)
+{
+// Navigate
+to
+finding
+detail
+page
+window.location.href = ` / analysis / findings /${findingId}
+`;
+}
+
+function
+verifyFinding(findingId)
+{
+if (confirm('Mark this finding as verified?'))
+{
+    fetch(` / api / findings /${findingId} / verify
+`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({action: 'verify'})
+})
+.then(response= > response.json())
+.then(data= > {
+if (data.success)
+{
+    alert('Finding verified successfully!');
+location.reload();
+} else {
+    alert('Error: ' + data.message);
+}
+})
+.catch(error= > {
+    console.error('Error:', error);
+alert('Error verifying finding');
+});
+}
+}
+< / script >
+{ % endblock %}

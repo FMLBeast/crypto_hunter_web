@@ -56,11 +56,11 @@
                 </p>
             </div>
             <div class="flex space-x-3">
-                <a href="{{ url_for('files.file_list') }}" 
+                <a href="{{ url_for('files.file_list') }}"
                    class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
                     <i class="fas fa-list mr-2"></i>View Files
                 </a>
-                <button onclick="clearAll()" 
+                <button onclick="clearAll()"
                         class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md">
                     <i class="fas fa-trash mr-2"></i>Clear All
                 </button>
@@ -72,9 +72,9 @@
         <!-- Upload Section -->
         <div class="lg:col-span-2">
             <!-- Drag and Drop Zone -->
-            <div id="upload-zone" 
+            <div id="upload-zone"
                  class="upload-zone border-2 border-dashed border-white rounded-lg p-12 text-center text-white mb-6"
-                 ondrop="handleDrop(event)" 
+                 ondrop="handleDrop(event)"
                  ondragover="handleDragOver(event)"
                  ondragleave="handleDragLeave(event)">
                 <div class="space-y-4">
@@ -132,7 +132,7 @@
                         <h3 class="text-lg font-medium">Upload Queue</h3>
                         <div class="flex items-center space-x-2">
                             <span id="queue-count" class="text-sm text-gray-500">0 files</span>
-                            <button onclick="startUpload()" id="upload-btn" 
+                            <button onclick="startUpload()" id="upload-btn"
                                     class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50" disabled>
                                 <i class="fas fa-upload mr-1"></i>Upload All
                             </button>
@@ -167,7 +167,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="analysis-option border rounded-lg p-3 selected" data-vector="file_carving">
                         <div class="flex items-center">
                             <input type="checkbox" checked class="mr-3">
@@ -177,7 +177,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="analysis-option border rounded-lg p-3" data-vector="audio_stego">
                         <div class="flex items-center">
                             <input type="checkbox" class="mr-3">
@@ -187,7 +187,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="analysis-option border rounded-lg p-3" data-vector="crypto_analysis">
                         <div class="flex items-center">
                             <input type="checkbox" class="mr-3">
@@ -246,7 +246,7 @@
                                 </div>
                             </div>
                             <div class="flex-shrink-0">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs 
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
                                     {% if file.status == 'complete' %}bg-green-100 text-green-800
                                     {% elif file.status == 'analyzing' %}bg-blue-100 text-blue-800
                                     {% else %}bg-yellow-100 text-yellow-800{% endif %}">
@@ -307,7 +307,7 @@ function handleDragLeave(e) {
 function handleDrop(e) {
     e.preventDefault();
     document.getElementById('upload-zone').classList.remove('drag-over');
-    
+
     const files = Array.from(e.dataTransfer.files);
     addFilesToQueue(files);
 }
@@ -324,13 +324,13 @@ function addFilesToQueue(files) {
             showNotification(`File ${file.name} already in queue`, 'warning');
             return;
         }
-        
+
         // Validate file
         if (file.size > {{ config.MAX_CONTENT_LENGTH }}) {
             showNotification(`File ${file.name} is too large (max {{ (config.MAX_CONTENT_LENGTH / (1024*1024*1024))|round(1) }}GB)`, 'error');
             return;
         }
-        
+
         uploadQueue.push({
             file: file,
             id: generateId(),
@@ -338,7 +338,7 @@ function addFilesToQueue(files) {
             progress: 0
         });
     });
-    
+
     updateQueueDisplay();
     updateStatistics();
 }
@@ -351,7 +351,7 @@ function removeFromQueue(id) {
 
 function clearAll() {
     if (uploadQueue.length === 0) return;
-    
+
     if (confirm('Remove all files from queue?')) {
         uploadQueue = [];
         updateQueueDisplay();
@@ -364,18 +364,18 @@ function updateQueueDisplay() {
     const emptyState = document.getElementById('empty-queue');
     const uploadBtn = document.getElementById('upload-btn');
     const queueCount = document.getElementById('queue-count');
-    
+
     if (uploadQueue.length === 0) {
         emptyState.classList.remove('hidden');
         uploadBtn.disabled = true;
         queueCount.textContent = '0 files';
         return;
     }
-    
+
     emptyState.classList.add('hidden');
     uploadBtn.disabled = false;
     queueCount.textContent = `${uploadQueue.length} files`;
-    
+
     const queueHtml = uploadQueue.map(item => `
         <div class="file-preview p-4 flex items-center justify-between" data-id="${item.id}">
             <div class="flex items-center space-x-4 flex-1">
@@ -395,7 +395,7 @@ function updateQueueDisplay() {
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs 
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
                     ${item.status === 'pending' ? 'bg-gray-100 text-gray-800' :
                       item.status === 'uploading' ? 'bg-blue-100 text-blue-800' :
                       item.status === 'complete' ? 'bg-green-100 text-green-800' :
@@ -410,7 +410,7 @@ function updateQueueDisplay() {
             </div>
         </div>
     `).join('');
-    
+
     container.innerHTML = queueHtml;
 }
 
@@ -418,9 +418,9 @@ function updateStatistics() {
     const totalSize = uploadQueue.reduce((sum, item) => sum + item.file.size, 0);
     const estimatedTime = Math.ceil(totalSize / (1024 * 1024)) * 2; // 2 seconds per MB estimate
     const analysisCost = uploadQueue.length * 0.01; // $0.01 per file estimate
-    
+
     document.getElementById('total-size').textContent = formatFileSize(totalSize);
-    document.getElementById('estimated-time').textContent = estimatedTime > 60 ? 
+    document.getElementById('estimated-time').textContent = estimatedTime > 60 ?
         `${Math.ceil(estimatedTime / 60)} min` : `${estimatedTime} sec`;
     document.getElementById('analysis-cost').textContent = `$${analysisCost.toFixed(2)}`;
 }
@@ -428,14 +428,14 @@ function updateStatistics() {
 // Upload process
 async function startUpload() {
     if (uploadQueue.length === 0 || uploadInProgress) return;
-    
+
     uploadInProgress = true;
     uploadCancelled = false;
-    
+
     // Show progress modal
     document.getElementById('upload-modal').classList.remove('hidden');
     document.getElementById('upload-modal').classList.add('flex');
-    
+
     // Get upload options
     const options = {
         auto_analyze: document.getElementById('auto-analyze').checked,
@@ -444,48 +444,48 @@ async function startUpload() {
         ai_analysis: document.getElementById('ai-analysis').checked,
         analysis_vectors: getSelectedVectors()
     };
-    
+
     let completedCount = 0;
     const totalFiles = uploadQueue.length;
-    
+
     for (let i = 0; i < uploadQueue.length; i++) {
         if (uploadCancelled) break;
-        
+
         const item = uploadQueue[i];
         item.status = 'uploading';
         updateQueueDisplay();
-        
+
         document.getElementById('current-file').textContent = `Uploading: ${item.file.name}`;
-        
+
         try {
             await uploadSingleFile(item, options, (progress) => {
                 item.progress = progress;
                 updateQueueDisplay();
-                
+
                 const overallProgress = ((completedCount + progress / 100) / totalFiles) * 100;
                 document.getElementById('overall-progress').style.width = overallProgress + '%';
             });
-            
+
             item.status = 'complete';
             item.progress = 100;
             completedCount++;
-            
+
         } catch (error) {
             item.status = 'error';
             showNotification(`Failed to upload ${item.file.name}: ${error.message}`, 'error');
         }
-        
+
         updateQueueDisplay();
     }
-    
+
     // Upload complete
     uploadInProgress = false;
     document.getElementById('upload-modal').classList.add('hidden');
     document.getElementById('upload-modal').classList.remove('flex');
-    
+
     if (!uploadCancelled) {
         showNotification(`Successfully uploaded ${completedCount} of ${totalFiles} files`, 'success');
-        
+
         // Clear completed files and redirect
         setTimeout(() => {
             window.location.href = "{{ url_for('files.file_list') }}";
@@ -497,17 +497,17 @@ async function uploadSingleFile(item, options, progressCallback) {
     const formData = new FormData();
     formData.append('file', item.file);
     formData.append('options', JSON.stringify(options));
-    
+
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        
+
         xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
                 const progress = (e.loaded / e.total) * 100;
                 progressCallback(progress);
             }
         });
-        
+
         xhr.addEventListener('load', () => {
             if (xhr.status === 200) {
                 try {
@@ -524,11 +524,11 @@ async function uploadSingleFile(item, options, progressCallback) {
                 reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
             }
         });
-        
+
         xhr.addEventListener('error', () => {
             reject(new Error('Network error'));
         });
-        
+
         xhr.open('POST', "{{ url_for('files.upload_file') }}");
         xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
         xhr.send(formData);
@@ -540,7 +540,7 @@ function cancelUpload() {
     uploadInProgress = false;
     document.getElementById('upload-modal').classList.add('hidden');
     document.getElementById('upload-modal').classList.remove('flex');
-    
+
     // Reset queue status
     uploadQueue.forEach(item => {
         if (item.status === 'uploading') {
@@ -548,7 +548,7 @@ function cancelUpload() {
             item.progress = 0;
         }
     });
-    
+
     updateQueueDisplay();
     showNotification('Upload cancelled', 'info');
 }
@@ -568,19 +568,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Analysis option selection
     document.querySelectorAll('.analysis-option').forEach(option => {
         const checkbox = option.querySelector('input[type="checkbox"]');
-        
+
         option.addEventListener('click', function(e) {
             if (e.target.type !== 'checkbox') {
                 checkbox.checked = !checkbox.checked;
             }
-            
+
             if (checkbox.checked) {
                 option.classList.add('selected');
             } else {
                 option.classList.remove('selected');
             }
         });
-        
+
         checkbox.addEventListener('change', function() {
             if (this.checked) {
                 option.classList.add('selected');
@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // Click upload zone to browse
     document.getElementById('upload-zone').addEventListener('click', function() {
         document.getElementById('file-input').click();

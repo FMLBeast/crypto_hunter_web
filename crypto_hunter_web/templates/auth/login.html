@@ -58,7 +58,7 @@
         <div class="glass-effect rounded-2xl shadow-2xl p-8">
             <form method="POST" class="space-y-6">
                 {{ csrf_token() }}
-                
+
                 <div>
                     <label for="username" class="block text-sm font-medium text-white mb-2">
                         <i class="fas fa-user mr-2"></i>Username or Email
@@ -76,7 +76,7 @@
                         <input type="password" name="password" id="password" required
                                class="w-full px-4 py-3 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-blue-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 focus:border-transparent"
                                placeholder="Enter your password">
-                        <button type="button" onclick="togglePassword()" 
+                        <button type="button" onclick="togglePassword()"
                                 class="absolute inset-y-0 right-0 pr-3 flex items-center text-blue-100 hover:text-white">
                             <i class="fas fa-eye" id="password-toggle"></i>
                         </button>
@@ -85,7 +85,7 @@
 
                 <div class="flex items-center justify-between">
                     <label class="flex items-center text-sm text-blue-100">
-                        <input type="checkbox" name="remember_me" 
+                        <input type="checkbox" name="remember_me"
                                class="mr-2 rounded border-white border-opacity-30 bg-white bg-opacity-20 text-blue-600 focus:ring-white focus:ring-opacity-50">
                         Remember me
                     </label>
@@ -94,7 +94,7 @@
                     </a>
                 </div>
 
-                <button type="submit" 
+                <button type="submit"
                         class="w-full bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg">
                     <i class="fas fa-sign-in-alt mr-2"></i>Sign In
                 </button>
@@ -150,7 +150,7 @@
         function togglePassword() {
             const passwordInput = document.getElementById('password');
             const toggleIcon = document.getElementById('password-toggle');
-            
+
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 toggleIcon.classList.remove('fa-eye');
@@ -227,7 +227,7 @@
         <div class="glass-effect rounded-2xl shadow-2xl p-8">
             <form method="POST" class="space-y-6" onsubmit="return validateForm()">
                 {{ csrf_token() }}
-                
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="first_name" class="block text-sm font-medium text-white mb-2">
@@ -276,7 +276,7 @@
                                class="w-full px-4 py-3 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-blue-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                                placeholder="Create a strong password"
                                oninput="checkPasswordStrength()">
-                        <button type="button" onclick="togglePassword('password')" 
+                        <button type="button" onclick="togglePassword('password')"
                                 class="absolute inset-y-0 right-0 pr-3 flex items-center text-blue-100 hover:text-white">
                             <i class="fas fa-eye" id="password-toggle"></i>
                         </button>
@@ -298,7 +298,7 @@
                                class="w-full px-4 py-3 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-lg text-white placeholder-blue-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
                                placeholder="Confirm your password"
                                oninput="checkPasswordMatch()">
-                        <button type="button" onclick="togglePassword('confirm_password')" 
+                        <button type="button" onclick="togglePassword('confirm_password')"
                                 class="absolute inset-y-0 right-0 pr-3 flex items-center text-blue-100 hover:text-white">
                             <i class="fas fa-eye" id="confirm-password-toggle"></i>
                         </button>
@@ -353,7 +353,7 @@
         function togglePassword(fieldId) {
             const passwordInput = document.getElementById(fieldId);
             const toggleIcon = document.getElementById(fieldId + '-toggle');
-            
+
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 toggleIcon.classList.remove('fa-eye');
@@ -369,18 +369,18 @@
             const password = document.getElementById('password').value;
             const strengthMeter = document.getElementById('password-strength');
             const feedback = document.getElementById('password-feedback');
-            
+
             let score = 0;
             let feedback_text = '';
-            
+
             if (password.length >= 8) score++;
             if (/[a-z]/.test(password)) score++;
             if (/[A-Z]/.test(password)) score++;
             if (/[0-9]/.test(password)) score++;
             if (/[^A-Za-z0-9]/.test(password)) score++;
-            
+
             strengthMeter.className = 'strength-meter ';
-            
+
             if (score <= 2) {
                 strengthMeter.classList.add('strength-weak');
                 feedback_text = 'Weak password';
@@ -394,7 +394,7 @@
                 strengthMeter.classList.add('strength-strong');
                 feedback_text = 'Strong password';
             }
-            
+
             feedback.textContent = feedback_text;
         }
 
@@ -402,12 +402,12 @@
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
             const feedback = document.getElementById('password-match-feedback');
-            
+
             if (confirmPassword.length === 0) {
                 feedback.textContent = '';
                 return;
             }
-            
+
             if (password === confirmPassword) {
                 feedback.textContent = '✓ Passwords match';
                 feedback.className = 'mt-1 text-sm text-green-300';
@@ -420,17 +420,17 @@
         function checkUsernameAvailability() {
             const username = document.getElementById('username').value;
             const feedback = document.getElementById('username-feedback');
-            
+
             if (username.length < 3) {
                 feedback.textContent = 'Username must be at least 3 characters';
                 feedback.className = 'mt-1 text-sm text-red-300';
                 return;
             }
-            
+
             // Simulate API call
             feedback.textContent = 'Checking availability...';
             feedback.className = 'mt-1 text-sm text-blue-100';
-            
+
             setTimeout(() => {
                 feedback.textContent = '✓ Username available';
                 feedback.className = 'mt-1 text-sm text-green-300';
@@ -441,20 +441,20 @@
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
             const submitBtn = document.getElementById('submit-btn');
-            
+
             if (password !== confirmPassword) {
                 alert('Passwords do not match');
                 return false;
             }
-            
+
             if (password.length < 8) {
                 alert('Password must be at least 8 characters long');
                 return false;
             }
-            
+
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating Account...';
             submitBtn.disabled = true;
-            
+
             return true;
         }
 

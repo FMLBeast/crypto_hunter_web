@@ -62,8 +62,7 @@ WTForms==3.0.1
 python-dateutil==2.8.2
 
 # JSON Processing
-jsonschema==4.19.1
-
+jsonschema==4.17.3
 # Environment Variables
 python-decouple==3.8
 
@@ -71,7 +70,6 @@ python-decouple==3.8
 Click==8.1.7
 
 # Crypto and Hashing
-hashlib-compat==1.0.1
 
 # Optional AI/ML Dependencies (commented out if not needed)
 # openai==0.28.1

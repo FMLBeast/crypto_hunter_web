@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from .extensions import db, login_manager, csrf, redis_client, cache, limiter, migrate
 """
 Crypto Hunter Web Application
 Flask application factory and configuration
@@ -25,7 +26,7 @@ def create_app(config_name=None):
 
     # Configure application
     configure_app(app, config_name)
-
+    os.makedirs('instance', exist_ok=True)
     # Initialize extensions
     init_extensions(app)
 
@@ -57,7 +58,9 @@ def configure_app(app, config_name=None):
 
         # Redis configuration
         REDIS_URL=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-
+        # Celery (fall back to Redis if not explicitly set)
+        CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', os.getenv('REDIS_URL')),
+        CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', os.getenv('REDIS_URL')),
         # Security
         WTF_CSRF_ENABLED=True,
         SESSION_COOKIE_HTTPONLY=True,
@@ -98,16 +101,14 @@ def init_extensions(app):
 
     # SQLAlchemy
     try:
-        from crypto_hunter_web.extensions import db
         db.init_app(app)
-
-        # Create tables if they don't exist
-        with app.app_context():
-            db.create_all()
-
+        try:
+            with app.app_context():
+                db.create_all()
+        except Exception as e:
+            app.logger.warning(f"DB initialization warning: {e}")
     except ImportError as e:
         app.logger.warning(f"Database extension not available: {e}")
-
     # Flask-Login
     try:
         from crypto_hunter_web.extensions import login_manager
@@ -200,3 +201,4 @@ def setup_logging(app):
     )
 
     app.logger.setLevel(log_level)
+

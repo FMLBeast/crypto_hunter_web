@@ -1020,7 +1020,7 @@ def _generate_wordlist(wordlist_type, max_size):
             wordlist.extend([
                 word, word.upper(), word.capitalize(),
                 word + '1', word + '12', word + '123', word + '1234',
-                word + '!', word + '@', word + '#', word + ',
+                word + '!', word + '@', word + '#', word + ','
                 '1' + word, '12' + word, '123' + word,
                 word + word, word[::-1]  # reversed
             ])
