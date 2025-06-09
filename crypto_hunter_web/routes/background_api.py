@@ -1,617 +1,472 @@
+#!/usr/bin/env python3
 """
-crypto_hunter_web/routes/background_api.py - Complete Background API with Forensics
+Background API Routes - Real implementation for task monitoring and control
 """
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, session
+from datetime import datetime, timedelta
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.services.background_service import BackgroundService, ForensicsToolkit
-from crypto_hunter_web.models import AnalysisFile, FileContent, Finding
-from crypto_hunter_web.utils.validators import validate_sha256
-from celery.result import AsyncResult
-import json
+from crypto_hunter_web.services.background_service import BackgroundService
+from crypto_hunter_web.models import db, AnalysisFile, Finding, User
+from crypto_hunter_web.utils.decorators import rate_limit
 import logging
 
 background_api_bp = Blueprint('background_api', __name__)
 logger = logging.getLogger(__name__)
 
-@background_api_bp.route('/tools/status', methods=['GET'])
+@background_api_bp.route('/system/health')
 @AuthService.login_required
-def get_tools_status():
-    """Get status of all forensics tools"""
+def system_health():
+    """Get system health status"""
     try:
-        toolkit = ForensicsToolkit()
-
-        tools_status = {}
-        for tool_name in toolkit.tools.keys():
-            tools_status[tool_name] = toolkit._is_tool_available(tool_name)
-
-        # Add tool categories and descriptions
-        tool_info = {}
-        for tool_name, config in toolkit.tools.items():
-            tool_info[tool_name] = {
-                'available': tools_status[tool_name],
-                'description': config.get('description', ''),
-                'file_types': config.get('file_types', []),
-                'timeout': config.get('timeout', 60)
-            }
-
+        # Get system status
+        status = BackgroundService.get_system_status()
+        
+        # Add database health check
+        try:
+            db.session.execute('SELECT 1')
+            status['database_healthy'] = True
+        except Exception as e:
+            status['database_healthy'] = False
+            status['database_error'] = str(e)
+        
+        # Calculate health score
+        health_score = 100
+        if not status['redis_connected']:
+            health_score -= 30
+        if not status['database_healthy']:
+            health_score -= 40
+        if status['workers']['online'] == 0:
+            health_score -= 20
+        
+        status['health_score'] = max(0, health_score)
+        status['status'] = 'healthy' if health_score >= 80 else 'degraded' if health_score >= 50 else 'unhealthy'
+        
         return jsonify({
             'success': True,
-            'tools': tools_status,
-            'tool_info': tool_info,
-            'total_tools': len(tools_status),
-            'available_tools': sum(tools_status.values())
+            'health': status,
+            'timestamp': datetime.utcnow().isoformat()
         })
-
+        
     except Exception as e:
-        logger.error(f"Failed to get tools status: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/analyze/<sha>/comprehensive', methods=['POST'])
-@AuthService.login_required
-def start_comprehensive_analysis(sha):
-    """Start comprehensive forensics analysis"""
-    try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Get analysis options from request
-        data = request.get_json() or {}
-        analysis_types = data.get('analysis_types', [
-            'steganography', 'binary_analysis', 'crypto_patterns', 'strings', 'metadata'
-        ])
-
-        # Queue comprehensive analysis
-        task_id = BackgroundService.queue_comprehensive_analysis(
-            file_id=file_obj.id,
-            analysis_types=analysis_types,
-            user_id=AuthService.get_current_user().id
-        )
-
+        logger.error(f"Error getting system health: {e}")
         return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'Comprehensive forensics analysis started',
-            'estimated_duration': '5-15 minutes',
-            'analysis_types': analysis_types
-        })
-
-    except Exception as e:
-        logger.error(f"Failed to start comprehensive analysis: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/analyze/<sha>/steganography', methods=['POST'])
-@AuthService.login_required
-def start_steganography_analysis(sha):
-    """Start steganography analysis"""
-    try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Queue steganography analysis
-        task_id = BackgroundService.queue_steganography_analysis(
-            file_id=file_obj.id,
-            user_id=AuthService.get_current_user().id
-        )
-
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'Steganography analysis started',
-            'estimated_duration': '2-5 minutes'
-        })
-
-    except Exception as e:
-        logger.error(f"Failed to start steganography analysis: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/analyze/<sha>/crypto', methods=['POST'])
-@AuthService.login_required
-def start_crypto_analysis(sha):
-    """Start cryptocurrency pattern analysis"""
-    try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Get analysis options
-        data = request.get_json() or {}
-        analysis_options = {
-            'deep_scan': data.get('deep_scan', True),
-            'blockchain_validation': data.get('blockchain_validation', False),
-            'pattern_types': data.get('pattern_types', ['addresses', 'keys', 'mnemonics'])
-        }
-
-        # Queue crypto analysis
-        task_id = BackgroundService.queue_crypto_analysis(
-            file_id=file_obj.id,
-            analysis_options=analysis_options,
-            user_id=AuthService.get_current_user().id
-        )
-
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'Cryptocurrency analysis started',
-            'estimated_duration': '1-3 minutes'
-        })
-
-    except Exception as e:
-        logger.error(f"Failed to start crypto analysis: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/analyze/<sha>/ai', methods=['POST'])
-@AuthService.login_required
-def start_ai_analysis(sha):
-    """Start AI analysis"""
-    try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Get AI options
-        data = request.get_json() or {}
-        ai_options = {
-            'analysis_type': data.get('analysis_type', 'comprehensive'),
-            'expert_mode': data.get('expert_mode', 'crypto_expert'),
-            'include_recommendations': data.get('include_recommendations', True)
-        }
-
-        # Queue AI analysis
-        task_id = BackgroundService.queue_ai_analysis(
-            file_id=file_obj.id,
-            ai_options=ai_options,
-            user_id=AuthService.get_current_user().id
-        )
-
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': 'AI analysis started',
-            'estimated_duration': '2-8 minutes'
-        })
-
-    except Exception as e:
-        logger.error(f"Failed to start AI analysis: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/progress/<task_id>', methods=['GET'])
-@AuthService.login_required
-def get_analysis_progress(task_id):
-    """Get progress of running analysis"""
-    try:
-        status = BackgroundService.get_task_status(task_id)
-
-        if 'error' in status:
-            return jsonify({'error': status['error']}), 500
-
-        return jsonify(status)
-
-    except Exception as e:
-        logger.error(f"Failed to get progress for task {task_id}: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/results/<sha>', methods=['GET'])
-@AuthService.login_required
-def get_analysis_results(sha):
-    """Get analysis results for a file"""
-    try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Get all analysis content
-        analysis_content = FileContent.query.filter(
-            FileContent.file_id == file_obj.id,
-            FileContent.content_type.in_([
-                'comprehensive_forensics',
-                'steganography_analysis',
-                'crypto_pattern_analysis',
-                'ai_analysis'
-            ])
-        ).all()
-
-        if not analysis_content:
-            return jsonify({
-                'has_results': False,
-                'message': 'No analysis results found'
-            })
-
-        # Compile results
-        results = {
-            'has_results': True,
-            'file_info': {
-                'filename': file_obj.filename,
-                'file_type': file_obj.file_type,
-                'file_size': file_obj.file_size,
-                'sha256': file_obj.sha256_hash,
-                'status': file_obj.status,
-                'analyzed_at': file_obj.analyzed_at.isoformat() if file_obj.analyzed_at else None
-            },
-            'analysis_results': {},
-            'summary': {
-                'total_analyses': len(analysis_content),
-                'analysis_types': [c.content_type for c in analysis_content]
-            }
-        }
-
-        for content in analysis_content:
-            results['analysis_results'][content.content_type] = content.content_json
-
-        # Get findings
-        findings = Finding.query.filter_by(file_id=file_obj.id).all()
-        results['findings'] = [
-            {
-                'id': f.id,
-                'type': f.finding_type,
-                'confidence': f.confidence,
-                'description': f.description,
-                'created_at': f.created_at.isoformat(),
-                'details': json.loads(f.details) if f.details else {}
-            }
-            for f in findings
-        ]
-        results['summary']['total_findings'] = len(findings)
-
-        # Calculate overall confidence
-        if findings:
-            avg_confidence = sum(f.confidence for f in findings) / len(findings)
-            results['summary']['average_confidence'] = round(avg_confidence, 2)
-        else:
-            results['summary']['average_confidence'] = 0.0
-
-        return jsonify(results)
-
-    except Exception as e:
-        logger.error(f"Failed to get results for {sha}: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/tools/<tool_name>/run', methods=['POST'])
-@AuthService.login_required
-def run_individual_tool(tool_name):
-    """Run individual forensics tool"""
-    try:
-        data = request.get_json()
-        if not data or 'file_hash' not in data:
-            return jsonify({'error': 'File hash required'}), 400
-
-        sha = data['file_hash']
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Initialize toolkit and run specific tool
-        toolkit = ForensicsToolkit()
-
-        if tool_name not in toolkit.tools:
-            return jsonify({'error': f'Tool {tool_name} not available'}), 400
-
-        if not toolkit._is_tool_available(tool_name):
-            return jsonify({'error': f'Tool {tool_name} not installed'}), 400
-
-        # Run tool analysis
-        result = toolkit._run_tool_analysis(
-            tool_name,
-            file_obj.filepath,
-            file_obj.file_type
-        )
-
-        if result:
-            response_data = {
-                'success': result.success,
-                'tool_name': result.tool_name,
-                'execution_time': result.execution_time,
-                'confidence': result.confidence,
-                'metadata': result.metadata,
-                'findings': toolkit._extract_findings(result) if result.success else []
-            }
-
-            if not result.success:
-                response_data['error'] = result.error_message
-
-            return jsonify(response_data)
-        else:
-            return jsonify({'error': 'Tool execution failed'}), 500
-
-    except Exception as e:
-        logger.error(f"Failed to run tool {tool_name}: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/queue/status', methods=['GET'])
-@AuthService.login_required
-def get_queue_status():
-    """Get status of analysis queues"""
-    try:
-        queue_status = BackgroundService.get_queue_status()
-
-        # Add queue statistics
-        stats = {
-            'queue_status': queue_status,
-            'timestamp': '2024-12-19T10:30:00Z'
-        }
-
-        # Count active tasks by queue
-        active_by_queue = {}
-        if 'active_tasks' in queue_status:
-            for worker, tasks in queue_status['active_tasks'].items():
-                for task in tasks:
-                    queue_name = task.get('delivery_info', {}).get('routing_key', 'default')
-                    active_by_queue[queue_name] = active_by_queue.get(queue_name, 0) + 1
-
-        stats['active_by_queue'] = active_by_queue
-
-        return jsonify(stats)
-
-    except Exception as e:
-        logger.error(f"Failed to get queue status: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/statistics', methods=['GET'])
-@AuthService.login_required
-def get_system_statistics():
-    """Get system analysis statistics"""
-    try:
-        # Get basic statistics
-        total_files = AnalysisFile.query.count()
-        analyzed_files = AnalysisFile.query.filter_by(status='complete').count()
-        processing_files = AnalysisFile.query.filter_by(status='processing').count()
-        failed_files = AnalysisFile.query.filter_by(status='failed').count()
-
-        # Get findings statistics
-        total_findings = Finding.query.count()
-
-        # Analysis type statistics
-        analysis_stats = {}
-        content_types = FileContent.query.with_entities(FileContent.content_type).distinct().all()
-        for (content_type,) in content_types:
-            count = FileContent.query.filter_by(content_type=content_type).count()
-            analysis_stats[content_type] = count
-
-        statistics = {
-            'file_statistics': {
-                'total_files': total_files,
-                'analyzed_files': analyzed_files,
-                'processing_files': processing_files,
-                'failed_files': failed_files,
-                'completion_rate': (analyzed_files / total_files * 100) if total_files > 0 else 0
-            },
-            'finding_statistics': {
-                'total_findings': total_findings,
-                'findings_per_file': (total_findings / analyzed_files) if analyzed_files > 0 else 0
-            },
-            'analysis_statistics': analysis_stats,
-            'timestamp': '2024-12-19T10:30:00Z'
-        }
-
-        return jsonify(statistics)
-
-    except Exception as e:
-        logger.error(f"Failed to get statistics: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/task/<task_id>/cancel', methods=['POST'])
-@AuthService.login_required
-def cancel_task(task_id):
-    """Cancel a running task"""
-    try:
-        from crypto_hunter_web.services.background_service import celery
-
-        # Revoke the task
-        celery.control.revoke(task_id, terminate=True)
-
-        return jsonify({
-            'success': True,
-            'message': f'Task {task_id} cancellation requested'
-        })
-
-    except Exception as e:
-        logger.error(f"Failed to cancel task {task_id}: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@background_api_bp.route('/health', methods=['GET'])
-@AuthService.login_required
-def health_check():
-    """Health check for background services"""
-    try:
-        # Check Celery connection
-        from crypto_hunter_web.services.background_service import celery
-
-        inspect = celery.control.inspect()
-        stats = inspect.stats()
-
-        # Check Redis connection
-        import redis
-        redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
-        redis_client.ping()
-
-        # Check tools availability
-        toolkit = ForensicsToolkit()
-        available_tools = sum(1 for tool in toolkit.tools.keys() if toolkit._is_tool_available(tool))
-        total_tools = len(toolkit.tools)
-
-        health_status = {
-            'status': 'healthy',
-            'timestamp': '2024-12-19T10:30:00Z',
-            'services': {
-                'celery': {
-                    'status': 'connected' if stats else 'disconnected',
-                    'workers': len(stats) if stats else 0
-                },
-                'redis': {
-                    'status': 'connected'
-                },
-                'forensics_tools': {
-                    'available_tools': available_tools,
-                    'total_tools': total_tools,
-                    'availability_rate': (available_tools / total_tools * 100) if total_tools > 0 else 0
-                }
-            }
-        }
-
-        return jsonify(health_status)
-
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({
-            'status': 'unhealthy',
+            'success': False,
             'error': str(e),
-            'timestamp': '2024-12-19T10:30:00Z'
+            'health_score': 0,
+            'status': 'unhealthy'
         }), 500
 
-@background_api_bp.route('/recommend/<sha>', methods=['GET'])
+@background_api_bp.route('/tasks/user')
 @AuthService.login_required
-def get_analysis_recommendations(sha):
-    """Get analysis recommendations for a file"""
+def get_user_tasks():
+    """Get all tasks for the current user"""
     try:
-        if not validate_sha256(sha):
-            return jsonify({'error': 'Invalid SHA256 hash'}), 400
-
-        file_obj = AnalysisFile.query.filter_by(sha256_hash=sha).first()
-        if not file_obj:
-            return jsonify({'error': 'File not found'}), 404
-
-        # Get existing analysis
-        existing_analysis = {}
-        content = FileContent.query.filter_by(file_id=file_obj.id).first()
-        if content:
-            try:
-                existing_analysis = json.loads(content.content_text or '{}')
-            except:
-                pass
-
-        # Generate recommendations based on file characteristics
-        recommendations = []
-
-        # File type based recommendations
-        if 'image' in file_obj.file_type:
-            recommendations.extend([
-                {
-                    'type': 'steganography',
-                    'method': 'zsteg',
-                    'description': 'Try ZSteg for LSB steganography detection',
-                    'priority': 'high',
-                    'confidence': 0.8
-                },
-                {
-                    'type': 'steganography',
-                    'method': 'steghide',
-                    'description': 'Check for Steghide hidden content',
-                    'priority': 'medium',
-                    'confidence': 0.6
-                },
-                {
-                    'type': 'metadata',
-                    'method': 'exiftool',
-                    'description': 'Extract EXIF metadata for hidden information',
-                    'priority': 'medium',
-                    'confidence': 0.7
-                }
-            ])
-
-        if 'audio' in file_obj.file_type:
-            recommendations.extend([
-                {
-                    'type': 'steganography',
-                    'method': 'steghide',
-                    'description': 'Audio steganography analysis with Steghide',
-                    'priority': 'high',
-                    'confidence': 0.8
-                },
-                {
-                    'type': 'spectral_analysis',
-                    'method': 'sox',
-                    'description': 'Generate spectrogram to visualize hidden data',
-                    'priority': 'medium',
-                    'confidence': 0.6
-                }
-            ])
-
-        if 'application' in file_obj.file_type or 'executable' in file_obj.file_type:
-            recommendations.extend([
-                {
-                    'type': 'binary_analysis',
-                    'method': 'binwalk',
-                    'description': 'Extract embedded files and analyze structure',
-                    'priority': 'high',
-                    'confidence': 0.9
-                },
-                {
-                    'type': 'reverse_engineering',
-                    'method': 'radare2',
-                    'description': 'Reverse engineer binary for hidden functionality',
-                    'priority': 'medium',
-                    'confidence': 0.7
-                }
-            ])
-
-        # File size based recommendations
-        if file_obj.file_size and file_obj.file_size > 1024 * 1024:  # > 1MB
-            recommendations.append({
-                'type': 'file_carving',
-                'method': 'foremost',
-                'description': 'Large file - check for embedded files with file carving',
-                'priority': 'medium',
-                'confidence': 0.7
-            })
-
-        # Always recommend crypto analysis and strings
-        recommendations.extend([
-            {
-                'type': 'crypto_analysis',
-                'method': 'crypto_patterns',
-                'description': 'Analyze for cryptocurrency addresses and keys',
-                'priority': 'high',
-                'confidence': 0.8
-            },
-            {
-                'type': 'string_analysis',
-                'method': 'strings',
-                'description': 'Extract readable strings for manual analysis',
-                'priority': 'medium',
-                'confidence': 0.6
-            }
-        ])
-
-        # If no prior analysis, recommend comprehensive
-        if not existing_analysis:
-            recommendations.insert(0, {
-                'type': 'comprehensive',
-                'method': 'comprehensive_analysis',
-                'description': 'Run comprehensive analysis with all available tools',
-                'priority': 'high',
-                'confidence': 0.9
-            })
-
+        user_id = session['user_id']
+        
+        # Get active tasks
+        active_tasks = BackgroundService.get_user_active_tasks(user_id)
+        
+        # Get recent completed tasks from database
+        recent_files = AnalysisFile.query.filter_by(created_by=user_id).filter(
+            AnalysisFile.analyzed_at >= datetime.utcnow() - timedelta(hours=24)
+        ).order_by(AnalysisFile.analyzed_at.desc()).limit(10).all()
+        
+        completed_tasks = []
+        for file in recent_files:
+            if file.status == 'complete':
+                completed_tasks.append({
+                    'task_type': 'file_analysis',
+                    'file_id': file.id,
+                    'file_name': file.filename,
+                    'completed_at': file.analyzed_at.isoformat() if file.analyzed_at else None,
+                    'duration': file.analysis_duration,
+                    'findings_count': file.findings.count()
+                })
+        
         return jsonify({
             'success': True,
-            'recommendations': recommendations,
-            'file_analysis': {
-                'file_type': file_obj.file_type,
-                'file_size': file_obj.file_size,
-                'has_existing_analysis': bool(existing_analysis)
-            }
+            'active_tasks': active_tasks,
+            'completed_tasks': completed_tasks,
+            'total_active': len(active_tasks),
+            'total_completed_today': len(completed_tasks)
         })
-
+        
     except Exception as e:
-        logger.error(f"Failed to get recommendations for {sha}: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting user tasks: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/tasks/<task_id>/status')
+@AuthService.login_required
+def get_task_status(task_id):
+    """Get detailed status of a specific task"""
+    try:
+        # Get task status
+        task_status = BackgroundService.get_task_status(task_id)
+        
+        # Verify user has access to this task
+        user_id = session['user_id']
+        if task_status.get('user_id') and task_status['user_id'] != user_id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        
+        # Enhance with additional information
+        if task_status.get('file_id'):
+            file = AnalysisFile.query.get(task_status['file_id'])
+            if file:
+                task_status['file_info'] = {
+                    'filename': file.filename,
+                    'file_size': file.file_size,
+                    'file_type': file.file_type,
+                    'current_status': file.status.value if hasattr(file.status, 'value') else str(file.status)
+                }
+        
+        return jsonify({
+            'success': True,
+            'status': task_status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting task status for {task_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/tasks/<task_id>/cancel', methods=['POST'])
+@AuthService.login_required
+@rate_limit(max_requests=10, window_seconds=60)
+def cancel_task(task_id):
+    """Cancel a background task"""
+    try:
+        user_id = session['user_id']
+        
+        # Cancel the task
+        success = BackgroundService.cancel_task(task_id, user_id)
+        
+        if success:
+            AuthService.log_action('task_cancelled', f'Cancelled task: {task_id}')
+            return jsonify({
+                'success': True,
+                'message': 'Task cancelled successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to cancel task or access denied'
+            }), 403
+            
+    except Exception as e:
+        logger.error(f"Error cancelling task {task_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/stats')
+@AuthService.login_required
+def get_background_stats():
+    """Get background processing statistics"""
+    try:
+        user_id = session['user_id']
+        
+        # Get user's analysis stats
+        stats = BackgroundService.get_analysis_stats(user_id)
+        
+        # Add system-wide stats if user is admin
+        user = User.query.get(user_id)
+        if user and hasattr(user, 'is_admin') and user.is_admin:
+            system_stats = BackgroundService.get_analysis_stats()
+            stats['system'] = system_stats
+        
+        # Add recent activity
+        stats['recent_activity'] = BackgroundService.get_recent_findings(limit=5)
+        
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting background stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/queue/status')
+@AuthService.login_required
+def get_queue_status():
+    """Get task queue status"""
+    try:
+        # Get Celery inspect information
+        from crypto_hunter_web.services.celery_app import celery_app
+        
+        inspect = celery_app.control.inspect()
+        
+        # Get queue information
+        active_tasks = inspect.active() or {}
+        scheduled_tasks = inspect.scheduled() or {}
+        reserved_tasks = inspect.reserved() or {}
+        
+        # Calculate totals
+        total_active = sum(len(tasks) for tasks in active_tasks.values())
+        total_scheduled = sum(len(tasks) for tasks in scheduled_tasks.values())
+        total_reserved = sum(len(tasks) for tasks in reserved_tasks.values())
+        
+        # Get worker stats
+        worker_stats = inspect.stats() or {}
+        
+        queue_info = {
+            'active_tasks': total_active,
+            'scheduled_tasks': total_scheduled,
+            'reserved_tasks': total_reserved,
+            'total_workers': len(worker_stats),
+            'workers': [
+                {
+                    'name': worker_name,
+                    'status': 'online',
+                    'active_tasks': len(active_tasks.get(worker_name, [])),
+                    'processed_tasks': stats.get('total', {}).get('total', 0)
+                }
+                for worker_name, stats in worker_stats.items()
+            ]
+        }
+        
+        return jsonify({
+            'success': True,
+            'queue': queue_info,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/start', methods=['POST'])
+@AuthService.login_required
+@rate_limit(max_requests=20, window_seconds=300)  # 20 requests per 5 minutes
+def start_background_task():
+    """Start a new background task"""
+    try:
+        data = request.get_json()
+        task_type = data.get('task_type')
+        file_id = data.get('file_id')
+        options = data.get('options', {})
+        
+        if not task_type or not file_id:
+            return jsonify({
+                'success': False,
+                'error': 'task_type and file_id are required'
+            }), 400
+        
+        # Verify file exists and user has access
+        user_id = session['user_id']
+        file = AnalysisFile.query.filter_by(id=file_id, created_by=user_id).first()
+        
+        if not file:
+            return jsonify({
+                'success': False,
+                'error': 'File not found or access denied'
+            }), 404
+        
+        # Start the appropriate task based on type
+        task_id = None
+        estimated_duration = None
+        
+        if task_type == 'comprehensive_analysis':
+            from crypto_hunter_web.services.background_service import analyze_file_comprehensive
+            task = analyze_file_comprehensive.delay(
+                file_id=file_id,
+                analysis_types=options.get('analysis_types', ['crypto', 'strings', 'metadata']),
+                user_id=user_id,
+                priority=options.get('priority', 5)
+            )
+            task_id = task.id
+            estimated_duration = '2-10 minutes'
+            
+        elif task_type == 'llm_analysis':
+            from crypto_hunter_web.services.llm_crypto_orchestrator import llm_orchestrated_analysis
+            # Check if user has LLM permissions
+            user = User.query.get(user_id)
+            if not (user and hasattr(user, 'can_verify_findings') and user.can_verify_findings()):
+                return jsonify({
+                    'success': False,
+                    'error': 'Insufficient permissions for LLM analysis'
+                }), 403
+            
+            task = llm_orchestrated_analysis.delay(file_id)
+            task_id = task.id
+            estimated_duration = '3-8 minutes'
+            
+        elif task_type == 'deep_crypto_scan':
+            # Add other task types as needed
+            return jsonify({
+                'success': False,
+                'error': 'Task type not yet implemented'
+            }), 501
+            
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Unknown task type: {task_type}'
+            }), 400
+        
+        if task_id:
+            # Track the task
+            BackgroundService.track_task(task_id, task_type, file_id, user_id, options)
+            
+            # Log the action
+            AuthService.log_action('background_task_started', 
+                                 f'Started {task_type} for {file.filename}', 
+                                 file_id=file_id)
+            
+            return jsonify({
+                'success': True,
+                'task_id': task_id,
+                'task_type': task_type,
+                'estimated_duration': estimated_duration,
+                'message': f'{task_type.replace("_", " ").title()} started successfully'
+            })
+        
+        return jsonify({
+            'success': False,
+            'error': 'Failed to start task'
+        }), 500
+        
+    except Exception as e:
+        logger.error(f"Error starting background task: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/cleanup', methods=['POST'])
+@AuthService.login_required
+def cleanup_old_tasks():
+    """Clean up old task data (admin only)"""
+    try:
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        
+        # Check admin permissions
+        if not (user and hasattr(user, 'is_admin') and user.is_admin):
+            return jsonify({
+                'success': False,
+                'error': 'Admin access required'
+            }), 403
+        
+        data = request.get_json() or {}
+        days = data.get('days', 7)
+        
+        # Perform cleanup
+        BackgroundService.cleanup_old_tasks(days)
+        
+        AuthService.log_action('system_cleanup', f'Cleaned up tasks older than {days} days')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleaned up tasks older than {days} days'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/monitor/live')
+@AuthService.login_required
+def live_monitor():
+    """Get live monitoring data for dashboard"""
+    try:
+        user_id = session['user_id']
+        
+        # Get real-time data
+        active_tasks = BackgroundService.get_user_active_tasks(user_id)
+        system_status = BackgroundService.get_system_status()
+        
+        # Get file analysis progress
+        analyzing_files = AnalysisFile.query.filter_by(
+            created_by=user_id, 
+            status='analyzing'
+        ).count()
+        
+        pending_files = AnalysisFile.query.filter_by(
+            created_by=user_id, 
+            status='pending'
+        ).count()
+        
+        # Recent findings (last hour)
+        recent_findings = Finding.query.join(AnalysisFile).filter(
+            AnalysisFile.created_by == user_id,
+            Finding.created_at >= datetime.utcnow() - timedelta(hours=1)
+        ).count()
+        
+        monitor_data = {
+            'active_tasks': len(active_tasks),
+            'analyzing_files': analyzing_files,
+            'pending_files': pending_files,
+            'recent_findings': recent_findings,
+            'workers_online': system_status['workers']['online'],
+            'redis_connected': system_status['redis_connected'],
+            'system_load': {
+                'active_system_tasks': system_status['tasks']['active_count'],
+                'total_analyzing': system_status['tasks']['analyzing_files']
+            },
+            'tasks_detail': [
+                {
+                    'id': task['task_id'],
+                    'type': task.get('task_type', 'unknown'),
+                    'progress': task.get('progress', 0),
+                    'stage': task.get('current_stage', 'processing'),
+                    'file_name': task.get('metadata', {}).get('file_name', 'Unknown')
+                }
+                for task in active_tasks
+            ]
+        }
+        
+        return jsonify({
+            'success': True,
+            'monitor': monitor_data,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting live monitor data: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@background_api_bp.route('/task/<task_id>/logs')
+@AuthService.login_required
+def get_task_logs(task_id):
+    """Get logs for a specific task"""
+    try:
+        user_id = session['user_id']
+        
+        # Get task status to verify access
+        task_status = BackgroundService.get_task_status(task_id)
+        
+        if task_status.get('user_id') and task_status['user_id'] != user_id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        
+        # For now, return the task metadata as "logs"
+        # In a full implementation, you'd read actual log files
+        logs = []
+        
+        if task_status.get('metadata'):
+            logs.append({
+                'timestamp': task_status.get('created_at', ''),
+                'level': 'INFO',
+                'message': f"Task {task_id} started"
+            })
+            
+            if task_status.get('updated_at'):
+                logs.append({
+                    'timestamp': task_status.get('updated_at', ''),
+                    'level': 'INFO',
+                    'message': f"Task status: {task_status.get('state', 'unknown')}"
+                })
+        
+        # Add any error information
+        if task_status.get('state') == 'FAILURE' and task_status.get('meta'):
+            logs.append({
+                'timestamp': task_status.get('updated_at', ''),
+                'level': 'ERROR',
+                'message': str(task_status['meta'])
+            })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'logs': logs
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting task logs for {task_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

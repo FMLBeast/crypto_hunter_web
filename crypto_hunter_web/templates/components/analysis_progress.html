@@ -1,0 +1,390 @@
+<!-- Real-time Analysis Progress Component -->
+<div class="bg-white rounded-lg shadow-sm p-6" id="analysis-progress-container">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">
+            <i class="fas fa-cogs mr-2 text-indigo-600"></i>
+            Analysis Progress
+        </h3>
+        <div class="flex items-center space-x-2">
+            <span id="task-status" class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                In Progress
+            </span>
+            <button id="cancel-analysis" class="text-red-600 hover:text-red-800 text-sm">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- Overall Progress -->
+    <div class="space-y-3">
+        <div class="flex justify-between text-sm text-gray-600">
+            <span id="current-stage">Initializing analysis...</span>
+            <span id="progress-percentage">0%</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+            <div id="progress-bar"
+                 class="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-500 relative"
+                 style="width: 0%">
+                <div class="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+            </div>
+        </div>
+        <div class="text-xs text-gray-500 flex justify-between">
+            <span id="eta-time">Calculating ETA...</span>
+            <span id="task-id" class="font-mono"></span>
+        </div>
+    </div>
+
+    <!-- Analysis Stages -->
+    <div class="mt-6">
+        <h4 class="text-sm font-medium text-gray-700 mb-3">Analysis Pipeline</h4>
+        <div class="space-y-2">
+            <!-- Stage 1: File Processing -->
+            <div class="analysis-stage flex items-center p-3 bg-gray-50 rounded-lg" data-stage="file_processing">
+                <div class="stage-icon flex-shrink-0 w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <i class="fas fa-file text-gray-600 text-sm"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">File Processing</div>
+                    <div class="text-xs text-gray-500">Reading content, extracting metadata</div>
+                </div>
+                <div class="stage-status text-xs text-gray-400">Pending</div>
+            </div>
+
+            <!-- Stage 2: Crypto Scanning -->
+            <div class="analysis-stage flex items-center p-3 bg-gray-50 rounded-lg" data-stage="crypto_scan">
+                <div class="stage-icon flex-shrink-0 w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <i class="fas fa-key text-gray-600 text-sm"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">Crypto Pattern Detection</div>
+                    <div class="text-xs text-gray-500">Scanning for wallets, keys, hashes</div>
+                </div>
+                <div class="stage-status text-xs text-gray-400">Pending</div>
+            </div>
+
+            <!-- Stage 3: LLM Analysis -->
+            <div class="analysis-stage flex items-center p-3 bg-gray-50 rounded-lg" data-stage="llm_analysis">
+                <div class="stage-icon flex-shrink-0 w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <i class="fas fa-brain text-gray-600 text-sm"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">AI Analysis</div>
+                    <div class="text-xs text-gray-500">LLM interpretation and insights</div>
+                </div>
+                <div class="stage-status text-xs text-gray-400">Pending</div>
+                <div class="stage-cost text-xs text-green-600 hidden">$0.00</div>
+            </div>
+
+            <!-- Stage 4: Forensics Tools -->
+            <div class="analysis-stage flex items-center p-3 bg-gray-50 rounded-lg" data-stage="forensics">
+                <div class="stage-icon flex-shrink-0 w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <i class="fas fa-search text-gray-600 text-sm"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">Forensics Analysis</div>
+                    <div class="text-xs text-gray-500">Steganography, binary analysis</div>
+                </div>
+                <div class="stage-status text-xs text-gray-400">Pending</div>
+            </div>
+
+            <!-- Stage 5: Report Generation -->
+            <div class="analysis-stage flex items-center p-3 bg-gray-50 rounded-lg" data-stage="report_generation">
+                <div class="stage-icon flex-shrink-0 w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <i class="fas fa-chart-line text-gray-600 text-sm"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="text-sm font-medium text-gray-900">Report Generation</div>
+                    <div class="text-xs text-gray-500">Compiling findings and recommendations</div>
+                </div>
+                <div class="stage-status text-xs text-gray-400">Pending</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Findings Feed -->
+    <div class="mt-6">
+        <h4 class="text-sm font-medium text-gray-700 mb-3">Live Findings</h4>
+        <div id="findings-feed" class="space-y-2 max-h-40 overflow-y-auto">
+            <div class="text-center text-gray-500 text-sm py-4">
+                No findings yet - analysis in progress...
+            </div>
+        </div>
+    </div>
+
+    <!-- Cost Tracking (for LLM) -->
+    <div id="cost-tracking" class="mt-4 p-3 bg-yellow-50 rounded-lg hidden">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fas fa-dollar-sign text-yellow-600 mr-2"></i>
+                <span class="text-sm font-medium text-yellow-800">LLM Analysis Cost</span>
+            </div>
+            <div class="text-sm text-yellow-700">
+                <span id="current-cost">$0.00</span> / <span id="budget-limit">$2.00</span> limit
+            </div>
+        </div>
+        <div class="mt-2 w-full bg-yellow-200 rounded-full h-2">
+            <div id="cost-progress" class="bg-yellow-600 h-2 rounded-full" style="width: 0%"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+class AnalysisProgressTracker {
+    constructor(taskId, fileId) {
+        this.taskId = taskId;
+        this.fileId = fileId;
+        this.progressInterval = null;
+        this.websocket = null;
+        this.startTracking();
+    }
+
+    startTracking() {
+        // Update task ID display
+        document.getElementById('task-id').textContent = this.taskId.substring(0, 8) + '...';
+
+        // Start polling for progress
+        this.progressInterval = setInterval(() => {
+            this.checkProgress();
+        }, 2000);
+
+        // Try WebSocket connection for real-time updates
+        this.initWebSocket();
+    }
+
+    async checkProgress() {
+        try {
+            const response = await fetch(`/api/background/status/${this.taskId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.updateProgress(data.status);
+            }
+        } catch (error) {
+            console.error('Error checking progress:', error);
+        }
+    }
+
+    updateProgress(status) {
+        const { state, meta } = status;
+
+        // Update overall progress
+        const progress = meta.progress || 0;
+        document.getElementById('progress-bar').style.width = progress + '%';
+        document.getElementById('progress-percentage').textContent = Math.round(progress) + '%';
+        document.getElementById('current-stage').textContent = meta.stage || 'Processing...';
+
+        // Update ETA
+        if (meta.eta) {
+            document.getElementById('eta-time').textContent = `ETA: ${meta.eta}`;
+        }
+
+        // Update stage status
+        if (meta.current_stage) {
+            this.updateStageStatus(meta.current_stage, 'active');
+        }
+
+        // Add findings as they come
+        if (meta.new_findings) {
+            this.addLiveFindings(meta.new_findings);
+        }
+
+        // Update cost tracking
+        if (meta.llm_cost) {
+            this.updateCostTracking(meta.llm_cost);
+        }
+
+        // Handle completion
+        if (state === 'SUCCESS') {
+            this.completeAnalysis(status.result);
+        } else if (state === 'FAILURE') {
+            this.handleError(meta.error);
+        }
+    }
+
+    updateStageStatus(stageName, status) {
+        const stage = document.querySelector(`[data-stage="${stageName}"]`);
+        if (!stage) return;
+
+        const icon = stage.querySelector('.stage-icon');
+        const statusEl = stage.querySelector('.stage-status');
+
+        // Reset classes
+        stage.classList.remove('bg-blue-50', 'bg-green-50', 'bg-red-50');
+        icon.classList.remove('bg-blue-500', 'bg-green-500', 'bg-red-500', 'bg-gray-300');
+
+        switch (status) {
+            case 'active':
+                stage.classList.add('bg-blue-50');
+                icon.classList.add('bg-blue-500');
+                statusEl.textContent = 'In Progress';
+                statusEl.className = 'text-xs text-blue-600';
+                break;
+            case 'complete':
+                stage.classList.add('bg-green-50');
+                icon.classList.add('bg-green-500');
+                statusEl.textContent = 'Complete';
+                statusEl.className = 'text-xs text-green-600';
+                break;
+            case 'error':
+                stage.classList.add('bg-red-50');
+                icon.classList.add('bg-red-500');
+                statusEl.textContent = 'Error';
+                statusEl.className = 'text-xs text-red-600';
+                break;
+        }
+    }
+
+    addLiveFindings(findings) {
+        const feed = document.getElementById('findings-feed');
+
+        // Clear "no findings" message
+        if (feed.children.length === 1 && feed.children[0].textContent.includes('No findings')) {
+            feed.innerHTML = '';
+        }
+
+        findings.forEach(finding => {
+            const findingEl = document.createElement('div');
+            findingEl.className = 'p-2 bg-green-50 border border-green-200 rounded text-sm';
+            findingEl.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="font-medium text-green-800">${finding.type}</span>
+                    <span class="text-green-600">${Math.round(finding.confidence * 100)}%</span>
+                </div>
+                <div class="text-green-700 text-xs mt-1">${finding.preview}</div>
+            `;
+            feed.appendChild(findingEl);
+        });
+
+        // Scroll to bottom
+        feed.scrollTop = feed.scrollHeight;
+    }
+
+    updateCostTracking(cost) {
+        const costContainer = document.getElementById('cost-tracking');
+        const currentCost = document.getElementById('current-cost');
+        const costProgress = document.getElementById('cost-progress');
+        const budgetLimit = parseFloat(document.getElementById('budget-limit').textContent.replace('$', ''));
+
+        costContainer.classList.remove('hidden');
+        currentCost.textContent = `$${cost.toFixed(2)}`;
+
+        const percentage = (cost / budgetLimit) * 100;
+        costProgress.style.width = percentage + '%';
+
+        // Change colors based on usage
+        if (percentage > 80) {
+            costProgress.className = 'bg-red-600 h-2 rounded-full';
+        } else if (percentage > 60) {
+            costProgress.className = 'bg-yellow-600 h-2 rounded-full';
+        }
+    }
+
+    completeAnalysis(result) {
+        clearInterval(this.progressInterval);
+
+        // Update status
+        document.getElementById('task-status').textContent = 'Completed';
+        document.getElementById('task-status').className = 'px-2 py-1 text-xs rounded-full bg-green-100 text-green-800';
+
+        // Mark all stages complete
+        document.querySelectorAll('.analysis-stage').forEach(stage => {
+            const stageName = stage.dataset.stage;
+            this.updateStageStatus(stageName, 'complete');
+        });
+
+        // Show success notification
+        this.showNotification('Analysis completed successfully!', 'success');
+
+        // Redirect to results after a moment
+        setTimeout(() => {
+            window.location.href = `/files/${this.fileId}/results`;
+        }, 2000);
+    }
+
+    handleError(error) {
+        clearInterval(this.progressInterval);
+
+        document.getElementById('task-status').textContent = 'Failed';
+        document.getElementById('task-status').className = 'px-2 py-1 text-xs rounded-full bg-red-100 text-red-800';
+
+        this.showNotification(error || 'Analysis failed', 'error');
+    }
+
+    showNotification(message, type) {
+        // Simple notification implementation
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.remove();
+        }, 5000);
+    }
+
+    initWebSocket() {
+        // WebSocket implementation for real-time updates
+        try {
+            this.websocket = new WebSocket(`ws://localhost:8000/ws/tasks/${this.taskId}`);
+
+            this.websocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.updateProgress(data);
+            };
+        } catch (error) {
+            console.log('WebSocket not available, using polling');
+        }
+    }
+}
+
+// Initialize progress tracker if task ID is available
+document.addEventListener('DOMContentLoaded', function() {
+    const taskId = window.currentTaskId;
+    const fileId = window.currentFileId;
+
+    if (taskId && fileId) {
+        window.progressTracker = new AnalysisProgressTracker(taskId, fileId);
+    }
+});
+</script>
+
+<style>
+.analysis-stage {
+    transition: all 0.3s ease;
+}
+
+.stage-icon {
+    transition: all 0.3s ease;
+}
+
+.analysis-stage.bg-blue-50 .stage-icon {
+    background-color: #3b82f6 !important;
+    color: white;
+}
+
+.analysis-stage.bg-green-50 .stage-icon {
+    background-color: #10b981 !important;
+    color: white;
+}
+
+.analysis-stage.bg-red-50 .stage-icon {
+    background-color: #ef4444 !important;
+    color: white;
+}
+
+#findings-feed::-webkit-scrollbar {
+    width: 4px;
+}
+
+#findings-feed::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+#findings-feed::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 2px;
+}
+</style>
