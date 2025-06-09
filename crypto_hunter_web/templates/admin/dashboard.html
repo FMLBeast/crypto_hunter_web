@@ -1,0 +1,1017 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.admin-card {
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.admin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.admin-card.critical {
+    border-left-color: #dc2626;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.admin-card.warning {
+    border-left-color: #d97706;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.admin-card.success {
+    border-left-color: #059669;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.admin-card.info {
+    border-left-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.metric-trend {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.metric-trend.up {
+    color: #059669;
+}
+
+.metric-trend.down {
+    color: #dc2626;
+}
+
+.metric-trend.neutral {
+    color: #6b7280;
+}
+
+.activity-timeline {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    position: relative;
+    padding-left: 2rem;
+    padding-bottom: 1rem;
+}
+
+.activity-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3b82f6;
+}
+
+.activity-item::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.25rem;
+    width: 2px;
+    height: calc(100% - 0.5rem);
+    background: #e5e7eb;
+}
+
+.activity-item:last-child::after {
+    display: none;
+}
+
+.activity-item.critical::before {
+    background: #dc2626;
+}
+
+.activity-item.warning::before {
+    background: #d97706;
+}
+
+.activity-item.success::before {
+    background: #059669;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-online {
+    background-color: #10b981;
+}
+
+.status-away {
+    background-color: #f59e0b;
+}
+
+.status-offline {
+    background-color: #6b7280;
+}
+
+.queue-visualization {
+    height: 200px;
+}
+
+.system-load {
+    background: linear-gradient(90deg, #10b981 0%, #f59e0b 70%, #ef4444 90%);
+    height: 8px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.load-indicator {
+    position: absolute;
+    top: -2px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border: 2px solid #374151;
+    border-radius: 50%;
+    transform: translateX(-50%);
+}
+
+.security-alert {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.maintenance-mode {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
+}
+
+.data-table {
+    font-size: 0.875rem;
+}
+
+.data-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #374151;
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.data-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.data-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.quick-action-btn {
+    transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    System monitoring and administration for Crypto Hunter
+                </p>
+            </div>
+            <div class="flex items-center space-x-3">
+                {% if maintenance_mode %}
+                <div class="maintenance-mode px-4 py-2 rounded-lg flex items-center">
+                    <i class="fas fa-tools mr-2"></i>
+                    <span class="font-medium">Maintenance Mode Active</span>
+                </div>
+                {% endif %}
+                <button onclick="toggleMaintenanceMode()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-tools mr-2"></i>Maintenance
+                </button>
+                <button onclick="systemBackup()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-database mr-2"></i>Backup
+                </button>
+                <button onclick="refreshDashboard()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-sync mr-2"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Alerts -->
+    {% if system_alerts %}
+    <div class="mb-8">
+        <div class="space-y-3">
+            {% for alert in system_alerts %}
+            <div class="admin-card {{ alert.severity }} rounded-lg p-4 {% if alert.severity == 'critical' %}security-alert{% endif %}">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        {% if alert.severity == 'critical' %}
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        {% elif alert.severity == 'warning' %}
+                            <i class="fas fa-exclamation-circle text-yellow-600 text-xl"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle text-blue-600 text-xl"></i>
+                        {% endif %}
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <h3 class="text-sm font-medium">{{ alert.title }}</h3>
+                        <p class="mt-1 text-sm">{{ alert.message }}</p>
+                        <div class="mt-2 text-xs text-gray-500">{{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    </div>
+                    <div class="ml-4">
+                        <button onclick="dismissAlert('{{ alert.id }}')" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- System Metrics Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="admin-card info bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <i class="fas fa-server text-blue-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">System Load</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.cpu_usage }}%</p>
+                    <div class="metric-trend {{ 'up' if system_metrics.cpu_trend > 0 else 'down' if system_metrics.cpu_trend < 0 else 'neutral' }}">
+                        <i class="fas fa-{{ 'arrow-up' if system_metrics.cpu_trend > 0 else 'arrow-down' if system_metrics.cpu_trend < 0 else 'minus' }} mr-1"></i>
+                        {{ system_metrics.cpu_trend|abs }}%
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="system-load">
+                    <div class="load-indicator" style="left: {{ system_metrics.cpu_usage }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card success bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-full">
+                    <i class="fas fa-memory text-green-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Memory Usage</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.memory_usage }}%</p>
+                    <div class="metric-trend {{ 'up' if system_metrics.memory_trend > 0 else 'down' if system_metrics.memory_trend < 0 else 'neutral' }}">
+                        <i class="fas fa-{{ 'arrow-up' if system_metrics.memory_trend > 0 else 'arrow-down' if system_metrics.memory_trend < 0 else 'minus' }} mr-1"></i>
+                        {{ system_metrics.memory_trend|abs }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card warning bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-yellow-100 rounded-full">
+                    <i class="fas fa-tasks text-yellow-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Active Tasks</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.active_tasks }}</p>
+                    <div class="metric-trend {{ 'up' if system_metrics.tasks_trend > 0 else 'down' if system_metrics.tasks_trend < 0 else 'neutral' }}">
+                        <i class="fas fa-{{ 'arrow-up' if system_metrics.tasks_trend > 0 else 'arrow-down' if system_metrics.tasks_trend < 0 else 'minus' }} mr-1"></i>
+                        {{ system_metrics.tasks_trend|abs }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card critical bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 bg-red-100 rounded-full">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Failed Tasks</p>
+                    <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.failed_tasks }}</p>
+                    <div class="metric-trend {{ 'up' if system_metrics.failures_trend > 0 else 'down' if system_metrics.failures_trend < 0 else 'neutral' }}">
+                        <i class="fas fa-{{ 'arrow-up' if system_metrics.failures_trend > 0 else 'arrow-down' if system_metrics.failures_trend < 0 else 'minus' }} mr-1"></i>
+                        {{ system_metrics.failures_trend|abs }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Dashboard Content -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Task Queue Visualization -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-semibold text-gray-900">Task Queue Status</h2>
+                        <div class="flex items-center space-x-2">
+                            <select id="queue-filter" onchange="updateQueueView()" class="text-sm border border-gray-300 rounded px-2 py-1">
+                                <option value="all">All Queues</option>
+                                <option value="analysis">Analysis</option>
+                                <option value="crypto">Crypto</option>
+                                <option value="ai">AI Processing</option>
+                                <option value="maintenance">Maintenance</option>
+                            </select>
+                            <button onclick="purgeFailedTasks()" class="text-sm bg-red-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-trash mr-1"></i>Purge Failed
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <canvas id="queueChart" class="queue-visualization"></canvas>
+                    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-blue-600">{{ queue_stats.pending }}</div>
+                            <div class="text-gray-500">Pending</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-yellow-600">{{ queue_stats.processing }}</div>
+                            <div class="text-gray-500">Processing</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-green-600">{{ queue_stats.completed }}</div>
+                            <div class="text-gray-500">Completed</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-red-600">{{ queue_stats.failed }}</div>
+                            <div class="text-gray-500">Failed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Management -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-semibold text-gray-900">User Management</h2>
+                        <div class="flex items-center space-x-2">
+                            <input type="text" placeholder="Search users..." 
+                                   class="text-sm border border-gray-300 rounded px-3 py-1 w-48">
+                            <button onclick="exportUsers()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-download mr-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="data-table w-full">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Status</th>
+                                <th>Level</th>
+                                <th>Files</th>
+                                <th>Last Active</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in recent_users %}
+                            <tr>
+                                <td>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="user-avatar" style="background-color: {{ user.avatar_color or '#6b7280' }}">
+                                            {{ user.username[0].upper() }}
+                                        </div>
+                                        <div>
+                                            <div class="font-medium text-gray-900">{{ user.username }}</div>
+                                            <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="status-indicator {% if user.is_active and user.last_active and (user.last_active | time_since) < 300 %}status-online{% elif user.is_active %}status-away{% else %}status-offline{% endif %}"></span>
+                                        <span class="text-sm">
+                                            {% if user.is_active and user.last_active and (user.last_active | time_since) < 300 %}
+                                                Online
+                                            {% elif user.is_active %}
+                                                Away
+                                            {% else %}
+                                                Offline
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {% if user.level.value == 'Master' %}bg-purple-100 text-purple-800
+                                        {% elif user.level.value == 'Expert' %}bg-red-100 text-red-800
+                                        {% elif user.level.value == 'Advanced' %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ user.level.value }}
+                                    </span>
+                                </td>
+                                <td class="text-sm">{{ user.uploaded_files_count or 0 }}</td>
+                                <td class="text-sm text-gray-500">
+                                    {% if user.last_active %}
+                                        {{ user.last_active.strftime('%m/%d %H:%M') }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="viewUser('{{ user.id }}')" 
+                                                class="text-blue-600 hover:text-blue-800" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% if user.is_active %}
+                                        <button onclick="suspendUser('{{ user.id }}')" 
+                                                class="text-yellow-600 hover:text-yellow-800" title="Suspend">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                        {% else %}
+                                        <button onclick="activateUser('{{ user.id }}')" 
+                                                class="text-green-600 hover:text-green-800" title="Activate">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button onclick="deleteUser('{{ user.id }}')" 
+                                                class="text-red-600 hover:text-red-800" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Performance -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-900">System Performance</h2>
+                    <p class="text-sm text-gray-500 mt-1">Real-time system metrics and performance indicators</p>
+                </div>
+                <div class="p-6">
+                    <canvas id="performanceChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Quick Actions -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Quick Actions</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <button onclick="restartWorkers()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded">
+                        <i class="fas fa-refresh mr-2"></i>Restart Workers
+                    </button>
+                    <button onclick="clearCache()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded">
+                        <i class="fas fa-broom mr-2"></i>Clear Cache
+                    </button>
+                    <button onclick="runMaintenance()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 rounded">
+                        <i class="fas fa-tools mr-2"></i>Run Maintenance
+                    </button>
+                    <button onclick="viewLogs()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 rounded">
+                        <i class="fas fa-file-alt mr-2"></i>View Logs
+                    </button>
+                    <button onclick="systemHealthCheck()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded">
+                        <i class="fas fa-heartbeat mr-2"></i>Health Check
+                    </button>
+                    <button onclick="backupDatabase()" 
+                            class="quick-action-btn w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 rounded">
+                        <i class="fas fa-database mr-2"></i>Backup Database
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Recent Activity</h3>
+                    <p class="text-sm text-gray-500 mt-1">System events and user actions</p>
+                </div>
+                <div class="activity-timeline p-4">
+                    {% for activity in recent_activities %}
+                    <div class="activity-item {{ activity.severity }}">
+                        <div class="flex items-start space-x-2">
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-900">{{ activity.action }}</div>
+                                <div class="text-xs text-gray-600 mt-1">{{ activity.description }}</div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    {{ activity.timestamp.strftime('%m/%d %H:%M') }}
+                                    {% if activity.user %}
+                                        by {{ activity.user.username }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if not recent_activities %}
+                    <div class="text-center py-8">
+                        <i class="fas fa-clock text-gray-400 text-2xl mb-2"></i>
+                        <div class="text-sm text-gray-500">No recent activity</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">System Information</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Version:</span>
+                        <span class="font-medium">{{ system_info.version }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Uptime:</span>
+                        <span class="font-medium">{{ system_info.uptime }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Python:</span>
+                        <span class="font-medium">{{ system_info.python_version }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Database:</span>
+                        <span class="font-medium">{{ system_info.database_version }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Redis:</span>
+                        <span class="font-medium">{{ system_info.redis_version }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Workers:</span>
+                        <span class="font-medium">{{ system_info.worker_count }} active</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Usage -->
+            <div class="admin-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Storage Usage</h3>
+                </div>
+                <div class="p-4">
+                    <canvas id="storageChart" height="150"></canvas>
+                    <div class="mt-4 space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Total Space:</span>
+                            <span class="font-medium">{{ storage_info.total_space }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Used:</span>
+                            <span class="font-medium">{{ storage_info.used_space }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Files:</span>
+                            <span class="font-medium">{{ storage_info.file_count }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Initialize charts
+document.addEventListener('DOMContentLoaded', function() {
+    initializeQueueChart();
+    initializePerformanceChart();
+    initializeStorageChart();
+    
+    // Start auto-refresh
+    startAutoRefresh();
+});
+
+function initializeQueueChart() {
+    const ctx = document.getElementById('queueChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Analysis', 'Crypto', 'AI Processing', 'Maintenance'],
+            datasets: [{
+                label: 'Pending',
+                data: {{ queue_data.pending|tojson }},
+                backgroundColor: '#3b82f6'
+            }, {
+                label: 'Processing',
+                data: {{ queue_data.processing|tojson }},
+                backgroundColor: '#f59e0b'
+            }, {
+                label: 'Failed',
+                data: {{ queue_data.failed|tojson }},
+                backgroundColor: '#ef4444'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            },
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function initializePerformanceChart() {
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ performance_data.timestamps|tojson }},
+            datasets: [{
+                label: 'CPU Usage',
+                data: {{ performance_data.cpu|tojson }},
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                tension: 0.4
+            }, {
+                label: 'Memory Usage',
+                data: {{ performance_data.memory|tojson }},
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            },
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function initializeStorageChart() {
+    const ctx = document.getElementById('storageChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Used', 'Free'],
+            datasets: [{
+                data: [{{ storage_info.used_percentage }}, {{ 100 - storage_info.used_percentage }}],
+                backgroundColor: ['#f59e0b', '#e5e7eb'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+// Admin actions
+function toggleMaintenanceMode() {
+    if (confirm('Toggle maintenance mode? This will affect all users.')) {
+        fetch('/admin/maintenance/toggle', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`Maintenance mode ${data.enabled ? 'enabled' : 'disabled'}`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification('Error toggling maintenance mode', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error toggling maintenance mode', 'error');
+        });
+    }
+}
+
+function systemBackup() {
+    if (confirm('Start system backup? This may take several minutes.')) {
+        showLoading();
+        fetch('/admin/backup/start', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification('Backup started successfully', 'success');
+            } else {
+                showNotification('Error starting backup: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Error starting backup', 'error');
+        });
+    }
+}
+
+function refreshDashboard() {
+    location.reload();
+}
+
+function dismissAlert(alertId) {
+    fetch(`/admin/alerts/${alertId}/dismiss`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCSRFToken() }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.querySelector(`[data-alert-id="${alertId}"]`).remove();
+        }
+    })
+    .catch(error => console.log('Error dismissing alert:', error));
+}
+
+// User management
+function viewUser(userId) {
+    window.open(`/admin/users/${userId}`, '_blank');
+}
+
+function suspendUser(userId) {
+    if (confirm('Suspend this user?')) {
+        updateUserStatus(userId, 'suspended');
+    }
+}
+
+function activateUser(userId) {
+    if (confirm('Activate this user?')) {
+        updateUserStatus(userId, 'active');
+    }
+}
+
+function deleteUser(userId) {
+    if (confirm('Delete this user? This action cannot be undone.')) {
+        fetch(`/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('User deleted successfully', 'success');
+                location.reload();
+            } else {
+                showNotification('Error deleting user', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error deleting user', 'error');
+        });
+    }
+}
+
+function updateUserStatus(userId, status) {
+    fetch(`/admin/users/${userId}/status`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({ status: status })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`User ${status} successfully`, 'success');
+            location.reload();
+        } else {
+            showNotification('Error updating user status', 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Error updating user status', 'error');
+    });
+}
+
+// Quick actions
+function restartWorkers() {
+    if (confirm('Restart all workers? This will temporarily interrupt processing.')) {
+        fetch('/admin/workers/restart', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Workers restarted successfully', 'success');
+            } else {
+                showNotification('Error restarting workers', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error restarting workers', 'error');
+        });
+    }
+}
+
+function clearCache() {
+    if (confirm('Clear all cache data?')) {
+        fetch('/admin/cache/clear', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Cache cleared successfully', 'success');
+            } else {
+                showNotification('Error clearing cache', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error clearing cache', 'error');
+        });
+    }
+}
+
+function runMaintenance() {
+    if (confirm('Run system maintenance? This may take several minutes.')) {
+        showLoading();
+        fetch('/admin/maintenance/run', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification('Maintenance completed successfully', 'success');
+            } else {
+                showNotification('Error during maintenance', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Error running maintenance', 'error');
+        });
+    }
+}
+
+function viewLogs() {
+    window.open('/admin/logs', '_blank');
+}
+
+function systemHealthCheck() {
+    showLoading();
+    fetch('/admin/health/check', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCSRFToken() }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.healthy) {
+            showNotification('System health check passed', 'success');
+        } else {
+            showNotification('Health check found issues: ' + data.issues.join(', '), 'warning');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showNotification('Error running health check', 'error');
+    });
+}
+
+function backupDatabase() {
+    if (confirm('Start database backup?')) {
+        showLoading();
+        fetch('/admin/database/backup', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification('Database backup started', 'success');
+            } else {
+                showNotification('Error starting backup', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Error starting backup', 'error');
+        });
+    }
+}
+
+// Auto-refresh dashboard
+function startAutoRefresh() {
+    setInterval(function() {
+        fetch('/admin/dashboard/metrics')
+            .then(response => response.json())
+            .then(data => {
+                updateMetrics(data);
+            })
+            .catch(error => console.log('Auto-refresh failed:', error));
+    }, 30000); // Refresh every 30 seconds
+}
+
+function updateMetrics(data) {
+    // Update system metrics without full page reload
+    if (data.system_metrics) {
+        updateSystemMetrics(data.system_metrics);
+    }
+    if (data.queue_stats) {
+        updateQueueStats(data.queue_stats);
+    }
+}
+
+function updateSystemMetrics(metrics) {
+    // Update CPU usage
+    const cpuElement = document.querySelector('.admin-card.info .text-3xl');
+    if (cpuElement) {
+        cpuElement.textContent = metrics.cpu_usage + '%';
+    }
+    
+    // Update load indicator
+    const loadIndicator = document.querySelector('.load-indicator');
+    if (loadIndicator) {
+        loadIndicator.style.left = metrics.cpu_usage + '%';
+    }
+    
+    // Update other metrics...
+}
+
+function updateQueueStats(stats) {
+    // Update queue statistics in real-time
+    const statElements = document.querySelectorAll('.queue-visualization + .mt-4 .text-2xl');
+    if (statElements.length >= 4) {
+        statElements[0].textContent = stats.pending;
+        statElements[1].textContent = stats.processing;
+        statElements[2].textContent = stats.completed;
+        statElements[3].textContent = stats.failed;
+    }
+}
+</script>
+{% endblock %}

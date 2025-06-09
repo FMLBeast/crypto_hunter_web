@@ -1,0 +1,622 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Files - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<style>
+.upload-zone {
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.upload-zone.drag-over {
+    transform: scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.file-preview {
+    transition: all 0.2s ease;
+}
+
+.file-preview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.upload-progress {
+    transition: width 0.3s ease;
+}
+
+.analysis-option {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.analysis-option:hover {
+    background-color: #f3f4f6;
+    transform: translateX(4px);
+}
+
+.analysis-option.selected {
+    background-color: #dbeafe;
+    border-color: #3b82f6;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Upload Files</h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    Upload files for steganography analysis - supports images, archives, documents, and binary files
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{{ url_for('files.file_list') }}" 
+                   class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-list mr-2"></i>View Files
+                </a>
+                <button onclick="clearAll()" 
+                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-trash mr-2"></i>Clear All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Upload Section -->
+        <div class="lg:col-span-2">
+            <!-- Drag and Drop Zone -->
+            <div id="upload-zone" 
+                 class="upload-zone border-2 border-dashed border-white rounded-lg p-12 text-center text-white mb-6"
+                 ondrop="handleDrop(event)" 
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)">
+                <div class="space-y-4">
+                    <div class="text-6xl mb-4">📁</div>
+                    <div>
+                        <h3 class="text-xl font-medium mb-2">Drop files here to upload</h3>
+                        <p class="text-blue-100">or click to browse files</p>
+                    </div>
+                    <div class="mt-6">
+                        <label for="file-input" class="cursor-pointer">
+                            <span class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-6 py-3 rounded-md font-medium transition-all">
+                                <i class="fas fa-upload mr-2"></i>Browse Files
+                            </span>
+                            <input id="file-input" type="file" multiple class="hidden" onchange="handleFileSelect(event)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Options -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-medium mb-4">Upload Options</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="auto-analyze" checked class="mr-2">
+                            <span class="text-sm">Auto-start analysis after upload</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="deep-scan" class="mr-2">
+                            <span class="text-sm">Enable deep scanning</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="extract-archives" checked class="mr-2">
+                            <span class="text-sm">Auto-extract archives</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="ai-analysis" class="mr-2">
+                            <span class="text-sm">Enable AI analysis</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Queue -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-medium">Upload Queue</h3>
+                        <div class="flex items-center space-x-2">
+                            <span id="queue-count" class="text-sm text-gray-500">0 files</span>
+                            <button onclick="startUpload()" id="upload-btn" 
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50" disabled>
+                                <i class="fas fa-upload mr-1"></i>Upload All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="file-queue" class="divide-y divide-gray-200">
+                    <div id="empty-queue" class="p-8 text-center text-gray-500">
+                        <i class="fas fa-inbox text-3xl mb-2"></i>
+                        <div>No files selected</div>
+                        <div class="text-sm">Drag files here or click browse to get started</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Configuration -->
+        <div class="lg:col-span-1">
+            <!-- Analysis Vectors -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Analysis Vectors</h3>
+                    <p class="text-sm text-gray-500 mt-1">Select which analysis methods to apply</p>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="analysis-option border rounded-lg p-3 selected" data-vector="image_stego">
+                        <div class="flex items-center">
+                            <input type="checkbox" checked class="mr-3">
+                            <div class="flex-1">
+                                <div class="font-medium text-sm">🖼️ Image Steganography</div>
+                                <div class="text-xs text-gray-500">LSB, DCT, frequency domain analysis</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-option border rounded-lg p-3 selected" data-vector="file_carving">
+                        <div class="flex items-center">
+                            <input type="checkbox" checked class="mr-3">
+                            <div class="flex-1">
+                                <div class="font-medium text-sm">🔍 File Carving</div>
+                                <div class="text-xs text-gray-500">Extract embedded files and structures</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-option border rounded-lg p-3" data-vector="audio_stego">
+                        <div class="flex items-center">
+                            <input type="checkbox" class="mr-3">
+                            <div class="flex-1">
+                                <div class="font-medium text-sm">🎵 Audio Steganography</div>
+                                <div class="text-xs text-gray-500">Spectral and temporal analysis</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-option border rounded-lg p-3" data-vector="crypto_analysis">
+                        <div class="flex items-center">
+                            <input type="checkbox" class="mr-3">
+                            <div class="flex-1">
+                                <div class="font-medium text-sm">🔐 Cryptographic Analysis</div>
+                                <div class="text-xs text-gray-500">Hash analysis, cipher detection</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Statistics -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Upload Statistics</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Total Size:</span>
+                        <span id="total-size" class="font-medium">0 MB</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Estimated Time:</span>
+                        <span id="estimated-time" class="font-medium">--</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Analysis Cost:</span>
+                        <span id="analysis-cost" class="font-medium">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Uploads -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Recent Uploads</h3>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    {% for file in recent_uploads[:5] %}
+                    <div class="p-4 hover:bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0">
+                                    {% if file.file_type == 'image' %}
+                                        <i class="fas fa-image text-blue-500"></i>
+                                    {% elif file.file_type == 'archive' %}
+                                        <i class="fas fa-file-archive text-yellow-500"></i>
+                                    {% else %}
+                                        <i class="fas fa-file text-gray-400"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-900 truncate">{{ file.filename }}</p>
+                                    <p class="text-xs text-gray-500">{{ file.created_at.strftime('%m/%d %H:%M') }}</p>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs 
+                                    {% if file.status == 'complete' %}bg-green-100 text-green-800
+                                    {% elif file.status == 'analyzing' %}bg-blue-100 text-blue-800
+                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ file.status }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Progress Modal -->
+<div id="upload-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div class="text-center">
+            <div class="mb-4">
+                <i class="fas fa-upload text-indigo-600 text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-medium mb-2">Uploading Files</h3>
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                <div id="overall-progress" class="upload-progress bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+            <div id="upload-status" class="text-sm text-gray-600 mb-4">
+                Preparing upload...
+            </div>
+            <div id="current-file" class="text-xs text-gray-500 mb-4">
+                <!-- Current file being uploaded -->
+            </div>
+            <button onclick="cancelUpload()" class="text-red-600 hover:text-red-800 text-sm">
+                Cancel Upload
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let uploadQueue = [];
+let uploadInProgress = false;
+let uploadCancelled = false;
+
+// File handling
+function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    
+    const files = Array.from(e.dataTransfer.files);
+    addFilesToQueue(files);
+}
+
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    addFilesToQueue(files);
+}
+
+function addFilesToQueue(files) {
+    files.forEach(file => {
+        // Check if file already in queue
+        if (uploadQueue.find(f => f.name === file.name && f.size === file.size)) {
+            showNotification(`File ${file.name} already in queue`, 'warning');
+            return;
+        }
+        
+        // Validate file
+        if (file.size > {{ config.MAX_CONTENT_LENGTH }}) {
+            showNotification(`File ${file.name} is too large (max {{ (config.MAX_CONTENT_LENGTH / (1024*1024*1024))|round(1) }}GB)`, 'error');
+            return;
+        }
+        
+        uploadQueue.push({
+            file: file,
+            id: generateId(),
+            status: 'pending',
+            progress: 0
+        });
+    });
+    
+    updateQueueDisplay();
+    updateStatistics();
+}
+
+function removeFromQueue(id) {
+    uploadQueue = uploadQueue.filter(item => item.id !== id);
+    updateQueueDisplay();
+    updateStatistics();
+}
+
+function clearAll() {
+    if (uploadQueue.length === 0) return;
+    
+    if (confirm('Remove all files from queue?')) {
+        uploadQueue = [];
+        updateQueueDisplay();
+        updateStatistics();
+    }
+}
+
+function updateQueueDisplay() {
+    const container = document.getElementById('file-queue');
+    const emptyState = document.getElementById('empty-queue');
+    const uploadBtn = document.getElementById('upload-btn');
+    const queueCount = document.getElementById('queue-count');
+    
+    if (uploadQueue.length === 0) {
+        emptyState.classList.remove('hidden');
+        uploadBtn.disabled = true;
+        queueCount.textContent = '0 files';
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    uploadBtn.disabled = false;
+    queueCount.textContent = `${uploadQueue.length} files`;
+    
+    const queueHtml = uploadQueue.map(item => `
+        <div class="file-preview p-4 flex items-center justify-between" data-id="${item.id}">
+            <div class="flex items-center space-x-4 flex-1">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-${getFileIcon(item.file)} text-gray-400"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 truncate">${item.file.name}</div>
+                    <div class="text-sm text-gray-500">
+                        ${formatFileSize(item.file.size)} • ${item.file.type || 'Unknown type'}
+                    </div>
+                    ${item.status !== 'pending' ? `
+                        <div class="w-full bg-gray-200 rounded-full h-1 mt-2">
+                            <div class="upload-progress bg-indigo-600 h-1 rounded-full" style="width: ${item.progress}%"></div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs 
+                    ${item.status === 'pending' ? 'bg-gray-100 text-gray-800' :
+                      item.status === 'uploading' ? 'bg-blue-100 text-blue-800' :
+                      item.status === 'complete' ? 'bg-green-100 text-green-800' :
+                      'bg-red-100 text-red-800'}">
+                    ${item.status}
+                </span>
+                ${item.status === 'pending' ? `
+                    <button onclick="removeFromQueue('${item.id}')" class="text-red-600 hover:text-red-800">
+                        <i class="fas fa-times"></i>
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = queueHtml;
+}
+
+function updateStatistics() {
+    const totalSize = uploadQueue.reduce((sum, item) => sum + item.file.size, 0);
+    const estimatedTime = Math.ceil(totalSize / (1024 * 1024)) * 2; // 2 seconds per MB estimate
+    const analysisCost = uploadQueue.length * 0.01; // $0.01 per file estimate
+    
+    document.getElementById('total-size').textContent = formatFileSize(totalSize);
+    document.getElementById('estimated-time').textContent = estimatedTime > 60 ? 
+        `${Math.ceil(estimatedTime / 60)} min` : `${estimatedTime} sec`;
+    document.getElementById('analysis-cost').textContent = `$${analysisCost.toFixed(2)}`;
+}
+
+// Upload process
+async function startUpload() {
+    if (uploadQueue.length === 0 || uploadInProgress) return;
+    
+    uploadInProgress = true;
+    uploadCancelled = false;
+    
+    // Show progress modal
+    document.getElementById('upload-modal').classList.remove('hidden');
+    document.getElementById('upload-modal').classList.add('flex');
+    
+    // Get upload options
+    const options = {
+        auto_analyze: document.getElementById('auto-analyze').checked,
+        deep_scan: document.getElementById('deep-scan').checked,
+        extract_archives: document.getElementById('extract-archives').checked,
+        ai_analysis: document.getElementById('ai-analysis').checked,
+        analysis_vectors: getSelectedVectors()
+    };
+    
+    let completedCount = 0;
+    const totalFiles = uploadQueue.length;
+    
+    for (let i = 0; i < uploadQueue.length; i++) {
+        if (uploadCancelled) break;
+        
+        const item = uploadQueue[i];
+        item.status = 'uploading';
+        updateQueueDisplay();
+        
+        document.getElementById('current-file').textContent = `Uploading: ${item.file.name}`;
+        
+        try {
+            await uploadSingleFile(item, options, (progress) => {
+                item.progress = progress;
+                updateQueueDisplay();
+                
+                const overallProgress = ((completedCount + progress / 100) / totalFiles) * 100;
+                document.getElementById('overall-progress').style.width = overallProgress + '%';
+            });
+            
+            item.status = 'complete';
+            item.progress = 100;
+            completedCount++;
+            
+        } catch (error) {
+            item.status = 'error';
+            showNotification(`Failed to upload ${item.file.name}: ${error.message}`, 'error');
+        }
+        
+        updateQueueDisplay();
+    }
+    
+    // Upload complete
+    uploadInProgress = false;
+    document.getElementById('upload-modal').classList.add('hidden');
+    document.getElementById('upload-modal').classList.remove('flex');
+    
+    if (!uploadCancelled) {
+        showNotification(`Successfully uploaded ${completedCount} of ${totalFiles} files`, 'success');
+        
+        // Clear completed files and redirect
+        setTimeout(() => {
+            window.location.href = "{{ url_for('files.file_list') }}";
+        }, 2000);
+    }
+}
+
+async function uploadSingleFile(item, options, progressCallback) {
+    const formData = new FormData();
+    formData.append('file', item.file);
+    formData.append('options', JSON.stringify(options));
+    
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const progress = (e.loaded / e.total) * 100;
+                progressCallback(progress);
+            }
+        });
+        
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        resolve(response);
+                    } else {
+                        reject(new Error(response.error || 'Upload failed'));
+                    }
+                } catch (e) {
+                    reject(new Error('Invalid response format'));
+                }
+            } else {
+                reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error'));
+        });
+        
+        xhr.open('POST', "{{ url_for('files.upload_file') }}");
+        xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
+        xhr.send(formData);
+    });
+}
+
+function cancelUpload() {
+    uploadCancelled = true;
+    uploadInProgress = false;
+    document.getElementById('upload-modal').classList.add('hidden');
+    document.getElementById('upload-modal').classList.remove('flex');
+    
+    // Reset queue status
+    uploadQueue.forEach(item => {
+        if (item.status === 'uploading') {
+            item.status = 'pending';
+            item.progress = 0;
+        }
+    });
+    
+    updateQueueDisplay();
+    showNotification('Upload cancelled', 'info');
+}
+
+// Analysis vector selection
+function getSelectedVectors() {
+    const selected = [];
+    document.querySelectorAll('.analysis-option input[type="checkbox"]:checked').forEach(checkbox => {
+        const vector = checkbox.closest('.analysis-option').dataset.vector;
+        selected.push(vector);
+    });
+    return selected;
+}
+
+// Event listeners for analysis options
+document.addEventListener('DOMContentLoaded', function() {
+    // Analysis option selection
+    document.querySelectorAll('.analysis-option').forEach(option => {
+        const checkbox = option.querySelector('input[type="checkbox"]');
+        
+        option.addEventListener('click', function(e) {
+            if (e.target.type !== 'checkbox') {
+                checkbox.checked = !checkbox.checked;
+            }
+            
+            if (checkbox.checked) {
+                option.classList.add('selected');
+            } else {
+                option.classList.remove('selected');
+            }
+        });
+        
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                option.classList.add('selected');
+            } else {
+                option.classList.remove('selected');
+            }
+        });
+    });
+    
+    // Click upload zone to browse
+    document.getElementById('upload-zone').addEventListener('click', function() {
+        document.getElementById('file-input').click();
+    });
+});
+
+// Utility functions
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function getFileIcon(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'file-archive';
+    if (['mp3', 'wav', 'flac', 'ogg'].includes(ext)) return 'music';
+    if (['mp4', 'avi', 'mkv', 'mov'].includes(ext)) return 'video';
+    if (['pdf', 'doc', 'docx', 'txt'].includes(ext)) return 'file-alt';
+    return 'file';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+</script>
+{% endblock %}

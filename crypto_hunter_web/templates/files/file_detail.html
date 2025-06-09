@@ -1,0 +1,826 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file.filename }} - File Analysis{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.detail-card {
+    transition: all 0.3s ease;
+}
+
+.detail-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.finding-card {
+    border-left: 4px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.finding-card.high-severity {
+    border-left-color: #dc2626;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.finding-card.medium-severity {
+    border-left-color: #d97706;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.finding-card.low-severity {
+    border-left-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.finding-card:hover {
+    transform: translateX(4px);
+}
+
+.analysis-progress {
+    background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+    height: 8px;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.metadata-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.hash-display {
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+    background: #f8fafc;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3b82f6;
+}
+
+.timeline-item::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.25rem;
+    width: 2px;
+    height: calc(100% - 1.25rem);
+    background: #e5e7eb;
+}
+
+.timeline-item:last-child::after {
+    display: none;
+}
+
+.vector-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.vector-status.active {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.vector-status.complete {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.vector-status.error {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.related-file {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.related-file:hover {
+    background-color: #f8fafc;
+    transform: translateX(2px);
+}
+
+.similarity-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+}
+
+.analysis-chart {
+    max-height: 300px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header with File Info -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <a href="{{ url_for('files.file_list') }}" 
+                   class="text-gray-600 hover:text-gray-800 flex items-center">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Files
+                </a>
+                <div class="h-8 w-px bg-gray-300"></div>
+                <div class="flex items-center space-x-3">
+                    <!-- File Type Icon -->
+                    <div class="p-3 rounded-lg {% if file.is_root_file %}bg-purple-100{% else %}bg-blue-100{% endif %}">
+                        {% if file.is_root_file %}
+                            <i class="fas fa-gem text-purple-600 text-xl"></i>
+                        {% elif file.file_type == 'image' %}
+                            <i class="fas fa-image text-blue-600 text-xl"></i>
+                        {% elif file.file_type == 'archive' %}
+                            <i class="fas fa-file-archive text-yellow-600 text-xl"></i>
+                        {% elif file.file_type == 'text' %}
+                            <i class="fas fa-file-alt text-green-600 text-xl"></i>
+                        {% else %}
+                            <i class="fas fa-file text-gray-600 text-xl"></i>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">{{ file.filename }}</h1>
+                        <div class="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                            <span>
+                                <i class="fas fa-hdd mr-1"></i>
+                                {% if file.file_size %}
+                                    {{ "%.1f"|format(file.file_size / (1024*1024)) }} MB
+                                {% else %}
+                                    Unknown size
+                                {% endif %}
+                            </span>
+                            <span>
+                                <i class="fas fa-clock mr-1"></i>
+                                {{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </span>
+                            {% if file.is_root_file %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                <i class="fas fa-gem mr-1"></i>Root File
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="downloadFile()" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-download mr-2"></i>Download
+                </button>
+                <a href="{{ url_for('content.file_content', sha=file.sha256_hash) }}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-file-code mr-2"></i>View Content
+                </a>
+                <a href="{{ url_for('graph.graph_focus', sha=file.sha256_hash) }}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-project-diagram mr-2"></i>View Graph
+                </a>
+                {% if file.status != 'complete' %}
+                <button onclick="startAnalysis()" 
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-microscope mr-2"></i>Analyze
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="mb-8">
+        <div class="detail-card bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium 
+                            {% if file.status == 'complete' %}bg-green-100 text-green-800
+                            {% elif file.status == 'analyzing' %}bg-blue-100 text-blue-800
+                            {% elif file.status == 'error' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {% if file.status == 'analyzing' %}
+                                <div class="w-2 h-2 bg-blue-600 rounded-full animate-pulse mr-2"></div>
+                            {% endif %}
+                            {{ file.status.title() }}
+                        </span>
+                        {% if file.confidence_score %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                            {{ (file.confidence_score * 100)|round }}% Confidence
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if file.status == 'analyzing' %}
+                    <div class="flex-1 max-w-xs">
+                        <div class="text-sm text-gray-600 mb-1">Analysis Progress</div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="analysis-progress" style="width: {{ analysis_progress or 0 }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex items-center space-x-6 text-sm">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">{{ file.findings.count() }}</div>
+                        <div class="text-gray-500">Findings</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">{{ active_vectors_count or 0 }}</div>
+                        <div class="text-gray-500">Active Vectors</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">{{ related_files_count or 0 }}</div>
+                        <div class="text-gray-500">Related Files</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Findings Section -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-semibold text-gray-900">Analysis Findings</h2>
+                        {% if file.findings.count() > 0 %}
+                        <div class="flex items-center space-x-2">
+                            <select id="finding-filter" onchange="filterFindings()" class="text-sm border border-gray-300 rounded px-2 py-1">
+                                <option value="all">All Findings</option>
+                                <option value="high">High Severity</option>
+                                <option value="medium">Medium Severity</option>
+                                <option value="low">Low Severity</option>
+                            </select>
+                            <button onclick="exportFindings()" class="text-sm bg-gray-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-download mr-1"></i>Export
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="p-6">
+                    {% if file.findings.count() > 0 %}
+                        <div class="space-y-4">
+                            {% for finding in file.findings %}
+                            <div class="finding-card p-4 rounded-lg {% if finding.confidence_score >= 0.8 %}high-severity{% elif finding.confidence_score >= 0.6 %}medium-severity{% else %}low-severity{% endif %}"
+                                 data-severity="{% if finding.confidence_score >= 0.8 %}high{% elif finding.confidence_score >= 0.6 %}medium{% else %}low{% endif %}">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2 mb-2">
+                                            <h3 class="text-lg font-medium text-gray-900">{{ finding.finding_type }}</h3>
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium 
+                                                {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                                {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                {{ (finding.confidence_score * 100)|round }}% Confidence
+                                            </span>
+                                        </div>
+                                        <p class="text-gray-700 mb-3">{{ finding.description }}</p>
+                                        <div class="grid grid-cols-2 gap-4 text-sm">
+                                            {% if finding.offset %}
+                                            <div>
+                                                <span class="text-gray-500">Offset:</span>
+                                                <span class="font-mono">0x{{ "%08x"|format(finding.offset) }}</span>
+                                            </div>
+                                            {% endif %}
+                                            {% if finding.size %}
+                                            <div>
+                                                <span class="text-gray-500">Size:</span>
+                                                <span class="font-medium">{{ finding.size }} bytes</span>
+                                            </div>
+                                            {% endif %}
+                                            <div>
+                                                <span class="text-gray-500">Discovered:</span>
+                                                <span class="font-medium">{{ finding.created_at.strftime('%m/%d %H:%M') }}</span>
+                                            </div>
+                                            {% if finding.vector %}
+                                            <div>
+                                                <span class="text-gray-500">Vector:</span>
+                                                <span class="font-medium">{{ finding.vector.name }}</span>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        {% if finding.metadata %}
+                                        <div class="mt-3 p-3 bg-gray-50 rounded">
+                                            <div class="text-sm font-medium text-gray-700 mb-2">Additional Details</div>
+                                            <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ finding.metadata|tojson(indent=2) }}</pre>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex flex-col space-y-2 ml-4">
+                                        {% if finding.offset %}
+                                        <button onclick="jumpToOffset({{ finding.offset }})" 
+                                                class="text-blue-600 hover:text-blue-800 text-sm" title="Jump to location">
+                                            <i class="fas fa-crosshairs"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button onclick="markFalsePositive('{{ finding.id }}')" 
+                                                class="text-gray-600 hover:text-gray-800 text-sm" title="Mark as false positive">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button onclick="exportFinding('{{ finding.id }}')" 
+                                                class="text-green-600 hover:text-green-800 text-sm" title="Export finding">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <div class="text-6xl mb-4">🔍</div>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">No Findings Yet</h3>
+                            <p class="text-gray-500 mb-6">
+                                {% if file.status == 'complete' %}
+                                    Analysis completed with no suspicious content detected.
+                                {% elif file.status == 'analyzing' %}
+                                    Analysis is in progress. Findings will appear here as they are discovered.
+                                {% else %}
+                                    Start analysis to discover hidden content and suspicious patterns.
+                                {% endif %}
+                            </p>
+                            {% if file.status == 'pending' %}
+                            <button onclick="startAnalysis()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
+                                <i class="fas fa-microscope mr-2"></i>Start Analysis
+                            </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Analysis Vectors -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-900">Analysis Vectors</h2>
+                    <p class="text-sm text-gray-500 mt-1">Methods applied to analyze this file</p>
+                </div>
+                <div class="p-6">
+                    {% if file.vectors %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for vector in file.vectors %}
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-lg">{{ vector.icon or '🔍' }}</span>
+                                        <h3 class="font-medium text-gray-900">{{ vector.name }}</h3>
+                                    </div>
+                                    <span class="vector-status {{ vector.status }}">
+                                        {{ vector.status.title() }}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">{{ vector.description[:100] }}...</p>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Findings:</span>
+                                    <span class="font-medium">{{ vector.findings_for_file(file.id) or 0 }}</span>
+                                </div>
+                                {% if vector.status == 'active' and vector.progress %}
+                                <div class="mt-2">
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                                             style="width: {{ vector.progress }}%"></div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-crosshairs text-gray-400 text-3xl mb-4"></i>
+                            <p class="text-gray-500">No analysis vectors applied to this file yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Analysis Timeline -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-900">Analysis Timeline</h2>
+                    <p class="text-sm text-gray-500 mt-1">History of analysis activities</p>
+                </div>
+                <div class="p-6">
+                    <div class="space-y-4">
+                        {% for event in analysis_timeline %}
+                        <div class="timeline-item">
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2">
+                                        <h4 class="text-sm font-medium text-gray-900">{{ event.action }}</h4>
+                                        <span class="text-xs text-gray-500">{{ event.timestamp.strftime('%m/%d %H:%M') }}</span>
+                                    </div>
+                                    <p class="text-sm text-gray-600 mt-1">{{ event.description }}</p>
+                                    {% if event.metadata %}
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        {{ event.metadata }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if not analysis_timeline %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-clock text-gray-400 text-3xl mb-4"></i>
+                            <p class="text-gray-500">No analysis events recorded yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- File Metadata -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">File Metadata</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">SHA256 Hash</label>
+                        <div class="hash-display mt-1 cursor-pointer" onclick="copyToClipboard('{{ file.sha256_hash }}')" title="Click to copy">
+                            {{ file.sha256_hash }}
+                        </div>
+                    </div>
+                    
+                    {% if file.md5_hash %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">MD5 Hash</label>
+                        <div class="hash-display mt-1 cursor-pointer" onclick="copyToClipboard('{{ file.md5_hash }}')" title="Click to copy">
+                            {{ file.md5_hash }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if file.sha1_hash %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">SHA1 Hash</label>
+                        <div class="hash-display mt-1 cursor-pointer" onclick="copyToClipboard('{{ file.sha1_hash }}')" title="Click to copy">
+                            {{ file.sha1_hash }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="metadata-grid">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">File Size</label>
+                            <div class="mt-1 text-sm text-gray-900">
+                                {% if file.file_size %}
+                                    {{ file.file_size|filesizeformat }}
+                                {% else %}
+                                    Unknown
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">File Type</label>
+                            <div class="mt-1 text-sm text-gray-900">{{ file.file_type or file.mime_type or 'Unknown' }}</div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Created</label>
+                            <div class="mt-1 text-sm text-gray-900">{{ file.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+
+                        {% if file.analyzed_at %}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Analyzed</label>
+                            <div class="mt-1 text-sm text-gray-900">{{ file.analyzed_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if file.priority %}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Priority</label>
+                            <div class="mt-1 text-sm text-gray-900">{{ file.priority }}/10</div>
+                        </div>
+                        {% endif %}
+
+                        {% if file.analysis_duration %}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Analysis Time</label>
+                            <div class="mt-1 text-sm text-gray-900">{{ "%.1f"|format(file.analysis_duration) }}s</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if file.tags %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500 mb-2">Tags</label>
+                        <div class="flex flex-wrap gap-1">
+                            {% for tag in file.tags %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ tag }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if file.notes %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500">Notes</label>
+                        <div class="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded">{{ file.notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Related Files -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Related Files</h3>
+                    <p class="text-sm text-gray-500 mt-1">Files with similar characteristics or relationships</p>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    {% for related in related_files[:10] %}
+                    <div class="related-file p-4 hover:bg-gray-50 transition-colors" 
+                         onclick="window.location.href='{{ url_for('files.file_detail', sha=related.file.sha256_hash) }}'">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3 flex-1 min-w-0">
+                                <div class="flex-shrink-0">
+                                    {% if related.file.file_type == 'image' %}
+                                        <i class="fas fa-image text-blue-500"></i>
+                                    {% elif related.file.file_type == 'archive' %}
+                                        <i class="fas fa-file-archive text-yellow-500"></i>
+                                    {% else %}
+                                        <i class="fas fa-file text-gray-400"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 truncate">{{ related.file.filename }}</div>
+                                    <div class="text-xs text-gray-500">{{ related.relationship_type }}</div>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0 text-right">
+                                <div class="text-xs text-gray-500">{{ (related.similarity * 100)|round }}% similar</div>
+                                <div class="w-16 bg-gray-200 rounded-full h-1 mt-1">
+                                    <div class="similarity-bar h-1 rounded-full" style="width: {{ related.similarity * 100 }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if not related_files %}
+                    <div class="p-6 text-center text-gray-500">
+                        <i class="fas fa-link text-3xl mb-2"></i>
+                        <div class="text-sm">No related files found</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Analysis Statistics -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Analysis Statistics</h3>
+                </div>
+                <div class="p-6">
+                    <canvas id="analysisChart" class="analysis-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="detail-card bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Quick Actions</h3>
+                </div>
+                <div class="p-4 space-y-2">
+                    <button onclick="addToPlaylist()" class="w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded">
+                        <i class="fas fa-plus mr-2"></i>Add to Analysis Playlist
+                    </button>
+                    <button onclick="scheduleReanalysis()" class="w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 rounded">
+                        <i class="fas fa-clock mr-2"></i>Schedule Re-analysis
+                    </button>
+                    <button onclick="shareFile()" class="w-full text-left px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 rounded">
+                        <i class="fas fa-share mr-2"></i>Share Analysis Results
+                    </button>
+                    <button onclick="reportFile()" class="w-full text-left px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded">
+                        <i class="fas fa-flag mr-2"></i>Report as Malicious
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Initialize analysis statistics chart
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('analysisChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Complete', 'In Progress', 'Pending', 'Error'],
+            datasets: [{
+                data: [
+                    {{ analysis_stats.complete or 0 }},
+                    {{ analysis_stats.in_progress or 0 }},
+                    {{ analysis_stats.pending or 0 }},
+                    {{ analysis_stats.error or 0 }}
+                ],
+                backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+});
+
+// File actions
+function downloadFile() {
+    window.open(`/files/{{ file.sha256_hash }}/download`, '_blank');
+}
+
+function startAnalysis() {
+    if (confirm('Start comprehensive analysis of this file?')) {
+        showLoading();
+        fetch(`/api/analysis/start/{{ file.sha256_hash }}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification('Analysis started successfully', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showNotification('Failed to start analysis: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Failed to start analysis', 'error');
+        });
+    }
+}
+
+function jumpToOffset(offset) {
+    window.open(`{{ url_for('content.file_content', sha=file.sha256_hash) }}#offset-${offset}`, '_blank');
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('Copied to clipboard', 'success', 2000);
+    });
+}
+
+// Finding management
+function filterFindings() {
+    const filter = document.getElementById('finding-filter').value;
+    const findings = document.querySelectorAll('.finding-card');
+    
+    findings.forEach(finding => {
+        const severity = finding.dataset.severity;
+        if (filter === 'all' || severity === filter) {
+            finding.style.display = 'block';
+        } else {
+            finding.style.display = 'none';
+        }
+    });
+}
+
+function markFalsePositive(findingId) {
+    if (confirm('Mark this finding as a false positive?')) {
+        fetch(`/api/findings/${findingId}/false-positive`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Finding marked as false positive', 'success');
+                location.reload();
+            } else {
+                showNotification('Error updating finding', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error updating finding', 'error');
+        });
+    }
+}
+
+function exportFinding(findingId) {
+    window.open(`/api/findings/${findingId}/export`, '_blank');
+}
+
+function exportFindings() {
+    window.open(`/api/files/{{ file.sha256_hash }}/findings/export`, '_blank');
+}
+
+// Quick actions
+function addToPlaylist() {
+    // Implementation for adding to analysis playlist
+    showNotification('Added to analysis playlist', 'success');
+}
+
+function scheduleReanalysis() {
+    // Implementation for scheduling re-analysis
+    showNotification('Re-analysis scheduled', 'success');
+}
+
+function shareFile() {
+    // Implementation for sharing analysis results
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: 'File Analysis Results',
+            text: `Analysis results for ${file.filename}`,
+            url: shareUrl
+        });
+    } else {
+        copyToClipboard(shareUrl);
+        showNotification('Share link copied to clipboard', 'success');
+    }
+}
+
+function reportFile() {
+    if (confirm('Report this file as potentially malicious?')) {
+        fetch(`/api/files/{{ file.sha256_hash }}/report`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('File reported successfully', 'success');
+            } else {
+                showNotification('Error reporting file', 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Error reporting file', 'error');
+        });
+    }
+}
+
+// Auto-refresh status every 30 seconds if analyzing
+{% if file.status == 'analyzing' %}
+setInterval(function() {
+    fetch(`/api/files/{{ file.sha256_hash }}/status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'analyzing') {
+                location.reload();
+            } else if (data.progress !== undefined) {
+                const progressBar = document.querySelector('.analysis-progress');
+                if (progressBar) {
+                    progressBar.style.width = data.progress + '%';
+                }
+            }
+        })
+        .catch(error => console.log('Status update failed:', error));
+}, 30000);
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,1017 @@
+{% extends "base.html" %}
+
+{% block title %}Visual Graph - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+.graph-container {
+    position: relative;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.graph-svg {
+    background: transparent;
+}
+
+.node {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.node:hover {
+    transform: scale(1.1);
+}
+
+.node.selected {
+    stroke: #ffd700;
+    stroke-width: 3px;
+}
+
+.node.root-file {
+    stroke: #9f7aea;
+    stroke-width: 2px;
+}
+
+.node.has-findings {
+    stroke: #f56565;
+    stroke-width: 2px;
+    stroke-dasharray: 5,5;
+    animation: pulse-finding 2s infinite;
+}
+
+@keyframes pulse-finding {
+    0%, 100% { stroke-opacity: 1; }
+    50% { stroke-opacity: 0.5; }
+}
+
+.link {
+    stroke: rgba(255, 255, 255, 0.6);
+    stroke-width: 1px;
+    fill: none;
+}
+
+.link.extraction {
+    stroke: #48bb78;
+    stroke-width: 2px;
+}
+
+.link.similarity {
+    stroke: #ed8936;
+    stroke-width: 1px;
+    stroke-dasharray: 3,3;
+}
+
+.link.finding-relation {
+    stroke: #f56565;
+    stroke-width: 2px;
+    stroke-dasharray: 5,5;
+}
+
+.node-label {
+    fill: white;
+    font-size: 10px;
+    text-anchor: middle;
+    pointer-events: none;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+}
+
+.tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.graph-controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+}
+
+.graph-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.minimap {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    width: 150px;
+    height: 100px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.filter-panel {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.finding-marker {
+    fill: #f56565;
+    stroke: #fff;
+    stroke-width: 1px;
+}
+
+.vector-marker {
+    fill: #9f7aea;
+    stroke: #fff;
+    stroke-width: 1px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">File Relationship Graph</h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    Interactive visualization of file relationships, findings, and analysis vectors
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="exportGraph()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-download mr-2"></i>Export
+                </button>
+                <button onclick="resetGraph()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-refresh mr-2"></i>Reset
+                </button>
+                <a href="{{ url_for('files.file_list') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-list mr-2"></i>File List
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Statistics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="stats-card">
+            <div class="flex items-center">
+                <i class="fas fa-circle text-2xl mr-3 opacity-80"></i>
+                <div>
+                    <div class="text-sm opacity-80">Nodes</div>
+                    <div class="text-2xl font-bold">{{ graph_metadata.total_nodes }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="stats-card">
+            <div class="flex items-center">
+                <i class="fas fa-arrows-alt text-2xl mr-3 opacity-80"></i>
+                <div>
+                    <div class="text-sm opacity-80">Connections</div>
+                    <div class="text-2xl font-bold">{{ graph_metadata.total_edges }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="stats-card">
+            <div class="flex items-center">
+                <i class="fas fa-search text-2xl mr-3 opacity-80"></i>
+                <div>
+                    <div class="text-sm opacity-80">Findings</div>
+                    <div class="text-2xl font-bold">{{ graph_stats.finding_count or 0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="stats-card">
+            <div class="flex items-center">
+                <i class="fas fa-gem text-2xl mr-3 opacity-80"></i>
+                <div>
+                    <div class="text-sm opacity-80">Root Files</div>
+                    <div class="text-2xl font-bold">{{ graph_stats.root_file_count or 0 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Graph Visualization -->
+        <div class="lg:col-span-3">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="graph-container" style="height: 600px; position: relative;">
+                    <svg id="graph-svg" class="graph-svg" width="100%" height="100%"></svg>
+                    
+                    <!-- Graph Controls -->
+                    <div class="graph-controls flex flex-col space-y-2">
+                        <button onclick="zoomIn()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button onclick="zoomOut()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button onclick="fitToView()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                        <button onclick="togglePhysics()" id="physics-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Legend -->
+                    <div class="graph-legend">
+                        <div class="text-xs font-bold mb-2">Legend</div>
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span>Regular File</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-purple-500 rounded-full border-2 border-white"></div>
+                                <span>Root File</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-red-500 rounded-full border border-dashed border-white"></div>
+                                <span>Has Findings</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-4 h-0.5 bg-green-500"></div>
+                                <span>Extraction</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-4 h-0.5 bg-orange-500 border-dashed"></div>
+                                <span>Similarity</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Minimap -->
+                    <div class="minimap">
+                        <svg id="minimap-svg" width="100%" height="100%"></svg>
+                    </div>
+                    
+                    <!-- Tooltip -->
+                    <div id="tooltip" class="tooltip"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls and Filters -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Graph Filters -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Filters</h3>
+                </div>
+                <div class="filter-panel p-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Layout Type</label>
+                        <select id="layout-type" onchange="changeLayout()" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                            <option value="force" {% if graph_metadata.layout_type == 'force' %}selected{% endif %}>Force-Directed</option>
+                            <option value="hierarchical" {% if graph_metadata.layout_type == 'hierarchical' %}selected{% endif %}>Hierarchical</option>
+                            <option value="circular" {% if graph_metadata.layout_type == 'circular' %}selected{% endif %}>Circular</option>
+                            <option value="tree" {% if graph_metadata.layout_type == 'tree' %}selected{% endif %}>Tree</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Node Size</label>
+                        <select id="node-size" onchange="updateNodeSizes()" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                            <option value="uniform">Uniform</option>
+                            <option value="file-size" selected>By File Size</option>
+                            <option value="findings">By Findings Count</option>
+                            <option value="connections">By Connections</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Show Elements</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="show-labels" checked onchange="toggleLabels()" class="mr-2">
+                                <span class="text-sm">Node Labels</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="show-findings" checked onchange="toggleFindings()" class="mr-2">
+                                <span class="text-sm">Finding Markers</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="show-vectors" checked onchange="toggleVectors()" class="mr-2">
+                                <span class="text-sm">Vector Markers</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="show-root-only" onchange="filterRootOnly()" class="mr-2">
+                                <span class="text-sm">Root Files Only</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">File Types</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByType('image')" class="mr-2">
+                                <span class="text-sm">Images</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByType('archive')" class="mr-2">
+                                <span class="text-sm">Archives</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByType('text')" class="mr-2">
+                                <span class="text-sm">Text Files</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByType('binary')" class="mr-2">
+                                <span class="text-sm">Binary Files</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Analysis Status</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByStatus('complete')" class="mr-2">
+                                <span class="text-sm">Complete</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByStatus('pending')" class="mr-2">
+                                <span class="text-sm">Pending</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" checked onchange="filterByStatus('analyzing')" class="mr-2">
+                                <span class="text-sm">Analyzing</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected Node Info -->
+            <div id="node-info" class="bg-white rounded-lg shadow hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Node Details</h3>
+                </div>
+                <div id="node-info-content" class="p-4">
+                    <!-- Node details will be populated here -->
+                </div>
+            </div>
+
+            <!-- Graph Statistics -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Graph Statistics</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Total Files:</span>
+                        <span class="font-medium">{{ graph_metadata.total_nodes }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Connections:</span>
+                        <span class="font-medium">{{ graph_metadata.total_edges }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Avg Degree:</span>
+                        <span class="font-medium">{{ "%.1f"|format((graph_metadata.total_edges * 2) / graph_metadata.total_nodes) if graph_metadata.total_nodes > 0 else 0 }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Density:</span>
+                        <span class="font-medium">{{ "%.3f"|format(graph_stats.density or 0) }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Clusters:</span>
+                        <span class="font-medium">{{ graph_stats.cluster_count or 0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Quick Actions</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <button onclick="highlightFindings()" class="w-full text-left px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded">
+                        <i class="fas fa-search mr-2"></i>Highlight Files with Findings
+                    </button>
+                    <button onclick="highlightRootFiles()" class="w-full text-left px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 rounded">
+                        <i class="fas fa-gem mr-2"></i>Highlight Root Files
+                    </button>
+                    <button onclick="showShortestPath()" class="w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded">
+                        <i class="fas fa-route mr-2"></i>Find Shortest Path
+                    </button>
+                    <button onclick="analyzeSubgraph()" class="w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 rounded">
+                        <i class="fas fa-microscope mr-2"></i>Analyze Selected Subgraph
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Path Selection Modal -->
+<div id="path-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium mb-4">Find Shortest Path</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">From File</label>
+                <select id="path-source" class="mt-1 block w-full border-gray-300 rounded-md">
+                    <!-- Populated by JavaScript -->
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">To File</label>
+                <select id="path-target" class="mt-1 block w-full border-gray-300 rounded-md">
+                    <!-- Populated by JavaScript -->
+                </select>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end space-x-3">
+            <button onclick="closePathModal()" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md">
+                Cancel
+            </button>
+            <button onclick="findPath()" class="px-4 py-2 bg-blue-600 text-white rounded-md">
+                Find Path
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Graph data from backend
+const graphData = {
+    nodes: {{ nodes|safe }},
+    edges: {{ edges|safe }}
+};
+
+// Graph state
+let svg, simulation, g, zoom;
+let selectedNode = null;
+let physicsEnabled = true;
+let filteredNodes = new Set();
+let filteredEdges = new Set();
+
+// Initialize graph
+document.addEventListener('DOMContentLoaded', function() {
+    initializeGraph();
+    updateStatistics();
+});
+
+function initializeGraph() {
+    // Setup SVG
+    svg = d3.select("#graph-svg");
+    const container = svg.node().parentNode;
+    const rect = container.getBoundingClientRect();
+    
+    svg.attr("width", rect.width).attr("height", rect.height);
+    
+    // Setup zoom
+    zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on("zoom", zoomed);
+    
+    svg.call(zoom);
+    
+    // Main group for graph elements
+    g = svg.append("g");
+    
+    // Setup simulation
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force("link", d3.forceLink(graphData.edges).id(d => d.id).distance(50))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(rect.width / 2, rect.height / 2))
+        .force("collision", d3.forceCollide().radius(d => Math.max(8, getNodeRadius(d)) + 2));
+    
+    // Create graph elements
+    createLinks();
+    createNodes();
+    createLabels();
+    
+    // Start simulation
+    simulation.on("tick", ticked);
+    
+    // Setup minimap
+    setupMinimap();
+}
+
+function createLinks() {
+    const links = g.append("g")
+        .selectAll("line")
+        .data(graphData.edges)
+        .enter().append("line")
+        .attr("class", d => `link ${d.type || ''}`)
+        .attr("stroke-width", d => d.weight || 1);
+    
+    return links;
+}
+
+function createNodes() {
+    const nodes = g.append("g")
+        .selectAll("circle")
+        .data(graphData.nodes)
+        .enter().append("circle")
+        .attr("class", d => {
+            let classes = ["node"];
+            if (d.is_root_file) classes.push("root-file");
+            if (d.finding_count > 0) classes.push("has-findings");
+            return classes.join(" ");
+        })
+        .attr("r", getNodeRadius)
+        .attr("fill", getNodeColor)
+        .call(d3.drag()
+            .on("start", dragStarted)
+            .on("drag", dragged)
+            .on("end", dragEnded))
+        .on("click", nodeClicked)
+        .on("mouseover", showTooltip)
+        .on("mouseout", hideTooltip);
+    
+    return nodes;
+}
+
+function createLabels() {
+    const labels = g.append("g")
+        .selectAll("text")
+        .data(graphData.nodes)
+        .enter().append("text")
+        .attr("class", "node-label")
+        .text(d => d.filename.length > 15 ? d.filename.substring(0, 12) + "..." : d.filename);
+    
+    return labels;
+}
+
+function getNodeRadius(d) {
+    const sizeBy = document.getElementById('node-size').value;
+    switch(sizeBy) {
+        case 'file-size':
+            return Math.max(5, Math.min(20, Math.log(d.file_size || 1024) / Math.log(2)));
+        case 'findings':
+            return Math.max(5, 5 + (d.finding_count || 0) * 2);
+        case 'connections':
+            return Math.max(5, 5 + (d.degree || 0));
+        default:
+            return 8;
+    }
+}
+
+function getNodeColor(d) {
+    if (d.is_root_file) return "#9f7aea";
+    
+    switch(d.file_type) {
+        case 'image': return "#4299e1";
+        case 'archive': return "#ed8936";
+        case 'text': return "#48bb78";
+        case 'binary': return "#718096";
+        default: return "#a0aec0";
+    }
+}
+
+function ticked() {
+    g.selectAll("line")
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+    
+    g.selectAll("circle")
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+    
+    g.selectAll("text")
+        .attr("x", d => d.x)
+        .attr("y", d => d.y + 3);
+}
+
+function zoomed(event) {
+    g.attr("transform", event.transform);
+    updateMinimap(event.transform);
+}
+
+// Node interactions
+function nodeClicked(event, d) {
+    event.stopPropagation();
+    
+    // Clear previous selection
+    g.selectAll(".node").classed("selected", false);
+    
+    // Select new node
+    d3.select(this).classed("selected", true);
+    selectedNode = d;
+    
+    // Show node info
+    showNodeInfo(d);
+    
+    // Highlight connected nodes
+    highlightConnectedNodes(d);
+}
+
+function showNodeInfo(d) {
+    const panel = document.getElementById('node-info');
+    const content = document.getElementById('node-info-content');
+    
+    content.innerHTML = `
+        <div class="space-y-3">
+            <div>
+                <h4 class="font-medium text-gray-900">${d.filename}</h4>
+                <p class="text-sm text-gray-500">${d.file_type || 'Unknown type'}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                    <span class="text-gray-500">Size:</span>
+                    <span class="font-medium">${formatFileSize(d.file_size)}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Findings:</span>
+                    <span class="font-medium">${d.finding_count || 0}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Status:</span>
+                    <span class="font-medium">${d.status || 'Unknown'}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Connections:</span>
+                    <span class="font-medium">${d.degree || 0}</span>
+                </div>
+            </div>
+            ${d.is_root_file ? '<div class="text-sm text-purple-600 font-medium">🔹 Root File</div>' : ''}
+            ${d.finding_count > 0 ? '<div class="text-sm text-red-600 font-medium">⚠️ Has Findings</div>' : ''}
+            <div class="pt-2 border-t border-gray-200">
+                <a href="/files/${d.sha256_hash}" class="text-blue-600 hover:text-blue-800 text-sm">
+                    <i class="fas fa-eye mr-1"></i>View Details
+                </a>
+            </div>
+        </div>
+    `;
+    
+    panel.classList.remove('hidden');
+}
+
+function highlightConnectedNodes(d) {
+    // Reset all nodes
+    g.selectAll(".node").style("opacity", 0.3);
+    g.selectAll(".link").style("opacity", 0.1);
+    
+    // Highlight selected node
+    g.selectAll(".node").filter(n => n.id === d.id).style("opacity", 1);
+    
+    // Highlight connected nodes and edges
+    g.selectAll(".link").filter(l => l.source.id === d.id || l.target.id === d.id)
+        .style("opacity", 0.8)
+        .each(function(l) {
+            const connectedNodeId = l.source.id === d.id ? l.target.id : l.source.id;
+            g.selectAll(".node").filter(n => n.id === connectedNodeId).style("opacity", 0.8);
+        });
+}
+
+// Drag handlers
+function dragStarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+}
+
+function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+}
+
+function dragEnded(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+}
+
+// Tooltip
+function showTooltip(event, d) {
+    const tooltip = document.getElementById('tooltip');
+    tooltip.innerHTML = `
+        <div class="font-medium">${d.filename}</div>
+        <div class="text-xs">${d.file_type || 'Unknown'} • ${formatFileSize(d.file_size)}</div>
+        ${d.finding_count > 0 ? `<div class="text-xs text-red-300">${d.finding_count} findings</div>` : ''}
+    `;
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY - 10) + 'px';
+    tooltip.style.opacity = '1';
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip').style.opacity = '0';
+}
+
+// Control functions
+function zoomIn() {
+    svg.transition().call(zoom.scaleBy, 1.5);
+}
+
+function zoomOut() {
+    svg.transition().call(zoom.scaleBy, 1 / 1.5);
+}
+
+function fitToView() {
+    const bounds = g.node().getBBox();
+    const parent = svg.node().parentNode;
+    const fullWidth = parent.clientWidth;
+    const fullHeight = parent.clientHeight;
+    const width = bounds.width;
+    const height = bounds.height;
+    const midX = bounds.x + width / 2;
+    const midY = bounds.y + height / 2;
+    
+    if (width == 0 || height == 0) return;
+    
+    const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
+    const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+    
+    svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+}
+
+function togglePhysics() {
+    const btn = document.getElementById('physics-btn');
+    if (physicsEnabled) {
+        simulation.stop();
+        btn.innerHTML = '<i class="fas fa-play"></i>';
+        physicsEnabled = false;
+    } else {
+        simulation.restart();
+        btn.innerHTML = '<i class="fas fa-pause"></i>';
+        physicsEnabled = true;
+    }
+}
+
+function resetGraph() {
+    // Clear selections and filters
+    selectedNode = null;
+    filteredNodes.clear();
+    filteredEdges.clear();
+    
+    // Reset visual state
+    g.selectAll(".node")
+        .classed("selected", false)
+        .style("opacity", 1);
+    g.selectAll(".link").style("opacity", 1);
+    
+    // Hide node info
+    document.getElementById('node-info').classList.add('hidden');
+    
+    // Reset form controls
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    document.getElementById('layout-type').value = 'force';
+    document.getElementById('node-size').value = 'file-size';
+    
+    // Restart simulation
+    simulation.alpha(1).restart();
+}
+
+// Layout changes
+function changeLayout() {
+    const layoutType = document.getElementById('layout-type').value;
+    
+    switch(layoutType) {
+        case 'hierarchical':
+            applyHierarchicalLayout();
+            break;
+        case 'circular':
+            applyCircularLayout();
+            break;
+        case 'tree':
+            applyTreeLayout();
+            break;
+        default:
+            applyForceLayout();
+    }
+}
+
+function applyForceLayout() {
+    simulation
+        .force("link", d3.forceLink(graphData.edges).id(d => d.id).distance(50))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(svg.attr("width") / 2, svg.attr("height") / 2))
+        .alpha(1).restart();
+}
+
+function applyCircularLayout() {
+    const radius = Math.min(svg.attr("width"), svg.attr("height")) / 2 - 50;
+    const centerX = svg.attr("width") / 2;
+    const centerY = svg.attr("height") / 2;
+    
+    graphData.nodes.forEach((d, i) => {
+        const angle = (i / graphData.nodes.length) * 2 * Math.PI;
+        d.fx = centerX + radius * Math.cos(angle);
+        d.fy = centerY + radius * Math.sin(angle);
+    });
+    
+    simulation.alpha(0.3).restart();
+}
+
+// Filter functions
+function toggleLabels() {
+    const show = document.getElementById('show-labels').checked;
+    g.selectAll(".node-label").style("display", show ? "block" : "none");
+}
+
+function filterRootOnly() {
+    const rootOnly = document.getElementById('show-root-only').checked;
+    
+    if (rootOnly) {
+        g.selectAll(".node").style("display", d => d.is_root_file ? "block" : "none");
+        g.selectAll(".node-label").style("display", d => d.is_root_file ? "block" : "none");
+    } else {
+        g.selectAll(".node").style("display", "block");
+        if (document.getElementById('show-labels').checked) {
+            g.selectAll(".node-label").style("display", "block");
+        }
+    }
+}
+
+// Quick actions
+function highlightFindings() {
+    g.selectAll(".node").style("opacity", d => d.finding_count > 0 ? 1 : 0.2);
+}
+
+function highlightRootFiles() {
+    g.selectAll(".node").style("opacity", d => d.is_root_file ? 1 : 0.2);
+}
+
+function showShortestPath() {
+    // Populate file selectors
+    const sourceSelect = document.getElementById('path-source');
+    const targetSelect = document.getElementById('path-target');
+    
+    sourceSelect.innerHTML = '';
+    targetSelect.innerHTML = '';
+    
+    graphData.nodes.forEach(node => {
+        sourceSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
+        targetSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
+    });
+    
+    document.getElementById('path-modal').classList.remove('hidden');
+    document.getElementById('path-modal').classList.add('flex');
+}
+
+function closePathModal() {
+    document.getElementById('path-modal').classList.add('hidden');
+    document.getElementById('path-modal').classList.remove('flex');
+}
+
+function findPath() {
+    const sourceId = document.getElementById('path-source').value;
+    const targetId = document.getElementById('path-target').value;
+    
+    if (sourceId === targetId) {
+        showNotification('Source and target must be different', 'warning');
+        return;
+    }
+    
+    // Find shortest path using Dijkstra's algorithm
+    const path = findShortestPath(sourceId, targetId);
+    
+    if (path.length === 0) {
+        showNotification('No path found between selected files', 'error');
+    } else {
+        highlightPath(path);
+        showNotification(`Path found with ${path.length - 1} hops`, 'success');
+    }
+    
+    closePathModal();
+}
+
+function findShortestPath(sourceId, targetId) {
+    // Simple BFS implementation
+    const visited = new Set();
+    const queue = [[sourceId, [sourceId]]];
+    
+    while (queue.length > 0) {
+        const [currentId, path] = queue.shift();
+        
+        if (currentId === targetId) {
+            return path;
+        }
+        
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+        
+        // Find connected nodes
+        graphData.edges.forEach(edge => {
+            if (edge.source.id === currentId && !visited.has(edge.target.id)) {
+                queue.push([edge.target.id, [...path, edge.target.id]]);
+            } else if (edge.target.id === currentId && !visited.has(edge.source.id)) {
+                queue.push([edge.source.id, [...path, edge.source.id]]);
+            }
+        });
+    }
+    
+    return [];
+}
+
+function highlightPath(path) {
+    // Reset all nodes and edges
+    g.selectAll(".node").style("opacity", 0.2);
+    g.selectAll(".link").style("opacity", 0.1);
+    
+    // Highlight path nodes
+    g.selectAll(".node").filter(d => path.includes(d.id)).style("opacity", 1);
+    
+    // Highlight path edges
+    for (let i = 0; i < path.length - 1; i++) {
+        g.selectAll(".link").filter(d => 
+            (d.source.id === path[i] && d.target.id === path[i + 1]) ||
+            (d.source.id === path[i + 1] && d.target.id === path[i])
+        ).style("opacity", 1).style("stroke", "#ffd700").style("stroke-width", 3);
+    }
+}
+
+// Export functionality
+function exportGraph() {
+    const exportData = {
+        nodes: graphData.nodes,
+        edges: graphData.edges,
+        metadata: {{ graph_metadata|tojson }},
+        timestamp: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `crypto_hunter_graph_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+}
+
+// Utility functions
+function setupMinimap() {
+    // Simple minimap implementation
+    const minimapSvg = d3.select("#minimap-svg");
+    // Implementation would go here
+}
+
+function updateMinimap(transform) {
+    // Update minimap viewport
+}
+
+function updateNodeSizes() {
+    g.selectAll("circle").attr("r", getNodeRadius);
+}
+
+function updateStatistics() {
+    // Update real-time statistics if needed
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Clear selections when clicking on empty space
+svg.on("click", function(event) {
+    if (event.target === this) {
+        selectedNode = null;
+        g.selectAll(".node").classed("selected", false).style("opacity", 1);
+        g.selectAll(".link").style("opacity", 1);
+        document.getElementById('node-info').classList.add('hidden');
+    }
+});
+
+// Auto-refresh graph data every 30 seconds
+setInterval(function() {
+    fetch(`{{ url_for('graph.graph_data') }}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.nodes.length !== graphData.nodes.length) {
+                // Nodes changed, reload the page
+                location.reload();
+            }
+        })
+        .catch(error => console.log('Auto-refresh failed:', error));
+}, 30000);
+</script>
+{% endblock %>

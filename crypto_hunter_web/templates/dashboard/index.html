@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+
+{% block title %}Crypto Hunter Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header with Real-time Status -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Crypto Hunter Dashboard</h1>
+                <p class="text-gray-600">Cryptocurrency forensics and pattern analysis</p>
+                {% if system_status and system_status.workers %}
+                <div class="mt-2 flex items-center space-x-4 text-sm">
+                    <span class="flex items-center">
+                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2 {% if system_status.workers.online > 0 %}animate-pulse{% endif %}"></div>
+                        {{ system_status.workers.online }} workers online
+                    </span>
+                    <span class="text-gray-300">•</span>
+                    <span>{{ system_status.tasks.active_count }} active tasks</span>
+                    {% if system_status.redis_connected %}
+                    <span class="text-gray-300">•</span>
+                    <span class="text-green-600">Redis connected</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex space-x-4">
+                <a href="{{ url_for('files.upload') if url_for('files.upload') else '#' }}" 
+                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md flex items-center">
+                    <i class="fas fa-upload mr-2"></i>Upload Files
+                </a>
+                <a href="{{ url_for('files.file_list') if url_for('files.file_list') else '#' }}" 
+                   class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md flex items-center">
+                    <i class="fas fa-list mr-2"></i>Browse Files
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
+                        <i class="fas fa-file text-blue-600"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Files</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="total-files">{{ total_files }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if analyzing_files > 0 %}
+                            <span class="text-blue-600">{{ analyzing_files }} analyzing</span>
+                        {% else %}
+                            All files processed
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center">
+                        <i class="fas fa-check text-green-600"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Analyzed</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="complete-files">{{ complete_files }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        <span class="text-green-600">{{ progress_percentage|round(1) }}% complete</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
+                        <i class="fas fa-search text-purple-600"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Findings</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="total-findings">{{ recent_findings|length if recent_findings else 0 }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% set crypto_count = recent_findings|selectattr('category', 'equalto', 'crypto')|list|length if recent_findings else 0 %}
+                        <span class="text-purple-600">{{ crypto_count }} crypto patterns</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center">
+                        <i class="fas fa-cogs text-yellow-600"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Background Tasks</p>
+                    <p class="text-2xl font-semibold text-gray-900" id="active-tasks">{{ active_tasks|length if active_tasks else 0 }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if active_tasks and active_tasks|length > 0 %}
+                            <span class="text-yellow-600">{{ active_tasks|length }} running</span>
+                        {% else %}
+                            <span class="text-gray-500">No active tasks</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Background Tasks (if any) -->
+    {% if active_tasks and active_tasks|length > 0 %}
+    <div class="bg-white rounded-lg shadow-sm border-l-4 border-blue-500">
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-cogs mr-2 text-blue-600"></i>Active Background Tasks
+            </h3>
+            <div class="space-y-3" id="active-tasks-list">
+                {% for task in active_tasks %}
+                <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                        <div>
+                            <div class="font-medium text-gray-900">{{ task.task_type|replace('_', ' ')|title }}</div>
+                            <div class="text-sm text-gray-600">
+                                {% if task.current_stage %}{{ task.current_stage }}{% else %}Processing...{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        {% if task.progress %}
+                        <div class="text-sm font-medium text-blue-600">{{ task.progress }}%</div>
+                        <div class="w-16 bg-blue-200 rounded-full h-2 mt-1">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: {{ task.progress }}%"></div>
+                        </div>
+                        {% else %}
+                        <div class="text-sm text-blue-600">Running...</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- LLM Usage Stats (if available) -->
+    {% if llm_stats and llm_stats.total_analyses > 0 %}
+    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-brain mr-2 text-purple-600"></i>AI Analysis Usage
+            </h3>
+            <div class="text-sm text-purple-600">
+                Last 30 days: ${{ "%.2f"|format(llm_stats.total_cost_30_days) }}
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-900">{{ llm_stats.total_analyses }}</div>
+                <div class="text-sm text-purple-700">Total Analyses</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-900">{{ llm_stats.analyses_today }}</div>
+                <div class="text-sm text-purple-700">Today</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-900">${{ "%.3f"|format(llm_stats.avg_cost_per_analysis) }}</div>
+                <div class="text-sm text-purple-700">Avg Cost</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-900">
+                    ${{ "%.2f"|format(llm_stats.cost_by_provider.openai + llm_stats.cost_by_provider.anthropic) }}
+                </div>
+                <div class="text-sm text-purple-700">Total Cost</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Analysis Progress Section -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Analysis Progress</h2>
+        
+        <div class="space-y-4">
+            <!-- Overall Progress Bar -->
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span>Overall Progress</span>
+                    <span id="progress-text">{{ progress_percentage|round(1) }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div id="progress-bar" 
+                         class="bg-indigo-600 h-4 rounded-full transition-all duration-300 relative" 
+                         style="width: {{ progress_percentage }}%">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent to-white opacity-30 rounded-full"></div>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-gray-600">
+                    <span id="complete-count">{{ complete_files }}</span> of <span id="total-count">{{ total_files }}</span> files analyzed
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-between text-sm">
+                <a href="{{ url_for('files.file_list') if url_for('files.file_list') else '#' }}" 
+                   class="text-indigo-600 hover:text-indigo-800 flex items-center">
+                    <i class="fas fa-list mr-1"></i>Browse All Files →
+                </a>
+                <span class="text-gray-300">|</span>
+                <a href="{{ url_for('graph.visual_graph') if url_for('graph.visual_graph') else '#' }}" 
+                   class="text-indigo-600 hover:text-indigo-800 flex items-center">
+                    <i class="fas fa-project-diagram mr-1"></i>View Relationship Graph →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Analysis Vectors -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Analysis Vectors</h2>
+            
+            {% if analysis_vectors %}
+            <div class="space-y-4">
+                {% for vector in analysis_vectors %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-2xl">{{ vector.icon }}</span>
+                        <div>
+                            <p class="font-medium text-gray-900">{{ vector.name }}</p>
+                            <p class="text-sm text-gray-600">{{ vector.description }}</p>
+                            <p class="text-xs text-gray-500">{{ vector.completed }} findings / {{ vector.total }} files</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        {% set vector_progress = (vector.completed / vector.total * 100) if vector.total > 0 else 0 %}
+                        <span class="text-sm font-medium text-gray-900">{{ vector_progress|round(1) }}%</span>
+                        <div class="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                            <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" 
+                                 style="width: {{ vector_progress }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-chart-line text-gray-400 text-3xl mb-4"></i>
+                <p class="text-gray-600">Upload files to see analysis progress</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Activity</h2>
+                <button id="refresh-activity" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                    <i class="fas fa-sync-alt mr-1"></i>Refresh
+                </button>
+            </div>
+            
+            <div id="activity-content">
+                {% if recent_files %}
+                <div class="space-y-3">
+                    {% for file in recent_files %}
+                    <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                {% if file.file_type and 'image' in file.file_type %}
+                                    <i class="fas fa-image text-gray-600"></i>
+                                {% elif file.file_type and 'archive' in file.file_type %}
+                                    <i class="fas fa-archive text-gray-600"></i>
+                                {% else %}
+                                    <i class="fas fa-file text-gray-600"></i>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900">
+                                    <a href="{{ url_for('analysis.file_results', sha=file.sha256_hash) if url_for('analysis.file_results', sha=file.sha256_hash) else '#' }}"
+                                       class="hover:text-indigo-600">
+                                        {{ file.filename[:30] }}{% if file.filename|length > 30 %}...{% endif %}
+                                    </a>
+                                </p>
+                                <p class="text-sm text-gray-600">
+                                    SHA: {{ file.sha256_hash[:12] }}... • 
+                                    {{ file.created_at.strftime('%H:%M') if file.created_at else 'Unknown time' }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium 
+                                {% if file.status.value == 'complete' if hasattr(file.status, 'value') else file.status == 'complete' %}bg-green-100 text-green-800
+                                {% elif file.status.value == 'analyzing' if hasattr(file.status, 'value') else file.status == 'analyzing' %}bg-blue-100 text-blue-800
+                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ file.status.value.title() if hasattr(file.status, 'value') else file.status.title() }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <i class="fas fa-history text-gray-400 text-3xl mb-4"></i>
+                    <p class="text-gray-600">No recent activity</p>
+                    <a href="{{ url_for('files.upload') if url_for('files.upload') else '#' }}" 
+                       class="text-indigo-600 hover:text-indigo-800 text-sm">Upload your first file →</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Findings -->
+    {% if recent_findings and recent_findings|length > 0 %}
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Findings</h2>
+        
+        <div class="space-y-3">
+            {% for finding in recent_findings[:5] %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center space-x-3">
+                    {% if finding.category == 'crypto' %}
+                        <i class="fas fa-coins text-blue-600"></i>
+                    {% elif finding.category == 'technical' %}
+                        <i class="fas fa-cog text-green-600"></i>
+                    {% else %}
+                        <i class="fas fa-search text-purple-600"></i>
+                    {% endif %}
+                    <div>
+                        <p class="font-medium text-gray-900">{{ finding.title }}</p>
+                        <p class="text-sm text-gray-600">
+                            {{ finding.file.filename }} • {{ finding.finding_type }}
+                        </p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium 
+                        {% if finding.confidence_level >= 8 %}bg-green-100 text-green-800
+                        {% elif finding.confidence_level >= 6 %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ (finding.confidence_level * 10)|round }}%
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-4 text-center">
+            <a href="{{ url_for('analysis.findings_list') if url_for('analysis.findings_list') else '#' }}" 
+               class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                View all findings →
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a href="{{ url_for('files.upload') if url_for('files.upload') else '#' }}" 
+               class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                <div class="text-center">
+                    <i class="fas fa-upload text-2xl text-gray-400 mb-2"></i>
+                    <p class="font-medium text-gray-900">Upload New Files</p>
+                    <p class="text-sm text-gray-600">Start analyzing new files</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('files.bulk_import') if url_for('files.bulk_import') else '#' }}" 
+               class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                <div class="text-center">
+                    <i class="fas fa-database text-2xl text-gray-400 mb-2"></i>
+                    <p class="font-medium text-gray-900">Bulk Import</p>
+                    <p class="text-sm text-gray-600">Import multiple files at once</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('analysis.dashboard') if url_for('analysis.dashboard') else '#' }}" 
+               class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                <div class="text-center">
+                    <i class="fas fa-chart-bar text-2xl text-gray-400 mb-2"></i>
+                    <p class="font-medium text-gray-900">Analysis Dashboard</p>
+                    <p class="text-sm text-gray-600">Detailed analysis overview</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Dashboard JavaScript -->
+<script>
+class RealTimeDashboard {
+    constructor() {
+        this.updateInterval = 10000; // 10 seconds
+        this.init();
+    }
+
+    init() {
+        this.startAutoUpdate();
+        this.attachEventListeners();
+    }
+
+    startAutoUpdate() {
+        // Update stats every 10 seconds
+        setInterval(() => {
+            this.updateStats();
+            this.updateActivity();
+            this.updateBackgroundTasks();
+        }, this.updateInterval);
+
+        // Initial update
+        this.updateStats();
+    }
+
+    async updateStats() {
+        try {
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+
+            if (data) {
+                // Update stat cards
+                document.getElementById('total-files').textContent = data.total_files;
+                document.getElementById('complete-files').textContent = data.complete_files;
+                document.getElementById('total-findings').textContent = data.total_findings;
+                document.getElementById('active-tasks').textContent = data.active_tasks;
+
+                // Update progress bar
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                const completeCount = document.getElementById('complete-count');
+                const totalCount = document.getElementById('total-count');
+
+                if (progressBar && progressText) {
+                    progressBar.style.width = data.progress_percentage + '%';
+                    progressText.textContent = data.progress_percentage.toFixed(1) + '%';
+                }
+
+                if (completeCount) completeCount.textContent = data.complete_files;
+                if (totalCount) totalCount.textContent = data.total_files;
+            }
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    }
+
+    async updateActivity() {
+        try {
+            const response = await fetch('/api/activity');
+            const data = await response.json();
+
+            if (data && data.recent_files) {
+                // Update would require rebuilding the activity section
+                // For now, just log that new data is available
+                console.log('Activity data updated:', data.recent_files.length, 'files');
+            }
+        } catch (error) {
+            console.error('Error updating activity:', error);
+        }
+    }
+
+    async updateBackgroundTasks() {
+        try {
+            const response = await fetch('/api/background-status');
+            const data = await response.json();
+
+            if (data && data.user_tasks) {
+                this.updateTasksList(data.user_tasks);
+            }
+        } catch (error) {
+            console.error('Error updating background tasks:', error);
+        }
+    }
+
+    updateTasksList(tasks) {
+        const tasksList = document.getElementById('active-tasks-list');
+        if (!tasksList) return;
+
+        if (tasks.length === 0) {
+            // Hide the tasks section if no active tasks
+            const tasksSection = tasksList.closest('.bg-white');
+            if (tasksSection) {
+                tasksSection.style.display = 'none';
+            }
+            return;
+        }
+
+        // Update tasks display
+        tasksList.innerHTML = '';
+        tasks.forEach(task => {
+            const taskEl = document.createElement('div');
+            taskEl.className = 'flex items-center justify-between p-3 bg-blue-50 rounded-lg';
+            
+            const progress = task.progress || 0;
+            const stage = task.current_stage || 'Processing...';
+            
+            taskEl.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div>
+                        <div class="font-medium text-gray-900">${task.task_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                        <div class="text-sm text-gray-600">${stage}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    ${progress > 0 ? `
+                        <div class="text-sm font-medium text-blue-600">${progress}%</div>
+                        <div class="w-16 bg-blue-200 rounded-full h-2 mt-1">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                    ` : `
+                        <div class="text-sm text-blue-600">Running...</div>
+                    `}
+                </div>
+            `;
+            
+            tasksList.appendChild(taskEl);
+        });
+
+        // Show the tasks section
+        const tasksSection = tasksList.closest('.bg-white');
+        if (tasksSection) {
+            tasksSection.style.display = 'block';
+        }
+    }
+
+    attachEventListeners() {
+        // Refresh activity button
+        const refreshBtn = document.getElementById('refresh-activity');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.updateActivity();
+                this.showNotification('Activity refreshed', 'success');
+            });
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-100 text-green-800' : 
+            type === 'error' ? 'bg-red-100 text-red-800' : 
+            'bg-blue-100 text-blue-800'
+        }`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+}
+
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    window.dashboard = new RealTimeDashboard();
+});
+</script>
+
+<style>
+.progress-ring {
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dasharray 0.3s ease-in-out;
+}
+
+/* Smooth transitions for all stats */
+#total-files, #complete-files, #total-findings, #active-tasks {
+    transition: all 0.3s ease;
+}
+
+/* Smooth progress bar animation */
+#progress-bar {
+    transition: width 0.5s ease;
+}
+
+/* Hover effects for quick actions */
+.hover\:border-indigo-400:hover {
+    border-color: #6366f1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+</style>
+{% endblock %}

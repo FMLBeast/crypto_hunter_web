@@ -1,0 +1,1016 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file.filename }} - Content Analysis{% endblock %}
+
+{% block extra_head %}
+<style>
+.hex-viewer {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: auto;
+    max-height: 600px;
+}
+
+.hex-row {
+    display: flex;
+    border-bottom: 1px solid #e9ecef;
+    padding: 2px 0;
+}
+
+.hex-row:hover {
+    background-color: #e7f3ff;
+}
+
+.hex-offset {
+    width: 80px;
+    padding: 0 8px;
+    background: #f1f3f4;
+    border-right: 1px solid #dee2e6;
+    color: #6c757d;
+    text-align: right;
+}
+
+.hex-data {
+    flex: 1;
+    padding: 0 8px;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.hex-byte {
+    margin-right: 4px;
+    cursor: pointer;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+.hex-byte:hover {
+    background-color: #fff3cd;
+}
+
+.hex-byte.selected {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.hex-ascii {
+    width: 200px;
+    padding: 0 8px;
+    border-left: 1px solid #dee2e6;
+    background: #f8f9fa;
+    word-break: break-all;
+}
+
+.region-highlight {
+    background-color: rgba(255, 193, 7, 0.3);
+    border: 1px solid #ffc107;
+}
+
+.region-tooltip {
+    position: absolute;
+    background: #000;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.strings-viewer {
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.string-item {
+    padding: 4px 8px;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+}
+
+.string-item:hover {
+    background-color: #f8f9fa;
+}
+
+.string-item.interesting {
+    background-color: #fff3cd;
+    border-left: 3px solid #ffc107;
+}
+
+.viewer-tabs {
+    border-bottom: 1px solid #dee2e6;
+}
+
+.viewer-tab {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: #6c757d;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.viewer-tab.active {
+    color: #495057;
+    border-bottom-color: #007bff;
+}
+
+.viewer-tab:hover {
+    color: #495057;
+}
+
+.analysis-panel {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.entropy-graph {
+    height: 200px;
+    width: 100%;
+}
+
+.pattern-match {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: 1px;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <a href="{{ url_for('files.file_list') }}" 
+                   class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Files
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+                        {% if file.is_root_file %}
+                            <i class="fas fa-gem text-purple-500 mr-2"></i>
+                        {% else %}
+                            <i class="fas fa-file mr-2"></i>
+                        {% endif %}
+                        {{ file.filename }}
+                    </h1>
+                    <div class="text-sm text-gray-500 mt-1">
+                        <span class="mr-4">
+                            <i class="fas fa-fingerprint mr-1"></i>
+                            <span class="font-mono">{{ file.sha256_hash[:16] }}...</span>
+                        </span>
+                        <span class="mr-4">
+                            <i class="fas fa-hdd mr-1"></i>
+                            {% if file.file_size %}
+                                {{ "%.1f"|format(file.file_size / (1024*1024)) }} MB
+                            {% else %}
+                                Unknown size
+                            {% endif %}
+                        </span>
+                        <span>
+                            <i class="fas fa-clock mr-1"></i>
+                            {{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="downloadFile()" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-download mr-2"></i>Download
+                </button>
+                <button onclick="startAnalysis()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-microscope mr-2"></i>Re-analyze
+                </button>
+                <a href="{{ url_for('graph.graph_focus', sha=file.sha256_hash) }}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-project-diagram mr-2"></i>View Graph
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status and Quick Info -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <i class="fas fa-info-circle text-blue-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Status</p>
+                    <p class="text-lg font-semibold">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                            {% if file.status == 'complete' %}bg-green-100 text-green-800
+                            {% elif file.status == 'analyzing' %}bg-blue-100 text-blue-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ file.status.title() }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <i class="fas fa-search text-green-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Findings</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ file.findings.count() }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-yellow-100 rounded-lg">
+                    <i class="fas fa-list text-yellow-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Strings</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ strings_list|length }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                    <i class="fas fa-crosshairs text-purple-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Regions</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ regions|length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- File Viewer (Left Column - 2/3 width) -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow">
+                <!-- Viewer Tabs -->
+                <div class="viewer-tabs">
+                    <div class="flex space-x-0">
+                        <button class="viewer-tab active" onclick="switchTab('hex')" id="tab-hex">
+                            <i class="fas fa-th mr-2"></i>Hex View
+                        </button>
+                        <button class="viewer-tab" onclick="switchTab('text')" id="tab-text">
+                            <i class="fas fa-file-alt mr-2"></i>Text View
+                        </button>
+                        <button class="viewer-tab" onclick="switchTab('strings')" id="tab-strings">
+                            <i class="fas fa-list mr-2"></i>Strings
+                        </button>
+                        <button class="viewer-tab" onclick="switchTab('entropy')" id="tab-entropy">
+                            <i class="fas fa-chart-line mr-2"></i>Entropy
+                        </button>
+                        {% if file.file_type == 'image' %}
+                        <button class="viewer-tab" onclick="switchTab('image')" id="tab-image">
+                            <i class="fas fa-image mr-2"></i>Image
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Viewer Content -->
+                <div class="p-4">
+                    <!-- Hex Viewer -->
+                    <div id="viewer-hex" class="viewer-content">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Hexadecimal View</h3>
+                            <div class="flex items-center space-x-2">
+                                <label class="text-sm text-gray-600">
+                                    <input type="checkbox" id="show-ascii" checked onchange="toggleAscii()">
+                                    Show ASCII
+                                </label>
+                                <label class="text-sm text-gray-600">
+                                    <input type="checkbox" id="highlight-regions" checked onchange="toggleRegionHighlight()">
+                                    Highlight Regions
+                                </label>
+                                <select id="bytes-per-row" onchange="updateBytesPerRow()" class="text-sm border rounded px-2 py-1">
+                                    <option value="16" selected>16 bytes/row</option>
+                                    <option value="8">8 bytes/row</option>
+                                    <option value="32">32 bytes/row</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="hex-content" class="hex-viewer">
+                            <!-- Hex content will be loaded here -->
+                            <div class="text-center py-8 text-gray-500">
+                                <i class="fas fa-spinner fa-spin mb-2"></i>
+                                <div>Loading hex view...</div>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-500">
+                            <span id="hex-selection-info">Click and drag to select bytes</span>
+                        </div>
+                    </div>
+
+                    <!-- Text Viewer -->
+                    <div id="viewer-text" class="viewer-content hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Text View</h3>
+                            <div class="flex items-center space-x-2">
+                                <select id="text-encoding" onchange="changeTextEncoding()" class="text-sm border rounded px-2 py-1">
+                                    <option value="utf-8">UTF-8</option>
+                                    <option value="ascii">ASCII</option>
+                                    <option value="latin-1">Latin-1</option>
+                                    <option value="utf-16">UTF-16</option>
+                                </select>
+                                <button onclick="searchInText()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded">
+                                    <i class="fas fa-search mr-1"></i>Search
+                                </button>
+                            </div>
+                        </div>
+                        <div id="text-content" class="border rounded p-4 bg-gray-50 font-mono text-sm max-h-96 overflow-auto whitespace-pre-wrap">
+                            Loading text content...
+                        </div>
+                    </div>
+
+                    <!-- Strings Viewer -->
+                    <div id="viewer-strings" class="viewer-content hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Extracted Strings</h3>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="min-string-length" value="4" min="1" max="100" 
+                                       class="text-sm border rounded px-2 py-1 w-16" onchange="filterStrings()">
+                                <label class="text-sm text-gray-600">Min length</label>
+                                <select id="string-type" onchange="filterStrings()" class="text-sm border rounded px-2 py-1">
+                                    <option value="all">All Strings</option>
+                                    <option value="interesting">Interesting Only</option>
+                                    <option value="ascii">ASCII Only</option>
+                                    <option value="unicode">Unicode Only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="strings-content" class="strings-viewer border rounded">
+                            {% for string in strings_list %}
+                            <div class="string-item {% if string|length > 20 %}interesting{% endif %}" 
+                                 onclick="highlightStringInHex('{{ string }}')">
+                                <span class="text-gray-500 text-xs mr-2">[{{ loop.index0 }}]</span>
+                                <span class="string-text">{{ string|e }}</span>
+                                <span class="text-gray-400 text-xs ml-2">({{ string|length }} chars)</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Entropy Graph -->
+                    <div id="viewer-entropy" class="viewer-content hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Entropy Analysis</h3>
+                            <div class="flex items-center space-x-2">
+                                <select id="entropy-window" onchange="updateEntropyGraph()" class="text-sm border rounded px-2 py-1">
+                                    <option value="256">256 bytes</option>
+                                    <option value="512" selected>512 bytes</option>
+                                    <option value="1024">1024 bytes</option>
+                                </select>
+                                <button onclick="exportEntropyData()" class="text-sm bg-green-600 text-white px-3 py-1 rounded">
+                                    <i class="fas fa-download mr-1"></i>Export
+                                </button>
+                            </div>
+                        </div>
+                        <canvas id="entropy-chart" class="entropy-graph"></canvas>
+                        <div class="mt-4 text-sm text-gray-600">
+                            <p>High entropy areas (red) may indicate compressed or encrypted data.</p>
+                            <p>Low entropy areas (blue) often contain repetitive or structured data.</p>
+                        </div>
+                    </div>
+
+                    <!-- Image Viewer (if applicable) -->
+                    {% if file.file_type == 'image' %}
+                    <div id="viewer-image" class="viewer-content hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium">Image Analysis</h3>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="toggleImageFilters()" class="text-sm bg-purple-600 text-white px-3 py-1 rounded">
+                                    <i class="fas fa-magic mr-1"></i>Filters
+                                </button>
+                                <button onclick="extractImageData()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded">
+                                    <i class="fas fa-extract mr-1"></i>Extract Data
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <img id="image-preview" src="{{ url_for('files.file_content', sha=file.sha256_hash) }}" 
+                                 class="max-w-full max-h-96 border rounded shadow" alt="Image preview">
+                        </div>
+                        <div id="image-analysis" class="mt-4 grid grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="font-medium mb-2">Image Properties</h4>
+                                <div id="image-properties" class="text-sm text-gray-600">
+                                    Loading image properties...
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium mb-2">Steganography Analysis</h4>
+                                <div id="stego-analysis" class="text-sm text-gray-600">
+                                    Running steganography analysis...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Panel (Right Column - 1/3 width) -->
+        <div class="lg:col-span-1">
+            <!-- Regions of Interest -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-medium">Regions of Interest</h3>
+                        <button onclick="addRegion()" class="text-sm bg-indigo-600 text-white px-3 py-1 rounded">
+                            <i class="fas fa-plus mr-1"></i>Add
+                        </button>
+                    </div>
+                </div>
+                <div class="analysis-panel p-4">
+                    {% if regions %}
+                        {% for region in regions %}
+                        <div class="region-item mb-3 p-3 border rounded" style="border-left: 4px solid {{ region.color }}">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="font-medium text-sm">{{ region.title }}</div>
+                                    <div class="text-xs text-gray-500">
+                                        0x{{ "%08x"|format(region.start_offset) }} - 0x{{ "%08x"|format(region.end_offset) }}
+                                        ({{ region.end_offset - region.start_offset }} bytes)
+                                    </div>
+                                    {% if region.description %}
+                                    <div class="text-xs text-gray-600 mt-1">{{ region.description }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex space-x-1">
+                                    <button onclick="jumpToRegion({{ region.start_offset }})" 
+                                            class="text-blue-600 hover:text-blue-800" title="Jump to region">
+                                        <i class="fas fa-eye text-xs"></i>
+                                    </button>
+                                    <button onclick="editRegion({{ region.id }})" 
+                                            class="text-green-600 hover:text-green-800" title="Edit region">
+                                        <i class="fas fa-edit text-xs"></i>
+                                    </button>
+                                    <button onclick="deleteRegion({{ region.id }})" 
+                                            class="text-red-600 hover:text-red-800" title="Delete region">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="fas fa-crosshairs text-2xl mb-2"></i>
+                            <div class="text-sm">No regions defined</div>
+                            <div class="text-xs">Select bytes in hex view to create regions</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Analysis Results -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Analysis Results</h3>
+                </div>
+                <div class="analysis-panel p-4">
+                    {% if file.findings.count() > 0 %}
+                        {% for finding in file.findings %}
+                        <div class="finding-item mb-3 p-3 border rounded 
+                            {% if finding.confidence_score >= 0.8 %}border-red-200 bg-red-50
+                            {% elif finding.confidence_score >= 0.6 %}border-yellow-200 bg-yellow-50
+                            {% else %}border-blue-200 bg-blue-50{% endif %}">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="font-medium text-sm">{{ finding.finding_type }}</div>
+                                    <div class="text-xs text-gray-600 mt-1">{{ finding.description }}</div>
+                                    {% if finding.offset %}
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        Offset: 0x{{ "%08x"|format(finding.offset) }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs px-2 py-1 rounded 
+                                        {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                        {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ (finding.confidence_score * 100)|round }}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="fas fa-search text-2xl mb-2"></i>
+                            <div class="text-sm">No findings yet</div>
+                            <div class="text-xs">Analysis may be in progress</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- File Metadata -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">File Metadata</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">SHA256:</span>
+                        <span class="text-sm font-mono break-all">{{ file.sha256_hash }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">MD5:</span>
+                        <span class="text-sm font-mono">{{ file.md5_hash or 'Not calculated' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">Size:</span>
+                        <span class="text-sm">
+                            {% if file.file_size %}
+                                {{ file.file_size|filesizeformat }}
+                            {% else %}
+                                Unknown
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">Type:</span>
+                        <span class="text-sm">{{ file.file_type or file.mime_type or 'Unknown' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">Created:</span>
+                        <span class="text-sm">{{ file.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    </div>
+                    {% if file.analyzed_at %}
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-500">Analyzed:</span>
+                        <span class="text-sm">{{ file.analyzed_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Region Modal -->
+<div id="regionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium mb-4">Add Region of Interest</h3>
+        <form id="regionForm" onsubmit="saveRegion(event)">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Title</label>
+                    <input type="text" id="regionTitle" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="regionDescription" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Start Offset</label>
+                        <input type="text" id="regionStart" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">End Offset</label>
+                        <input type="text" id="regionEnd" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" readonly>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Color</label>
+                    <input type="color" id="regionColor" value="#ffc107" class="mt-1 block w-full h-10 border-gray-300 rounded-md">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeRegionModal()" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md">
+                    Save Region
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let currentTab = 'hex';
+let selectedBytes = [];
+let hexData = null;
+let entropyChart = null;
+
+// Tab switching
+function switchTab(tab) {
+    // Hide all viewers
+    document.querySelectorAll('.viewer-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.viewer-tab').forEach(el => el.classList.remove('active'));
+    
+    // Show selected viewer
+    document.getElementById('viewer-' + tab).classList.remove('hidden');
+    document.getElementById('tab-' + tab).classList.add('active');
+    
+    currentTab = tab;
+    
+    // Load content if needed
+    if (tab === 'hex' && !hexData) {
+        loadHexView();
+    } else if (tab === 'text') {
+        loadTextView();
+    } else if (tab === 'entropy' && !entropyChart) {
+        loadEntropyView();
+    } else if (tab === 'image') {
+        loadImageAnalysis();
+    }
+}
+
+// Load hex view
+function loadHexView() {
+    fetch(`/files/{{ file.sha256_hash }}/content/hex`)
+        .then(response => response.json())
+        .then(data => {
+            hexData = data.hex_data;
+            renderHexView();
+        })
+        .catch(error => {
+            document.getElementById('hex-content').innerHTML = '<div class="text-red-500 text-center py-8">Error loading hex data</div>';
+        });
+}
+
+function renderHexView() {
+    const container = document.getElementById('hex-content');
+    const bytesPerRow = parseInt(document.getElementById('bytes-per-row').value);
+    const showAscii = document.getElementById('show-ascii').checked;
+    
+    let html = '';
+    
+    for (let i = 0; i < hexData.length; i += bytesPerRow) {
+        const row = hexData.slice(i, i + bytesPerRow);
+        const offset = i.toString(16).padStart(8, '0').toUpperCase();
+        
+        html += `<div class="hex-row">`;
+        html += `<div class="hex-offset">${offset}</div>`;
+        html += `<div class="hex-data">`;
+        
+        // Hex bytes
+        for (let j = 0; j < row.length; j++) {
+            const byte = row[j];
+            const byteOffset = i + j;
+            html += `<span class="hex-byte" data-offset="${byteOffset}" onclick="selectByte(${byteOffset})">${byte.toString(16).padStart(2, '0').toUpperCase()}</span>`;
+        }
+        
+        html += `</div>`;
+        
+        // ASCII representation
+        if (showAscii) {
+            html += `<div class="hex-ascii">`;
+            for (let j = 0; j < row.length; j++) {
+                const byte = row[j];
+                const char = (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
+                html += char;
+            }
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+    }
+    
+    container.innerHTML = html;
+    highlightRegions();
+}
+
+// Load text view
+function loadTextView() {
+    const encoding = document.getElementById('text-encoding').value;
+    fetch(`/files/{{ file.sha256_hash }}/content/text?encoding=${encoding}`)
+        .then(response => response.text())
+        .then(text => {
+            document.getElementById('text-content').textContent = text;
+        })
+        .catch(error => {
+            document.getElementById('text-content').textContent = 'Error loading text content';
+        });
+}
+
+// Load entropy analysis
+function loadEntropyView() {
+    const windowSize = document.getElementById('entropy-window').value;
+    fetch(`/files/{{ file.sha256_hash }}/analysis/entropy?window=${windowSize}`)
+        .then(response => response.json())
+        .then(data => {
+            createEntropyChart(data);
+        })
+        .catch(error => {
+            console.error('Error loading entropy data:', error);
+        });
+}
+
+function createEntropyChart(data) {
+    const ctx = document.getElementById('entropy-chart').getContext('2d');
+    
+    if (entropyChart) {
+        entropyChart.destroy();
+    }
+    
+    entropyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.offsets,
+            datasets: [{
+                label: 'Entropy',
+                data: data.entropy_values,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: function(context) {
+                    const value = context.parsed.y;
+                    if (value > 7.5) return 'rgba(255, 99, 132, 0.2)';
+                    if (value > 6.0) return 'rgba(255, 206, 86, 0.2)';
+                    return 'rgba(54, 162, 235, 0.2)';
+                },
+                tension: 0.1,
+                pointRadius: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 8,
+                    title: {
+                        display: true,
+                        text: 'Entropy (bits)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'File Offset'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Entropy: ${context.parsed.y.toFixed(3)} bits`;
+                        }
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const offset = data.offsets[elements[0].index];
+                    jumpToOffset(offset);
+                }
+            }
+        }
+    });
+}
+
+// Region management
+function addRegion() {
+    if (selectedBytes.length === 0) {
+        showNotification('Please select bytes in hex view first', 'warning');
+        return;
+    }
+    
+    const start = Math.min(...selectedBytes);
+    const end = Math.max(...selectedBytes);
+    
+    document.getElementById('regionStart').value = '0x' + start.toString(16).padStart(8, '0');
+    document.getElementById('regionEnd').value = '0x' + end.toString(16).padStart(8, '0');
+    document.getElementById('regionModal').classList.remove('hidden');
+    document.getElementById('regionModal').classList.add('flex');
+}
+
+function saveRegion(event) {
+    event.preventDefault();
+    
+    const formData = {
+        title: document.getElementById('regionTitle').value,
+        description: document.getElementById('regionDescription').value,
+        start_offset: parseInt(document.getElementById('regionStart').value, 16),
+        end_offset: parseInt(document.getElementById('regionEnd').value, 16),
+        color: document.getElementById('regionColor').value
+    };
+    
+    fetch(`/files/{{ file.sha256_hash }}/regions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Region saved successfully', 'success');
+            closeRegionModal();
+            location.reload(); // Refresh to show new region
+        } else {
+            showNotification('Error saving region: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Error saving region', 'error');
+    });
+}
+
+function closeRegionModal() {
+    document.getElementById('regionModal').classList.add('hidden');
+    document.getElementById('regionModal').classList.remove('flex');
+    document.getElementById('regionForm').reset();
+}
+
+// Hex view interactions
+function selectByte(offset) {
+    const byteElement = document.querySelector(`[data-offset="${offset}"]`);
+    
+    if (selectedBytes.includes(offset)) {
+        selectedBytes = selectedBytes.filter(b => b !== offset);
+        byteElement.classList.remove('selected');
+    } else {
+        selectedBytes.push(offset);
+        byteElement.classList.add('selected');
+    }
+    
+    updateSelectionInfo();
+}
+
+function updateSelectionInfo() {
+    const info = document.getElementById('hex-selection-info');
+    if (selectedBytes.length === 0) {
+        info.textContent = 'Click and drag to select bytes';
+    } else if (selectedBytes.length === 1) {
+        info.textContent = `Selected: 1 byte at offset 0x${selectedBytes[0].toString(16).padStart(8, '0')}`;
+    } else {
+        const start = Math.min(...selectedBytes);
+        const end = Math.max(...selectedBytes);
+        info.textContent = `Selected: ${selectedBytes.length} bytes (0x${start.toString(16).padStart(8, '0')} - 0x${end.toString(16).padStart(8, '0')})`;
+    }
+}
+
+function jumpToOffset(offset) {
+    const byteElement = document.querySelector(`[data-offset="${offset}"]`);
+    if (byteElement) {
+        byteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        byteElement.classList.add('selected');
+        setTimeout(() => byteElement.classList.remove('selected'), 2000);
+    }
+}
+
+function jumpToRegion(startOffset) {
+    switchTab('hex');
+    setTimeout(() => jumpToOffset(startOffset), 500);
+}
+
+// String highlighting
+function highlightStringInHex(searchString) {
+    // Implementation for highlighting strings in hex view
+    switchTab('hex');
+    // This would need actual implementation based on string positions
+}
+
+// File actions
+function downloadFile() {
+    window.open(`/files/{{ file.sha256_hash }}/download`, '_blank');
+}
+
+function startAnalysis() {
+    if (confirm('Re-analyze this file? This may take some time.')) {
+        showLoading();
+        fetch(`/api/analysis/start/{{ file.sha256_hash }}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification('Analysis started successfully', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showNotification('Failed to start analysis: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Failed to start analysis', 'error');
+        });
+    }
+}
+
+// Image analysis (if applicable)
+function loadImageAnalysis() {
+    fetch(`/files/{{ file.sha256_hash }}/analysis/image`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('image-properties').innerHTML = formatImageProperties(data.properties);
+            document.getElementById('stego-analysis').innerHTML = formatStegoAnalysis(data.steganography);
+        })
+        .catch(error => {
+            document.getElementById('image-properties').innerHTML = 'Error loading image properties';
+            document.getElementById('stego-analysis').innerHTML = 'Error running steganography analysis';
+        });
+}
+
+function formatImageProperties(properties) {
+    if (!properties) return 'No properties available';
+    
+    let html = '<div class="space-y-1">';
+    Object.entries(properties).forEach(([key, value]) => {
+        html += `<div class="flex justify-between"><span>${key}:</span><span>${value}</span></div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function formatStegoAnalysis(analysis) {
+    if (!analysis) return 'No analysis available';
+    
+    let html = '<div class="space-y-2">';
+    analysis.forEach(result => {
+        const confidence = result.confidence || 0;
+        const color = confidence > 0.7 ? 'text-red-600' : confidence > 0.4 ? 'text-yellow-600' : 'text-green-600';
+        html += `<div class="text-sm"><span class="${color}">${result.method}:</span> ${result.result}</div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+// Utility functions
+function toggleAscii() {
+    if (currentTab === 'hex' && hexData) {
+        renderHexView();
+    }
+}
+
+function toggleRegionHighlight() {
+    highlightRegions();
+}
+
+function updateBytesPerRow() {
+    if (currentTab === 'hex' && hexData) {
+        renderHexView();
+    }
+}
+
+function changeTextEncoding() {
+    loadTextView();
+}
+
+function updateEntropyGraph() {
+    loadEntropyView();
+}
+
+function highlightRegions() {
+    if (!document.getElementById('highlight-regions').checked) return;
+    
+    // Highlight regions in hex view
+    const regions = {{ regions_data|tojson }};
+    regions.forEach(region => {
+        for (let offset = region.start_offset; offset <= region.end_offset; offset++) {
+            const byteElement = document.querySelector(`[data-offset="${offset}"]`);
+            if (byteElement) {
+                byteElement.style.backgroundColor = region.color + '40'; // Add transparency
+                byteElement.style.border = `1px solid ${region.color}`;
+            }
+        }
+    });
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+    switchTab('hex');
+});
+</script>
+{% endblock %}
