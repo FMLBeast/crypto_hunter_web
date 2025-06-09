@@ -2,12 +2,10 @@
 
 import os
 import hashlib
-import json
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Union
 from enum import Enum
-
-from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.dialects.postgresql import JSON, UUID
@@ -255,7 +253,7 @@ class AnalysisFile(db.Model):
     analyzed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     # Analysis metadata
-    analysis_metadata = db.Column(JSON, default=dict)
+    analysis_extra_data = db.Column(JSON, default=dict)
     tags = db.Column(JSON, default=list)  # User-defined tags
     notes = db.Column(db.Text)
 
@@ -406,7 +404,7 @@ class FileContent(db.Model):
     extracted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     extracted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     extraction_method = db.Column(db.String(50))  # manual, auto, ai, etc.
-    extraction_metadata = db.Column(JSON, default=dict)
+    extraction_extra_data = db.Column(JSON, default=dict)
 
     # Quality metrics
     confidence_score = db.Column(db.Float, default=1.0)
@@ -496,7 +494,7 @@ class Finding(db.Model):
 
     # Analysis metadata
     analysis_method = db.Column(db.String(50))  # regex, ai, manual, etc.
-    analysis_metadata = db.Column(JSON, default=dict)
+    analysis_extra_data = db.Column(JSON, default=dict)
     false_positive_reason = db.Column(db.Text)
 
     # Timestamps and tracking
@@ -595,7 +593,7 @@ class Vector(db.Model):
 
     # Source information
     source_text = db.Column(db.Text)
-    source_metadata = db.Column(JSON, default=dict)
+    source_extra_data = db.Column(JSON, default=dict)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -668,7 +666,7 @@ class AuditLog(db.Model):
     # Result information
     success = db.Column(db.Boolean, nullable=False, index=True)
     error_message = db.Column(db.Text)
-    auditlog_metadata = db.Column(JSON, default=dict)
+    auditlog_extra_data = db.Column(JSON, default=dict)
 
     # Timestamp
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -697,6 +695,136 @@ class AuditLog(db.Model):
         return f'<AuditLog {self.action}({self.timestamp})>'
 
 
+class ExtractionRelationship(db.Model):
+    """Relationship between files and their extracted content"""
+    __tablename__ = 'extraction_relationships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+
+    # Source file
+    source_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
+    source_file_sha = db.Column(db.String(64), db.ForeignKey('analysis_files.sha256_hash'))
+
+    # Extracted content
+    extracted_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
+    extracted_file_sha = db.Column(db.String(64), db.ForeignKey('analysis_files.sha256_hash'))
+
+    # Extraction details
+    extraction_method = db.Column(db.String(50), nullable=False)  # zsteg, binwalk, etc.
+    extraction_tool_version = db.Column(db.String(50))
+    extraction_command = db.Column(db.Text)
+
+    # Metadata
+    confidence_score = db.Column(db.Float, default=0.0)
+    extraction_depth = db.Column(db.Integer, default=1)
+    extra_data = db.Column(JSON, default=dict)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    source_file = db.relationship('AnalysisFile', foreign_keys=[source_file_id],
+                                  backref='extracted_relationships')
+    extracted_file = db.relationship('AnalysisFile', foreign_keys=[extracted_file_id],
+                                     backref='source_relationships')
+
+
+class FileNode(db.Model):
+    """Graph node representation of files for visualization"""
+    __tablename__ = 'file_nodes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+
+    # File reference
+    file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
+    file_sha = db.Column(db.String(64), db.ForeignKey('analysis_files.sha256_hash'))
+
+    # Graph properties
+    node_type = db.Column(db.String(50), nullable=False)  # root, extracted, related
+    graph_level = db.Column(db.Integer, default=0)
+    position_x = db.Column(db.Float)
+    position_y = db.Column(db.Float)
+
+    # Visual properties
+    node_color = db.Column(db.String(20), default='#blue')
+    node_size = db.Column(db.Integer, default=10)
+    node_shape = db.Column(db.String(20), default='circle')
+
+    # Metadata
+    extra_data = db.Column(JSON, default=dict)  # Changed from metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    file = db.relationship('AnalysisFile', backref='graph_nodes')
+
+
+class GraphEdge(db.Model):
+    """Graph edge representing relationships between files"""
+    __tablename__ = 'graph_edges'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+
+    # Node connections
+    source_node_id = db.Column(db.Integer, db.ForeignKey('file_nodes.id'), nullable=False)
+    target_node_id = db.Column(db.Integer, db.ForeignKey('file_nodes.id'), nullable=False)
+
+    # Edge properties
+    edge_type = db.Column(db.String(50), nullable=False)  # extracted_from, similar_to, etc.
+    weight = db.Column(db.Float, default=1.0)
+
+    # Visual properties
+    edge_color = db.Column(db.String(20), default='#gray')
+    edge_width = db.Column(db.Integer, default=2)
+    edge_style = db.Column(db.String(20), default='solid')  # solid, dashed, dotted
+
+    # Metadata
+    extra_data = db.Column(JSON, default=dict)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    source_node = db.relationship('FileNode', foreign_keys=[source_node_id])
+    target_node = db.relationship('FileNode', foreign_keys=[target_node_id])
+
+
+class RegionOfInterest(db.Model):
+    """Regions of interest within file content"""
+    __tablename__ = 'regions_of_interest'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+
+    # File content reference
+    file_content_id = db.Column(db.Integer, db.ForeignKey('file_content.id'), nullable=False)
+
+    # Region boundaries
+    start_offset = db.Column(db.BigInteger, nullable=False)
+    end_offset = db.Column(db.BigInteger, nullable=False)
+
+    # Region properties
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    region_type = db.Column(db.String(50), nullable=False)  # crypto, text, binary, etc.
+
+    # Visual properties for UI
+    color = db.Column(db.String(20), default='#yellow')
+    highlight_style = db.Column(db.String(50), default='background')
+
+    # Analysis properties
+    confidence_score = db.Column(db.Float, default=0.0)
+    importance_level = db.Column(db.Integer, default=1)  # 1-5 scale
+
+    # Metadata
+    extra_data = db.Column(JSON, default=dict)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Relationships
+    file_content = db.relationship('FileContent', backref='regions_of_interest')
+    creator = db.relationship('User', backref='created_regions')
 # Database event handlers for automatic updates
 @event.listens_for(User, 'before_update')
 def user_before_update(mapper, connection, target):

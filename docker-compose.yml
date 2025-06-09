@@ -1,28 +1,19 @@
-# docker-compose.yml - FIXED UNIFIED CELERY CONFIGURATION
-
 version: '3.8'
 
-# Shared environment variables
 x-common-env: &common-env
   SECRET_KEY: ${SECRET_KEY}
   DATABASE_URL: postgresql://crypto_hunter:${DB_PASSWORD}@db:5432/crypto_hunter
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/2
   CELERY_RESULT_BACKEND: redis://redis:6379/3
-  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-  SENTRY_DSN: ${SENTRY_DSN:-}
-  FLASK_ENV: ${FLASK_ENV:-production}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-false}
-  ENABLE_AI_ANALYSIS: ${ENABLE_AI_ANALYSIS:-true}
-  ENABLE_BACKGROUND_TASKS: true
-  MAX_CONTENT_LENGTH: 1073741824
-  FORENSICS_TOOLS_PATH: /opt/forensics-tools
-  WORDLISTS_PATH: /opt/wordlists
+  FLASK_ENV: production
+  LOG_LEVEL: INFO
+  ENABLE_REGISTRATION: "false"
+  ENABLE_AI_ANALYSIS: "true"
+  ENABLE_BACKGROUND_TASKS: "true"
+  MAX_CONTENT_LENGTH: "1073741824"
 
 services:
-  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     container_name: crypto-hunter-db
@@ -31,216 +22,125 @@ services:
       POSTGRES_DB: crypto_hunter
       POSTGRES_USER: crypto_hunter
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     networks:
       - crypto-hunter-network
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crypto_hunter -d crypto_hunter"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
 
-  # Redis Cache and Message Broker
   redis:
     image: redis:7-alpine
     container_name: crypto-hunter-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - crypto-hunter-network
+    ports:
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
 
-  # Web Application
   web:
     build:
       context: .
-      dockerfile: Dockerfile
       target: production
+    image: crypto-hunter:latest
     container_name: crypto-hunter-web
     restart: unless-stopped
-    ports:
-      - "${WEB_PORT:-8000}:8000"
-    environment:
-      <<: *common-env
+    environment: *common-env
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
       - ./instance:/app/instance
-      - forensics_data:/opt/forensics-tools
-      - wordlists_data:/opt/wordlists
+    networks:
+      - crypto-hunter-network
+    ports:
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - crypto-hunter-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
 
-  # Background Worker - FIXED TO USE UNIFIED CELERY
   worker:
     build:
       context: .
-      dockerfile: Dockerfile
       target: production
+    image: crypto-hunter:latest
     container_name: crypto-hunter-worker
     restart: unless-stopped
-    command: >
-      celery -A celery_worker_entrypoint.celery_app worker
-      --loglevel=info
-      --concurrency=4
-      --pool=threads
-      --queues=analysis,crypto,ai,maintenance
+    command: celery -A crypto_hunter_web.celery_app worker --loglevel=info --concurrency=4
     environment:
       <<: *common-env
+      C_FORCE_ROOT: "true"
     volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - forensics_data:/opt/forensics-tools
-      - wordlists_data:/opt/wordlists
-      - /tmp:/tmp
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+      - ./instance:/app/instance
+    networks:
+      - crypto-hunter-network
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - crypto-hunter-network
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 8G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
-    healthcheck:
-      test: ["CMD", "celery", "-A", "celery_worker_entrypoint.celery_app", "inspect", "ping"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 120s
 
-  # Celery Beat Scheduler - FIXED TO USE UNIFIED CELERY
   beat:
     build:
       context: .
-      dockerfile: Dockerfile
       target: production
+    image: crypto-hunter:latest
     container_name: crypto-hunter-beat
     restart: unless-stopped
-    command: >
-      celery -A celery_worker_entrypoint.celery_app beat
-      --loglevel=info
-      --schedule=/tmp/celerybeat-schedule
-    environment:
-      <<: *common-env
+    command: celery -A crypto_hunter_web.celery_app beat --loglevel=info
+    environment: *common-env
     volumes:
-      - ./logs:/app/logs
-      - beat_schedule:/tmp
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - logs_data:/app/logs
     networks:
       - crypto-hunter-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+    depends_on:
+      - redis
 
-  # Celery Flower (Task Monitor) - FIXED TO USE UNIFIED CELERY
   flower:
     build:
       context: .
-      dockerfile: Dockerfile
       target: production
+    image: crypto-hunter:latest
     container_name: crypto-hunter-flower
     restart: unless-stopped
-    command: >
-      celery -A celery_worker_entrypoint.celery_app flower
-      --port=5555
-      --broker=${CELERY_BROKER_URL}
-    ports:
-      - "${FLOWER_PORT:-5555}:5555"
-    environment:
-      <<: *common-env
-    depends_on:
-      redis:
-        condition: service_healthy
+    command: celery -A crypto_hunter_web.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin123}
+    environment: *common-env
     networks:
       - crypto-hunter-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+    ports:
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      - redis
 
-# Networks
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+  logs_data:
+
 networks:
   crypto-hunter-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-
-# Persistent volumes
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  forensics_data:
-    driver: local
-  wordlists_data:
-    driver: local
-  beat_schedule:
-    driver: local

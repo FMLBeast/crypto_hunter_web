@@ -1,54 +1,49 @@
-# install_dependencies.py - INSTALL ALL REQUIRED DEPENDENCIES
-
+#!/usr/bin/env python3
 """
-Install all required dependencies for Crypto Hunter
-Handles both production and development requirements
+Crypto Hunter Dependency Installer - FIXED VERSION
+Installs all required dependencies for the Crypto Hunter application
 """
 
-import subprocess
 import sys
-import os
+import subprocess
+import platform
 from pathlib import Path
 
 
-def run_command(cmd, description=""):
-    """Run a command and check for success"""
-    print(f"🔄 {description}...")
+def run_command(command, description):
+    """Run a shell command and return success status"""
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"✅ {description} completed successfully")
+        print(f"🔄 {description}...")
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        print(f"✅ {description} completed")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ {description} failed:")
-        print(f"   Command: {' '.join(cmd)}")
-        print(f"   Error: {e.stderr}")
+        print(f"❌ {description} failed: {e}")
+        if e.stdout:
+            print(f"STDOUT: {e.stdout}")
+        if e.stderr:
+            print(f"STDERR: {e.stderr}")
         return False
 
 
 def check_virtual_environment():
-    """Check if virtual environment is activated"""
-    venv_active = hasattr(sys, 'real_prefix') or (
-            hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
-    )
-
-    if venv_active:
-        print(f"✅ Virtual environment active: {sys.prefix}")
-        return True
-    else:
-        print("⚠️  No virtual environment detected")
-        print("💡 Consider activating virtual environment: source .venv/bin/activate")
+    """Check if running in a virtual environment"""
+    if sys.prefix == sys.base_prefix:
+        print("⚠️  Not running in a virtual environment")
+        print("💡 Consider creating one with: python -m venv venv && source venv/bin/activate")
         return False
+    else:
+        print("✅ Running in virtual environment")
+        return True
 
 
 def upgrade_pip():
     """Upgrade pip to latest version"""
-    return run_command([
-        sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'
-    ], "Upgrading pip and build tools")
+    return run_command([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], "Upgrading pip")
 
 
 def install_core_dependencies():
-    """Install core Flask and database dependencies"""
+    """Install core Flask dependencies"""
     core_packages = [
         'Flask==3.0.0',
         'Flask-SQLAlchemy==3.1.1',
@@ -74,10 +69,10 @@ def install_core_dependencies():
 
 
 def install_celery_dependencies():
-    """Install Celery and Redis dependencies"""
+    """Install Celery and Redis dependencies - FIXED VERSIONS"""
     celery_packages = [
         'celery[redis]==5.3.4',
-        'redis==5.0.1',
+        'redis==4.6.0',  # FIXED: downgraded from 5.0.1 to 4.6.0 (latest compatible)
         'kombu==5.3.4'
     ]
 
@@ -112,6 +107,22 @@ def install_utility_dependencies():
             return False
 
     print("✅ Utility dependencies installed")
+    return True
+
+
+def install_production_dependencies():
+    """Install production server dependencies"""
+    production_packages = [
+        'gunicorn==21.2.0',
+        'gevent==23.9.1'
+    ]
+
+    print("📦 Installing production dependencies...")
+    for package in production_packages:
+        if not run_command([sys.executable, '-m', 'pip', 'install', package], f"Installing {package.split('==')[0]}"):
+            return False
+
+    print("✅ Production dependencies installed")
     return True
 
 
@@ -181,8 +192,8 @@ def install_development_dependencies():
 
 def main():
     """Main dependency installation function"""
-    print("📦 Crypto Hunter Dependency Installer")
-    print("=" * 40)
+    print("📦 Crypto Hunter Dependency Installer - FIXED VERSION")
+    print("=" * 50)
 
     # Step 1: Check virtual environment
     venv_ok = check_virtual_environment()
@@ -208,6 +219,10 @@ def main():
 
         if not install_utility_dependencies():
             print("❌ Utility dependency installation failed")
+            return False
+
+        if not install_production_dependencies():
+            print("❌ Production dependency installation failed")
             return False
 
     # Step 5: Verify installations
