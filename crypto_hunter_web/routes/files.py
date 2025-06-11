@@ -14,7 +14,7 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, Vector, User, AuditLog
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, Vector, User, AuditLog, FileStatus, FindingStatus
 from crypto_hunter_web.services.file_service import FileService
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.content_analyzer import ContentAnalyzer
@@ -46,13 +46,13 @@ def dashboard():
         # Basic statistics
         stats = {
             'total_files': AnalysisFile.query.count(),
-            'analyzed_files': AnalysisFile.query.filter_by(status='complete').count(),
-            'pending_files': AnalysisFile.query.filter_by(status='pending').count(),
-            'error_files': AnalysisFile.query.filter_by(status='error').count(),
+            'analyzed_files': AnalysisFile.query.filter_by(status=FileStatus.COMPLETE).count(),
+            'pending_files': AnalysisFile.query.filter_by(status=FileStatus.PENDING).count(),
+            'error_files': AnalysisFile.query.filter_by(status=FileStatus.ERROR).count(),
             'root_files': AnalysisFile.query.filter_by(is_root_file=True).count(),
             'crypto_files': AnalysisFile.query.filter_by(contains_crypto=True).count(),
             'total_findings': Finding.query.count(),
-            'confirmed_findings': Finding.query.filter_by(status='confirmed').count(),
+            'confirmed_findings': Finding.query.filter_by(status=FindingStatus.CONFIRMED).count(),
             'total_users': User.query.filter_by(is_active=True).count(),
         }
 
@@ -152,7 +152,13 @@ def file_list():
 
     # Apply filters
     if status_filter:
-        query = query.filter(AnalysisFile.status == status_filter)
+        # Convert string status to enum
+        try:
+            status_enum = FileStatus[status_filter.upper()]
+            query = query.filter(AnalysisFile.status == status_enum)
+        except (KeyError, AttributeError):
+            # If invalid status, ignore filter
+            pass
 
     if file_type_filter:
         query = query.filter(AnalysisFile.file_type == file_type_filter)
@@ -416,7 +422,7 @@ def analyze_file(sha):
         return jsonify({'error': 'File not found'}), 404
 
     # Check if file is already being analyzed
-    if file.status == 'processing':
+    if file.status == FileStatus.PROCESSING:
         return jsonify({'error': 'File is already being analyzed'}), 400
 
     try:
@@ -432,11 +438,11 @@ def analyze_file(sha):
             return jsonify({'error': 'No valid analysis types specified'}), 400
 
         # Check if reanalysis is needed
-        if file.status == 'complete' and not force_reanalyze:
+        if file.status == FileStatus.COMPLETE and not force_reanalyze:
             return jsonify({'error': 'File already analyzed. Use force_reanalyze=true to rerun.'}), 400
 
         # Update file status
-        file.status = 'processing'
+        file.status = FileStatus.PROCESSING
         db.session.commit()
 
         # Queue analysis task
@@ -468,7 +474,7 @@ def analyze_file(sha):
 
     except Exception as e:
         current_app.logger.error(f"Analysis start failed: {e}")
-        file.status = 'error'
+        file.status = FileStatus.ERROR
         db.session.commit()
         return jsonify({'error': 'Failed to start analysis'}), 500
 
@@ -717,7 +723,7 @@ def bulk_actions():
             analysis_types = data.get('analysis_types', ['basic', 'strings', 'crypto'])
             for file in files:
                 try:
-                    file.status = 'processing'
+                    file.status = FileStatus.PROCESSING
                     task_id = BackgroundService.queue_comprehensive_analysis(
                         file_id=file.id,
                         analysis_types=analysis_types,
@@ -798,7 +804,7 @@ def statistics():
         stats = {
             'total_files': AnalysisFile.query.count(),
             'total_size': db.session.query(db.func.sum(AnalysisFile.file_size)).scalar() or 0,
-            'analyzed_files': AnalysisFile.query.filter_by(status='complete').count(),
+            'analyzed_files': AnalysisFile.query.filter_by(status=FileStatus.COMPLETE).count(),
             'crypto_files': AnalysisFile.query.filter_by(contains_crypto=True).count(),
             'recent_uploads': AnalysisFile.query.filter(AnalysisFile.created_at >= since_date).count(),
         }

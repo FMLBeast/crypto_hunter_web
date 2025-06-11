@@ -150,6 +150,7 @@ def register_blueprints(app):
         ('crypto_hunter_web.routes.analysis', 'analysis_bp', None),
         ('crypto_hunter_web.routes.graph', 'graph_bp', None),
         ('crypto_hunter_web.routes.content', 'content_bp', None),
+        ('crypto_hunter_web.routes.admin', 'admin_bp', None),
         ('crypto_hunter_web.routes.crypto_api', 'crypto_api_bp', '/api/crypto'),
         ('crypto_hunter_web.routes.search_api', 'search_api_bp', '/api/search'),
     ]
@@ -201,4 +202,3 @@ def setup_logging(app):
     )
 
     app.logger.setLevel(log_level)
-

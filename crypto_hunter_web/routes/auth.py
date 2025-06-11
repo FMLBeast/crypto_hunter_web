@@ -7,8 +7,9 @@ from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta
 import secrets
 import re
+import hashlib
 
-from crypto_hunter_web.models import db, User, AuditLog
+from crypto_hunter_web.models import db, User, AuditLog, ApiKey
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.security_service import SecurityService
 from crypto_hunter_web.utils.validators import validate_email, validate_password_strength
@@ -22,7 +23,7 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def login():
     """Enhanced user login with security features"""
     if current_user.is_authenticated:
-        return redirect(url_for('files.dashboard'))
+        return redirect(url_for('dashboard.index'))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip().lower()
@@ -107,7 +108,7 @@ def login():
         if next_page and SecurityService.is_safe_url(next_page):
             return redirect(next_page)
 
-        return redirect(url_for('files.dashboard'))
+        return redirect(url_for('dashboard.index'))
 
     return render_template('auth/login.html')
 
@@ -121,7 +122,7 @@ def register():
         return redirect(url_for('auth.login'))
 
     if current_user.is_authenticated:
-        return redirect(url_for('files.dashboard'))
+        return redirect(url_for('dashboard.index'))
 
     if request.method == 'POST':
         # Get form data
@@ -276,6 +277,72 @@ def profile():
                            recent_activity=recent_activity)
 
 
+@auth_bp.route('/settings')
+@login_required
+def settings():
+    """User settings page"""
+    # Get user API keys
+    api_keys = current_user.api_keys.filter_by(is_active=True).all()
+
+    # Get user preferences
+    preferences = current_user.preferences or {}
+
+    # Get notification settings
+    notification_settings = current_user.notification_settings or {}
+
+    return render_template('auth/settings.html',
+                          api_keys=api_keys,
+                          preferences=preferences,
+                          notification_settings=notification_settings)
+
+
+@auth_bp.route('/update-notification-settings', methods=['POST'])
+@login_required
+def update_notification_settings():
+    """Update user notification settings"""
+    try:
+        # Get form data
+        email_findings = request.form.get('email_findings', 'off') == 'on'
+        email_security = request.form.get('email_security', 'off') == 'on'
+        app_analysis = request.form.get('app_analysis', 'off') == 'on'
+        app_findings = request.form.get('app_findings', 'off') == 'on'
+        app_system = request.form.get('app_system', 'off') == 'on'
+
+        # Update user preferences
+        if not current_user.preferences:
+            current_user.preferences = {}
+
+        current_user.preferences['email_notifications'] = email_findings
+        current_user.preferences['security_alerts'] = email_security
+
+        # Update notification settings
+        if not current_user.notification_settings:
+            current_user.notification_settings = {}
+
+        current_user.notification_settings['app_analysis'] = app_analysis
+        current_user.notification_settings['app_findings'] = app_findings
+        current_user.notification_settings['app_system'] = app_system
+
+        db.session.commit()
+
+        # Create audit log
+        AuditLog.log_action(
+            user_id=current_user.id,
+            action='notification_settings_updated',
+            description='User updated notification settings',
+            ip_address=request.remote_addr
+        )
+
+        flash('Notification settings updated successfully', 'success')
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to update notification settings: {e}")
+        db.session.rollback()
+        flash('Failed to update notification settings', 'error')
+
+    return redirect(url_for('auth.settings'))
+
+
 @auth_bp.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
@@ -411,7 +478,7 @@ def change_password():
 def forgot_password():
     """Password reset request"""
     if current_user.is_authenticated:
-        return redirect(url_for('files.dashboard'))
+        return redirect(url_for('dashboard.index'))
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
@@ -457,7 +524,7 @@ def forgot_password():
 def reset_password(user_id, token):
     """Password reset form"""
     if current_user.is_authenticated:
-        return redirect(url_for('files.dashboard'))
+        return redirect(url_for('dashboard.index'))
 
     # Validate token
     session_key = f'reset_token_{user_id}'
@@ -572,7 +639,6 @@ def api_keys():
 @rate_limit("5 per hour")
 def create_api_key():
     """Create new API key"""
-    from crypto_hunter_web.models import ApiKey
 
     name = request.form.get('name', '').strip()
     permissions = request.form.getlist('permissions')
@@ -626,7 +692,6 @@ def create_api_key():
 @login_required
 def revoke_api_key(key_id):
     """Revoke API key"""
-    from crypto_hunter_web.models import ApiKey
 
     api_key = ApiKey.query.filter_by(id=key_id, user_id=current_user.id).first_or_404()
 

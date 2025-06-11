@@ -15,13 +15,13 @@ def index():
     try:
         # Try to import models and get real stats
         try:
-            from crypto_hunter_web.models import AnalysisFile, FindingInstance
+            from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
             # Get file statistics
             total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
             complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'complete'
+                AnalysisFile.status == FileStatus.COMPLETE
             ).scalar() or 0
 
             # Calculate progress
@@ -33,40 +33,40 @@ def index():
             ).limit(5).all()
 
             # Get recent findings
-            recent_findings = db.session.query(FindingInstance).order_by(
-                desc(FindingInstance.created_at)
+            recent_findings = db.session.query(Finding).order_by(
+                desc(Finding.created_at)
             ).limit(5).all()
 
             # Analysis vectors stats
             analysis_vectors = [
                 {
                     'name': 'Crypto Patterns',
-                    'completed': db.session.query(func.count(FindingInstance.id)).filter(
-                        FindingInstance.finding_type.like('%crypto%')
+                    'completed': db.session.query(func.count(Finding.id)).filter(
+                        Finding.finding_type.like('%crypto%')
                     ).scalar() or 0,
                     'total': total_files,
                     'icon': '🔐'
                 },
                 {
                     'name': 'String Analysis',
-                    'completed': db.session.query(func.count(FindingInstance.id)).filter(
-                        FindingInstance.finding_type.like('%string%')
+                    'completed': db.session.query(func.count(Finding.id)).filter(
+                        Finding.finding_type.like('%string%')
                     ).scalar() or 0,
                     'total': total_files,
                     'icon': '📝'
                 },
                 {
                     'name': 'Metadata',
-                    'completed': db.session.query(func.count(FindingInstance.id)).filter(
-                        FindingInstance.finding_type.like('%metadata%')
+                    'completed': db.session.query(func.count(Finding.id)).filter(
+                        Finding.finding_type.like('%metadata%')
                     ).scalar() or 0,
                     'total': total_files,
                     'icon': '📊'
                 },
                 {
                     'name': 'Binary Analysis',
-                    'completed': db.session.query(func.count(FindingInstance.id)).filter(
-                        FindingInstance.finding_type.like('%binary%')
+                    'completed': db.session.query(func.count(Finding.id)).filter(
+                        Finding.finding_type.like('%binary%')
                     ).scalar() or 0,
                     'total': total_files,
                     'icon': '⚙️'
@@ -113,17 +113,17 @@ def api_stats():
     """Dashboard stats API endpoint"""
     try:
         try:
-            from crypto_hunter_web.models import AnalysisFile, FindingInstance
+            from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
             total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
             complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'complete'
+                AnalysisFile.status == FileStatus.COMPLETE
             ).scalar() or 0
             pending_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'pending'
+                AnalysisFile.status == FileStatus.PENDING
             ).scalar() or 0
-            total_findings = db.session.query(func.count(FindingInstance.id)).scalar() or 0
+            total_findings = db.session.query(func.count(Finding.id)).scalar() or 0
 
         except ImportError:
             total_files = complete_files = pending_files = total_findings = 0
@@ -146,15 +146,15 @@ def api_activity():
     """Recent activity API endpoint"""
     try:
         try:
-            from crypto_hunter_web.models import AnalysisFile, FindingInstance
+            from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
             recent_files = db.session.query(AnalysisFile).order_by(
                 desc(AnalysisFile.created_at)
             ).limit(10).all()
 
-            recent_findings = db.session.query(FindingInstance).order_by(
-                desc(FindingInstance.created_at)
+            recent_findings = db.session.query(Finding).order_by(
+                desc(Finding.created_at)
             ).limit(10).all()
 
             files_data = [{
