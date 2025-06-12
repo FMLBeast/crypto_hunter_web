@@ -104,7 +104,10 @@ class User(UserMixin, db.Model):
     # Relationships
     created_files = db.relationship('AnalysisFile', foreign_keys='AnalysisFile.created_by',
                                     backref='creator', lazy='dynamic')
-    created_findings = db.relationship('Finding', backref='creator_user', lazy='dynamic')
+    created_findings = db.relationship('Finding', foreign_keys='Finding.created_by',
+                                      backref='creator_user', lazy='dynamic')
+    validated_findings = db.relationship('Finding', foreign_keys='Finding.validated_by',
+                                        backref='validator_user', lazy='dynamic')
     vectors = db.relationship('Vector', backref='user', lazy='dynamic')
     api_keys = db.relationship('ApiKey', backref='user', lazy='dynamic')
     audit_logs = db.relationship('AuditLog', backref='user', lazy='dynamic')
@@ -758,7 +761,7 @@ class FileNode(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    file = db.relationship('AnalysisFile', backref='graph_nodes')
+    file = db.relationship('AnalysisFile', foreign_keys=[file_id], backref='graph_nodes')
 
 
 class GraphEdge(db.Model):
@@ -863,8 +866,138 @@ def create_indexes():
         pass
 
 
+class FileDerivation(db.Model):
+    """Model for file derivation relationships (one file derived from another)"""
+    __tablename__ = 'file_derivations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    parent_sha = db.Column(db.String(64), db.ForeignKey('file_nodes.file_sha'), nullable=False)
+    child_sha = db.Column(db.String(64), db.ForeignKey('file_nodes.file_sha'), nullable=False)
+    operation = db.Column(db.String(100), nullable=False)
+    tool = db.Column(db.String(100))
+    parameters = db.Column(db.Text)
+    confidence = db.Column(db.Float, default=1.0)
+
+    # Relationships
+    parent = db.relationship('FileNode', foreign_keys=[parent_sha], backref='derived_children')
+    child = db.relationship('FileNode', foreign_keys=[child_sha], backref='derived_from')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<FileDerivation {self.parent_sha[:8]}...→{self.child_sha[:8]}... via {self.operation}>'
+
+
+class CombinationRelationship(db.Model):
+    """Model for file combinations (multiple sources -> one result)"""
+    __tablename__ = 'combination_relationships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+    result_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
+    combination_method = db.Column(db.String(100), nullable=False)
+    notes = db.Column(db.Text)
+    discovered_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Relationships
+    result_file = db.relationship('AnalysisFile', foreign_keys=[result_file_id], backref='combination_results')
+    sources = db.relationship('CombinationSource', backref='combination', cascade='all, delete-orphan')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CombinationRelationship {self.id}: {self.combination_method}>'
+
+
+class CombinationSource(db.Model):
+    """Model for sources in a combination relationship"""
+    __tablename__ = 'combination_sources'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+    combination_id = db.Column(db.Integer, db.ForeignKey('combination_relationships.id'), nullable=False)
+    source_file_id = db.Column(db.Integer, db.ForeignKey('analysis_files.id'), nullable=False)
+    order_index = db.Column(db.Integer, default=0)
+
+    # Relationships
+    source_file = db.relationship('AnalysisFile', foreign_keys=[source_file_id], backref='combination_sources')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<CombinationSource {self.combination_id}: {self.source_file_id} (order: {self.order_index})>'
+
+
+class BulkImport(db.Model):
+    """Model for tracking bulk import operations"""
+    __tablename__ = 'bulk_imports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
+
+    # Import metadata
+    import_type = db.Column(db.String(50), nullable=False)  # files, findings, etc.
+    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
+    total_items = db.Column(db.Integer, default=0)
+    processed_items = db.Column(db.Integer, default=0)
+    successful_items = db.Column(db.Integer, default=0)
+    failed_items = db.Column(db.Integer, default=0)
+
+    # Error tracking
+    error_message = db.Column(db.Text)
+    error_details = db.Column(JSON, default=dict)
+
+    # File information
+    source_file = db.Column(db.String(255))
+    file_size = db.Column(db.BigInteger)
+    file_hash = db.Column(db.String(64))
+
+    # User and timestamps
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(db.DateTime)
+
+    # Relationships
+    creator = db.relationship('User', backref='bulk_imports')
+
+    def __repr__(self):
+        return f'<BulkImport {self.id}: {self.import_type} ({self.status})>'
+
+
+def init_database():
+    """Initialize database with required tables and initial data"""
+    # Create all tables
+    db.create_all()
+
+    # Create indexes for better performance
+    create_indexes()
+
+    # Check if admin user exists, create if not
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(
+            username='admin',
+            email='admin@example.com',
+            display_name='Administrator',
+            is_admin=True,
+            is_verified=True,
+            level=UserLevel.ADMIN
+        )
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+
+    return True
+
+
 # Export all models
 __all__ = [
     'User', 'AnalysisFile', 'FileContent', 'Finding', 'Vector',
-    'ApiKey', 'AuditLog', 'UserLevel', 'FileStatus', 'FindingStatus'
+    'ApiKey', 'AuditLog', 'UserLevel', 'FileStatus', 'FindingStatus',
+    'ExtractionRelationship', 'FileNode', 'GraphEdge', 'RegionOfInterest',
+    'CombinationRelationship', 'CombinationSource', 'BulkImport',
+    'init_database'
 ]

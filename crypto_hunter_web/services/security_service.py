@@ -36,11 +36,20 @@ class SecurityService:
     def __init__(self):
         """Initialize security service"""
         self.redis_client = None
+        self._redis_initialized = False
+
+    def _init_redis(self):
+        """Lazy initialization of Redis client within application context"""
+        if self._redis_initialized:
+            return
+
         try:
-            if current_app.config.get('REDIS_URL'):
+            if current_app and current_app.config.get('REDIS_URL'):
                 self.redis_client = redis.from_url(current_app.config['REDIS_URL'])
+            self._redis_initialized = True
         except Exception as e:
             logger.warning(f"Redis not available for security service: {e}")
+            self._redis_initialized = True  # Mark as initialized even on failure to avoid repeated attempts
 
     @classmethod
     def log_failed_login(cls, username: str, ip_address: str, reason: str):
@@ -75,6 +84,7 @@ class SecurityService:
         """Check if IP address is currently blocked"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return False
 
@@ -90,6 +100,7 @@ class SecurityService:
         """Block IP address for specified duration"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -128,6 +139,7 @@ class SecurityService:
         """Manually unblock an IP address"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -152,6 +164,7 @@ class SecurityService:
         """Track suspicious activity for IP addresses"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -175,6 +188,7 @@ class SecurityService:
         """Check if IP should be blocked based on suspicious activity"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -269,6 +283,7 @@ class SecurityService:
         """Check rate limit for given identifier"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return True, {}  # Allow if Redis not available
 
@@ -350,6 +365,7 @@ class SecurityService:
         """Create secure session token"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return secrets.token_urlsafe(32)
 
@@ -387,6 +403,7 @@ class SecurityService:
         """Validate session token and return session data"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return None
 
@@ -413,6 +430,7 @@ class SecurityService:
         """Invalidate session token"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -436,6 +454,7 @@ class SecurityService:
         """Enforce maximum concurrent sessions per user"""
         try:
             service = cls()
+            service._init_redis()
             if not service.redis_client:
                 return
 
@@ -586,6 +605,7 @@ class SecurityService:
 
             # Get blocked IPs
             service = cls()
+            service._init_redis()
             blocked_ips = 0
             if service.redis_client:
                 blocked_ips = len(service.redis_client.keys("blocked_ip:*"))
@@ -598,6 +618,7 @@ class SecurityService:
 
             # Get active sessions
             active_sessions = 0
+            # Redis client already initialized above
             if service.redis_client:
                 active_sessions = len(service.redis_client.keys("session:*"))
 

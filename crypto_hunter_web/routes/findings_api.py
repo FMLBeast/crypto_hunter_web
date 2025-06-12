@@ -25,34 +25,34 @@ def list_findings():
         user_id = session['user_id']
         page = request.args.get('page', 1, type=int)
         per_page = min(request.args.get('per_page', 25, type=int), 100)
-        
+
         # Build base query for user's findings
         query = db.session.query(Finding).join(AnalysisFile).filter(
             AnalysisFile.created_by == user_id
         )
-        
+
         # Apply filters
         category = request.args.get('category')
         if category:
             query = query.filter(Finding.category == category)
-        
+
         finding_type = request.args.get('type')
         if finding_type:
             query = query.filter(Finding.finding_type == finding_type)
-        
+
         status = request.args.get('status')
         if status:
             if hasattr(FindingStatus, status.upper()):
                 query = query.filter(Finding.status == getattr(FindingStatus, status.upper()))
-        
+
         min_confidence = request.args.get('min_confidence', type=int)
         if min_confidence is not None:
             query = query.filter(Finding.confidence_level >= min_confidence)
-        
+
         file_id = request.args.get('file_id', type=int)
         if file_id:
             query = query.filter(Finding.file_id == file_id)
-        
+
         search = request.args.get('search')
         if search:
             search_term = f'%{search}%'
@@ -63,11 +63,11 @@ def list_findings():
                     Finding.raw_data.ilike(search_term)
                 )
             )
-        
+
         # Apply sorting
         sort_by = request.args.get('sort', 'created_at')
         sort_order = request.args.get('order', 'desc')
-        
+
         if hasattr(Finding, sort_by):
             sort_column = getattr(Finding, sort_by)
             if sort_order.lower() == 'asc':
@@ -76,12 +76,12 @@ def list_findings():
                 query = query.order_by(sort_column.desc())
         else:
             query = query.order_by(desc(Finding.created_at))
-        
+
         # Execute query with pagination
         paginated_findings = query.paginate(
             page=page, per_page=per_page, error_out=False
         )
-        
+
         # Format findings data
         findings_data = []
         for finding in paginated_findings.items:
@@ -118,10 +118,10 @@ def list_findings():
                 }
             }
             findings_data.append(finding_data)
-        
+
         # Get summary statistics
         stats = get_findings_stats(user_id)
-        
+
         return jsonify({
             'success': True,
             'findings': findings_data,
@@ -143,7 +143,7 @@ def list_findings():
                 'search': search
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Error listing findings: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -154,7 +154,7 @@ def get_finding_detail(finding_id):
     """Get detailed information about a specific finding"""
     try:
         user_id = session['user_id']
-        
+
         # Get finding and verify access
         finding = db.session.query(Finding).join(AnalysisFile).filter(
             and_(
@@ -162,10 +162,10 @@ def get_finding_detail(finding_id):
                 AnalysisFile.created_by == user_id
             )
         ).first()
-        
+
         if not finding:
             return jsonify({'success': False, 'error': 'Finding not found or access denied'}), 404
-        
+
         # Get related findings (same file, similar type)
         related_findings = db.session.query(Finding).filter(
             and_(
@@ -174,12 +174,12 @@ def get_finding_detail(finding_id):
                 Finding.id != finding.id
             )
         ).limit(5).all()
-        
+
         # Get verification history if available
         verification_history = []
         if hasattr(finding, 'verification_history'):
             verification_history = finding.verification_history
-        
+
         detailed_finding = {
             'id': finding.public_id.hex if hasattr(finding, 'public_id') else str(finding.id),
             'title': finding.title,
@@ -225,29 +225,29 @@ def get_finding_detail(finding_id):
             ],
             'verification_history': verification_history
         }
-        
+
         return jsonify({
             'success': True,
             'finding': detailed_finding
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting finding detail for {finding_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @findings_api_bp.route('/findings/<finding_id>/verify', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=100, window_seconds=3600)
+@rate_limit(limit="100 per hour")
 def verify_finding(finding_id):
     """Verify or update verification status of a finding"""
     try:
         user_id = session['user_id']
         user = User.query.get(user_id)
-        
+
         # Check if user has verification permissions
         if not (user and hasattr(user, 'can_verify_findings') and user.can_verify_findings()):
             return jsonify({'success': False, 'error': 'Verification permissions required'}), 403
-        
+
         # Get finding and verify access
         finding = db.session.query(Finding).join(AnalysisFile).filter(
             and_(
@@ -255,14 +255,14 @@ def verify_finding(finding_id):
                 AnalysisFile.created_by == user_id
             )
         ).first()
-        
+
         if not finding:
             return jsonify({'success': False, 'error': 'Finding not found or access denied'}), 404
-        
+
         data = request.get_json() or {}
         verification_status = data.get('status', 'verified')
         verification_notes = data.get('notes', '')
-        
+
         # Update finding verification
         if verification_status == 'verified':
             finding.status = FindingStatus.VERIFIED if hasattr(FindingStatus, 'VERIFIED') else 'verified'
@@ -270,7 +270,7 @@ def verify_finding(finding_id):
             finding.status = FindingStatus.FALSE_POSITIVE if hasattr(FindingStatus, 'FALSE_POSITIVE') else 'false_positive'
         elif verification_status == 'needs_review':
             finding.status = FindingStatus.NEEDS_REVIEW if hasattr(FindingStatus, 'NEEDS_REVIEW') else 'needs_review'
-        
+
         # Add verification metadata
         if hasattr(finding, 'verified_by'):
             finding.verified_by = user_id
@@ -278,32 +278,32 @@ def verify_finding(finding_id):
             finding.verified_at = datetime.utcnow()
         if hasattr(finding, 'verification_notes'):
             finding.verification_notes = verification_notes
-        
+
         db.session.commit()
-        
+
         # Log the verification
         AuthService.log_action('finding_verified', 
                              f'Verified finding: {finding.title} as {verification_status}',
                              finding_id=finding.id)
-        
+
         return jsonify({
             'success': True,
             'message': f'Finding marked as {verification_status}',
             'new_status': verification_status
         })
-        
+
     except Exception as e:
         logger.error(f"Error verifying finding {finding_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @findings_api_bp.route('/findings/<finding_id>/collect', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=50, window_seconds=3600)
+@rate_limit(limit="50 per hour")
 def collect_finding(finding_id):
     """Add finding to user's collection or bookmark it"""
     try:
         user_id = session['user_id']
-        
+
         # Get finding and verify access
         finding = db.session.query(Finding).join(AnalysisFile).filter(
             and_(
@@ -311,10 +311,10 @@ def collect_finding(finding_id):
                 AnalysisFile.created_by == user_id
             )
         ).first()
-        
+
         if not finding:
             return jsonify({'success': False, 'error': 'Finding not found or access denied'}), 404
-        
+
         # Add to bookmarks (assuming you have a bookmarked field)
         if hasattr(finding, 'is_bookmarked'):
             finding.is_bookmarked = True
@@ -322,24 +322,24 @@ def collect_finding(finding_id):
             finding.bookmarked_by = user_id
         if hasattr(finding, 'bookmarked_at'):
             finding.bookmarked_at = datetime.utcnow()
-        
+
         # Increase priority if it's a significant finding
         if finding.confidence_level >= 8:
             finding.priority = min(10, finding.priority + 1)
-        
+
         db.session.commit()
-        
+
         # Log the collection
         AuthService.log_action('finding_collected', 
                              f'Collected finding: {finding.title}',
                              finding_id=finding.id)
-        
+
         return jsonify({
             'success': True,
             'message': 'Finding added to collection',
             'is_collected': True
         })
-        
+
     except Exception as e:
         logger.error(f"Error collecting finding {finding_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -350,7 +350,7 @@ def export_finding(finding_id):
     """Export detailed finding information"""
     try:
         user_id = session['user_id']
-        
+
         # Get finding and verify access
         finding = db.session.query(Finding).join(AnalysisFile).filter(
             and_(
@@ -358,10 +358,10 @@ def export_finding(finding_id):
                 AnalysisFile.created_by == user_id
             )
         ).first()
-        
+
         if not finding:
             return jsonify({'success': False, 'error': 'Finding not found or access denied'}), 404
-        
+
         # Build comprehensive export data
         export_data = {
             'finding_info': {
@@ -405,35 +405,35 @@ def export_finding(finding_id):
                 'export_version': '1.0'
             }
         }
-        
+
         return jsonify({
             'success': True,
             'export_data': export_data,
             'filename': f"finding_{finding.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
         })
-        
+
     except Exception as e:
         logger.error(f"Error exporting finding {finding_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @findings_api_bp.route('/findings/bulk-action', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=10, window_seconds=300)
+@rate_limit(limit="10 per minute")
 def bulk_findings_action():
     """Perform bulk actions on multiple findings"""
     try:
         user_id = session['user_id']
         data = request.get_json()
-        
+
         finding_ids = data.get('finding_ids', [])
         action = data.get('action')
-        
+
         if not finding_ids or not action:
             return jsonify({'success': False, 'error': 'finding_ids and action are required'}), 400
-        
+
         if len(finding_ids) > 50:  # Limit bulk operations
             return jsonify({'success': False, 'error': 'Too many findings (max 50)'}), 400
-        
+
         # Get findings and verify access
         findings = db.session.query(Finding).join(AnalysisFile).filter(
             and_(
@@ -441,13 +441,13 @@ def bulk_findings_action():
                 AnalysisFile.created_by == user_id
             )
         ).all()
-        
+
         if len(findings) != len(finding_ids):
             return jsonify({'success': False, 'error': 'Some findings not found or access denied'}), 404
-        
+
         success_count = 0
         error_count = 0
-        
+
         if action == 'verify':
             for finding in findings:
                 try:
@@ -459,7 +459,7 @@ def bulk_findings_action():
                     success_count += 1
                 except Exception:
                     error_count += 1
-        
+
         elif action == 'mark_false_positive':
             for finding in findings:
                 try:
@@ -471,7 +471,7 @@ def bulk_findings_action():
                     success_count += 1
                 except Exception:
                     error_count += 1
-        
+
         elif action == 'collect':
             for finding in findings:
                 try:
@@ -482,12 +482,12 @@ def bulk_findings_action():
                     success_count += 1
                 except Exception:
                     error_count += 1
-        
+
         elif action == 'delete':
             # Only allow deletion of false positives or if user is admin
             user = User.query.get(user_id)
             is_admin = user and hasattr(user, 'is_admin') and user.is_admin
-            
+
             for finding in findings:
                 try:
                     if finding.status == 'false_positive' or is_admin:
@@ -497,16 +497,16 @@ def bulk_findings_action():
                         error_count += 1
                 except Exception:
                     error_count += 1
-        
+
         else:
             return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
-        
+
         db.session.commit()
-        
+
         # Log the bulk action
         AuthService.log_action('bulk_findings_action', 
                              f'Bulk action {action} on {success_count} findings')
-        
+
         return jsonify({
             'success': True,
             'message': f'Bulk action completed: {success_count} successful, {error_count} failed',
@@ -516,7 +516,7 @@ def bulk_findings_action():
                 'total_processed': len(findings)
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Error performing bulk action: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -528,17 +528,17 @@ def get_findings_statistics():
     try:
         user_id = session['user_id']
         stats = get_findings_stats(user_id)
-        
+
         # Add time-based statistics
         time_stats = get_findings_time_stats(user_id)
         stats.update(time_stats)
-        
+
         return jsonify({
             'success': True,
             'stats': stats,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting findings statistics: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -552,25 +552,25 @@ def get_findings_stats(user_id: int) -> dict:
         total_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             AnalysisFile.created_by == user_id
         ).scalar() or 0
-        
+
         # Get counts by category
         crypto_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.category == 'crypto')
         ).scalar() or 0
-        
+
         technical_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.category == 'technical')
         ).scalar() or 0
-        
+
         string_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.category == 'strings')
         ).scalar() or 0
-        
+
         # Get counts by confidence level
         high_confidence = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.confidence_level >= 8)
         ).scalar() or 0
-        
+
         medium_confidence = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(
                 AnalysisFile.created_by == user_id, 
@@ -578,16 +578,16 @@ def get_findings_stats(user_id: int) -> dict:
                 Finding.confidence_level < 8
             )
         ).scalar() or 0
-        
+
         # Get counts by status
         verified_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.status == 'verified')
         ).scalar() or 0
-        
+
         unverified_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             and_(AnalysisFile.created_by == user_id, Finding.status == 'unverified')
         ).scalar() or 0
-        
+
         return {
             'total_findings': total_findings,
             'by_category': {
@@ -607,7 +607,7 @@ def get_findings_stats(user_id: int) -> dict:
                 'other': total_findings - verified_findings - unverified_findings
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting findings stats for user {user_id}: {e}")
         return {
@@ -628,7 +628,7 @@ def get_findings_time_stats(user_id: int) -> dict:
                 Finding.created_at >= yesterday
             )
         ).scalar() or 0
-        
+
         # Get findings from last 7 days
         week_ago = datetime.utcnow() - timedelta(days=7)
         findings_week = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
@@ -637,7 +637,7 @@ def get_findings_time_stats(user_id: int) -> dict:
                 Finding.created_at >= week_ago
             )
         ).scalar() or 0
-        
+
         # Get findings from last 30 days
         month_ago = datetime.utcnow() - timedelta(days=30)
         findings_month = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
@@ -646,7 +646,7 @@ def get_findings_time_stats(user_id: int) -> dict:
                 Finding.created_at >= month_ago
             )
         ).scalar() or 0
-        
+
         return {
             'time_based': {
                 'last_24_hours': findings_today,
@@ -654,7 +654,7 @@ def get_findings_time_stats(user_id: int) -> dict:
                 'last_30_days': findings_month
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting time-based findings stats: {e}")
         return {

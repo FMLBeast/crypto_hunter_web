@@ -2,25 +2,33 @@
 
 import os
 from celery import Celery, group, chord, chain
+from flask import Flask
 
-def make_celery():
+def make_celery(app=None):
     """Create and configure unified Celery app with Flask context"""
-    # Import here to avoid circular imports
-    from crypto_hunter_web import create_app
+    if app is None:
+        # Create a minimal Flask app for Celery configuration
+        app = Flask(__name__)
 
-    # Create Flask app
-    flask_app = create_app()
+        # Load configuration from environment variables
+        app.config.from_mapping(
+            CELERY_BROKER_URL=os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/2'),
+            CELERY_RESULT_BACKEND=os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/3'),
+        )
 
     # Create Celery instance
     celery = Celery(
         'crypto_hunter_web',
-        broker=flask_app.config['CELERY_BROKER_URL'],
-        backend=flask_app.config['CELERY_RESULT_BACKEND'],
+        broker=app.config['CELERY_BROKER_URL'],
+        backend=app.config['CELERY_RESULT_BACKEND'],
         include=[
             # All task modules - consolidated list
             'crypto_hunter_web.services.background_service',
             'crypto_hunter_web.services.background_crypto',
             'crypto_hunter_web.services.llm_crypto_orchestrator',
+            'crypto_hunter_web.tasks.maintenance_tasks',
+            'crypto_hunter_web.tasks.analysis_tasks',
+            'crypto_hunter_web.tasks.crypto_tasks',
         ]
     )
 
@@ -70,11 +78,11 @@ def make_celery():
         # Beat schedule for periodic tasks
         beat_schedule={
             'cleanup-old-tasks': {
-                'task': 'crypto_hunter_web.services.background_service.cleanup_old_tasks',
+                'task': 'crypto_hunter_web.tasks.maintenance_tasks.cleanup_old_tasks',
                 'schedule': 3600.0,  # Every hour
             },
             'health-check': {
-                'task': 'crypto_hunter_web.services.background_service.health_check',
+                'task': 'crypto_hunter_web.tasks.maintenance_tasks.system_health_check',
                 'schedule': 300.0,  # Every 5 minutes
             },
             'continuous-crypto-monitor': {
@@ -89,16 +97,29 @@ def make_celery():
         """Make celery tasks work with Flask app context"""
 
         def __call__(self, *args, **kwargs):
-            with flask_app.app_context():
+            # For tasks that need Flask context, they should be run with the actual app
+            # This minimal context is just for initialization
+            if app.name == 'crypto_hunter_web.services.celery_app':
+                # Running with minimal app, just execute the task
                 return self.run(*args, **kwargs)
+            else:
+                # Running with full Flask app, use its context
+                with app.app_context():
+                    return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
 
     return celery
 
 
-# Create the global Celery instance
+# Create the global Celery instance with minimal configuration
 celery_app = make_celery()
+
+def init_app(app):
+    """Initialize Celery with the actual Flask app"""
+    global celery_app
+    celery_app = make_celery(app)
+    return celery_app
 
 # Export commonly used decorators and utilities
 task = celery_app.task

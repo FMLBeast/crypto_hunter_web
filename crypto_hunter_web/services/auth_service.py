@@ -40,3 +40,22 @@ class AuthService:
                 return redirect(url_for('auth.login'))
             return fn(*args, **kwargs)
         return wrapper
+
+    @staticmethod
+    def admin_required(fn):
+        from functools import wraps
+        from flask import redirect, url_for, session, flash
+        from crypto_hunter_web.models import User
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('auth.login'))
+
+            user = User.query.get(session['user_id'])
+            if not user or not user.is_admin:
+                flash('Admin privileges required for this action', 'error')
+                return redirect(url_for('main.index'))
+
+            return fn(*args, **kwargs)
+        return wrapper

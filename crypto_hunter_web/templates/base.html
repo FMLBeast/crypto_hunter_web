@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Crypto Hunter - Arweave Puzzle #11{% endblock %}</title>
 
     <!-- Favicon -->
@@ -188,7 +189,7 @@
                     </div>
 
                     <!-- Upload button -->
-                    <a href="{{ url_for('files.upload') }}"
+                    <a href="{{ url_for('files.upload_file') }}"
                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center">
                         <i class="fas fa-upload mr-2"></i>Upload
                     </a>
@@ -460,22 +461,41 @@
         function setupAjax() {
             const token = getCSRFToken();
             if (token) {
-                $.ajaxSetup({
-                    beforeSend: function(xhr, settings) {
-                        if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
-                            xhr.setRequestHeader("X-CSRFToken", token);
+                // Setup for jQuery AJAX if jQuery is available
+                if (typeof $ !== 'undefined') {
+                    $.ajaxSetup({
+                        beforeSend: function(xhr, settings) {
+                            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                                xhr.setRequestHeader("X-CSRFToken", token);
+                            }
+                        }
+                    });
+                }
+
+                // Override fetch to include CSRF token for non-GET requests
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options = {}) {
+                    // Only add CSRF token for non-GET requests
+                    if (options.method && !/^(GET|HEAD|OPTIONS|TRACE)$/i.test(options.method)) {
+                        options.headers = options.headers || {};
+                        options.headers['X-CSRFToken'] = token;
+                    } else if (!options.method) {
+                        // Default is GET, so no need to add token
+                        // But if body is present, it's likely a POST
+                        if (options.body) {
+                            options.headers = options.headers || {};
+                            options.headers['X-CSRFToken'] = token;
                         }
                     }
-                });
+                    return originalFetch(url, options);
+                };
             }
         }
 
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
-            // Setup AJAX if jQuery is loaded
-            if (typeof $ !== 'undefined') {
-                setupAjax();
-            }
+            // Setup AJAX for both jQuery and fetch
+            setupAjax();
 
             // Initialize tooltips if present
             if (typeof bootstrap !== 'undefined') {

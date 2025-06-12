@@ -106,6 +106,79 @@ def validate_password(password: str) -> bool:
     return has_upper and has_lower and has_digit
 
 
+def validate_password_strength(password: str) -> Dict[str, Any]:
+    """
+    Comprehensive password strength validation
+    Returns a dictionary with validation details
+    """
+    result = {
+        'valid': False,
+        'length': False,
+        'uppercase': False,
+        'lowercase': False,
+        'digit': False,
+        'special': False,
+        'score': 0,
+        'message': ''
+    }
+
+    if not password:
+        result['message'] = 'Password cannot be empty'
+        return result
+
+    # Check length
+    if len(password) >= 8:
+        result['length'] = True
+        result['score'] += 1
+    else:
+        result['message'] = 'Password must be at least 8 characters long'
+        return result
+
+    # Check for uppercase
+    result['uppercase'] = any(c.isupper() for c in password)
+    if result['uppercase']:
+        result['score'] += 1
+
+    # Check for lowercase
+    result['lowercase'] = any(c.islower() for c in password)
+    if result['lowercase']:
+        result['score'] += 1
+
+    # Check for digits
+    result['digit'] = any(c.isdigit() for c in password)
+    if result['digit']:
+        result['score'] += 1
+
+    # Check for special characters
+    special_chars = r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>/?\\|`~]'
+    result['special'] = bool(re.search(special_chars, password))
+    if result['special']:
+        result['score'] += 1
+
+    # Determine overall validity
+    result['valid'] = (result['length'] and result['uppercase'] and 
+                      result['lowercase'] and result['digit'])
+
+    # Set appropriate message
+    if result['valid']:
+        if result['special']:
+            result['message'] = 'Strong password'
+        else:
+            result['message'] = 'Good password, but adding special characters would make it stronger'
+    else:
+        missing = []
+        if not result['uppercase']:
+            missing.append('uppercase letter')
+        if not result['lowercase']:
+            missing.append('lowercase letter')
+        if not result['digit']:
+            missing.append('digit')
+
+        result['message'] = f'Password must include at least one {", one ".join(missing)}'
+
+    return result
+
+
 def validate_priority(priority: int) -> bool:
     """Validate priority level (1-10)"""
     return isinstance(priority, int) and 1 <= priority <= 10
@@ -155,5 +228,66 @@ def sanitize_filename(filename: str) -> str:
     if len(sanitized) > 255:
         name, ext = os.path.splitext(sanitized)
         sanitized = name[:250] + ext
+
+    return sanitized
+
+
+def validate_file_path(file_path: str, base_dir: Optional[str] = None) -> bool:
+    """
+    Validate if a file path is secure and within the allowed directory
+
+    Args:
+        file_path: The path to validate
+        base_dir: Optional base directory that the file must be within
+
+    Returns:
+        bool: True if the path is valid and secure, False otherwise
+    """
+    if not file_path:
+        return False
+
+    # Normalize path to prevent directory traversal attacks
+    normalized_path = os.path.normpath(file_path)
+
+    # Check for path traversal attempts
+    if '..' in normalized_path.split(os.sep):
+        return False
+
+    # If base_dir is provided, ensure the path is within it
+    if base_dir:
+        base_dir = os.path.normpath(base_dir)
+        normalized_path = os.path.normpath(os.path.join(base_dir, normalized_path))
+        if not normalized_path.startswith(base_dir):
+            return False
+
+    # Check if path exists (optional, depending on use case)
+    # if not os.path.exists(normalized_path):
+    #     return False
+
+    return True
+
+
+def sanitize_search_query(query: str) -> str:
+    """
+    Sanitize a search query to prevent injection attacks and ensure safe search operations
+
+    Args:
+        query: The search query to sanitize
+
+    Returns:
+        str: The sanitized search query
+    """
+    if not query:
+        return ""
+
+    # Remove potentially dangerous characters
+    sanitized = re.sub(r'[;<>{}\\|`]', '', query)
+
+    # Escape SQL wildcard characters
+    sanitized = re.sub(r'([%_])', r'\\\1', sanitized)
+
+    # Limit length
+    if len(sanitized) > 500:
+        sanitized = sanitized[:500]
 
     return sanitized

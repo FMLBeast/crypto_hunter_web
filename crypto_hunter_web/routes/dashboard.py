@@ -18,22 +18,27 @@ def index():
             from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
-            # Get file statistics
-            total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
-            complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
+            # Get file statistics - using table() to avoid ambiguous foreign key issues
+            total_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).scalar() or 0
+            complete_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).filter(
                 AnalysisFile.status == FileStatus.COMPLETE
+            ).scalar() or 0
+
+            # Calculate files that are being analyzed (pending or processing)
+            analyzing_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).filter(
+                AnalysisFile.status.in_([FileStatus.PENDING, FileStatus.PROCESSING])
             ).scalar() or 0
 
             # Calculate progress
             progress_percentage = (complete_files / total_files * 100) if total_files > 0 else 0
 
             # Get recent files
-            recent_files = db.session.query(AnalysisFile).order_by(
+            recent_files = db.session.query(AnalysisFile).select_from(AnalysisFile).order_by(
                 desc(AnalysisFile.created_at)
             ).limit(5).all()
 
             # Get recent findings
-            recent_findings = db.session.query(Finding).order_by(
+            recent_findings = db.session.query(Finding).select_from(Finding).order_by(
                 desc(Finding.created_at)
             ).limit(5).all()
 
@@ -41,7 +46,7 @@ def index():
             analysis_vectors = [
                 {
                     'name': 'Crypto Patterns',
-                    'completed': db.session.query(func.count(Finding.id)).filter(
+                    'completed': db.session.query(func.count(Finding.id.distinct())).select_from(Finding).filter(
                         Finding.finding_type.like('%crypto%')
                     ).scalar() or 0,
                     'total': total_files,
@@ -49,7 +54,7 @@ def index():
                 },
                 {
                     'name': 'String Analysis',
-                    'completed': db.session.query(func.count(Finding.id)).filter(
+                    'completed': db.session.query(func.count(Finding.id.distinct())).select_from(Finding).filter(
                         Finding.finding_type.like('%string%')
                     ).scalar() or 0,
                     'total': total_files,
@@ -57,7 +62,7 @@ def index():
                 },
                 {
                     'name': 'Metadata',
-                    'completed': db.session.query(func.count(Finding.id)).filter(
+                    'completed': db.session.query(func.count(Finding.id.distinct())).select_from(Finding).filter(
                         Finding.finding_type.like('%metadata%')
                     ).scalar() or 0,
                     'total': total_files,
@@ -65,7 +70,7 @@ def index():
                 },
                 {
                     'name': 'Binary Analysis',
-                    'completed': db.session.query(func.count(Finding.id)).filter(
+                    'completed': db.session.query(func.count(Finding.id.distinct())).select_from(Finding).filter(
                         Finding.finding_type.like('%binary%')
                     ).scalar() or 0,
                     'total': total_files,
@@ -78,6 +83,7 @@ def index():
             # Fallback to dummy data if models aren't available
             total_files = 0
             complete_files = 0
+            analyzing_files = 0
             progress_percentage = 0
             recent_files = []
             recent_findings = []
@@ -91,6 +97,7 @@ def index():
         return render_template('dashboard/index.html',
                                total_files=total_files,
                                complete_files=complete_files,
+                               analyzing_files=analyzing_files,
                                progress_percentage=progress_percentage,
                                recent_files=recent_files,
                                recent_findings=recent_findings,
@@ -102,6 +109,7 @@ def index():
         return render_template('dashboard/index.html',
                                total_files=0,
                                complete_files=0,
+                               analyzing_files=0,
                                progress_percentage=0,
                                recent_files=[],
                                recent_findings=[],
@@ -116,14 +124,14 @@ def api_stats():
             from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
-            total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
-            complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
+            total_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).scalar() or 0
+            complete_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).filter(
                 AnalysisFile.status == FileStatus.COMPLETE
             ).scalar() or 0
-            pending_files = db.session.query(func.count(AnalysisFile.id)).filter(
+            pending_files = db.session.query(func.count(AnalysisFile.id.distinct())).select_from(AnalysisFile).filter(
                 AnalysisFile.status == FileStatus.PENDING
             ).scalar() or 0
-            total_findings = db.session.query(func.count(Finding.id)).scalar() or 0
+            total_findings = db.session.query(func.count(Finding.id.distinct())).select_from(Finding).scalar() or 0
 
         except ImportError:
             total_files = complete_files = pending_files = total_findings = 0
@@ -149,11 +157,11 @@ def api_activity():
             from crypto_hunter_web.models import AnalysisFile, Finding, FileStatus
             from crypto_hunter_web.extensions import db
 
-            recent_files = db.session.query(AnalysisFile).order_by(
+            recent_files = db.session.query(AnalysisFile).select_from(AnalysisFile).order_by(
                 desc(AnalysisFile.created_at)
             ).limit(10).all()
 
-            recent_findings = db.session.query(Finding).order_by(
+            recent_findings = db.session.query(Finding).select_from(Finding).order_by(
                 desc(Finding.created_at)
             ).limit(10).all()
 

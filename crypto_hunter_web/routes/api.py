@@ -58,7 +58,7 @@ def mark_file_as_root(sha):
 
 @api_bp.route('/extract', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=20, window_seconds=300)
+@rate_limit(limit="4 per minute")
 def extract_content():
     """Start content extraction"""
     data = request.json

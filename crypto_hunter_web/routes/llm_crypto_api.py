@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 
 @llm_crypto_api_bp.route('/analyze/<sha>', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=10, window_seconds=3600)  # Limited due to cost
+@rate_limit(limit="10 per hour")  # Limited due to cost
 def analyze_with_llm(sha):
     """Trigger LLM-orchestrated analysis for specific file"""
-    
+
     if not validate_sha256(sha):
         return jsonify({'error': 'Invalid SHA256'}), 400
 
@@ -47,7 +47,7 @@ def analyze_with_llm(sha):
             file_id=file.id,
             content_type='llm_analysis_complete'
         ).first()
-        
+
         if existing_llm and existing_llm.created_at > datetime.utcnow() - timedelta(hours=24):
             return jsonify({
                 'success': True,
@@ -60,7 +60,7 @@ def analyze_with_llm(sha):
         # Check daily budget
         daily_cost = get_user_daily_llm_cost(user_id)
         daily_limit = current_app.config.get('LLM_DAILY_LIMIT', 50.0)
-        
+
         if daily_cost >= daily_limit:
             return jsonify({
                 'error': f'Daily LLM budget exceeded: ${daily_cost:.2f} / ${daily_limit:.2f}'
@@ -68,7 +68,7 @@ def analyze_with_llm(sha):
 
         # Estimate cost based on file size
         estimated_cost = estimate_llm_cost(file)
-        
+
         if daily_cost + estimated_cost > daily_limit:
             return jsonify({
                 'error': f'Analysis would exceed daily budget. Current: ${daily_cost:.2f}, Estimated: ${estimated_cost:.2f}, Limit: ${daily_limit:.2f}'
@@ -113,11 +113,11 @@ def analyze_with_llm(sha):
 @AuthService.login_required
 def get_llm_results(file_id):
     """Get LLM analysis results for file"""
-    
+
     # Get file and verify access
     file = AnalysisFile.query.get_or_404(file_id)
     user_id = session['user_id']
-    
+
     if file.created_by != user_id:
         return jsonify({'error': 'Access denied'}), 403
 
@@ -141,7 +141,7 @@ def get_llm_results(file_id):
     try:
         # Parse results
         results = llm_content.content_json if llm_content.content_json else json.loads(llm_content.content_text)
-        
+
         # Add metadata
         enhanced_results = {
             'analysis_info': {
@@ -162,12 +162,12 @@ def get_llm_results(file_id):
             'security_assessment': results.get('security_assessment', {}),
             'next_steps': results.get('next_steps', [])
         }
-        
+
         return jsonify({
             'success': True,
             'results': enhanced_results
         })
-        
+
     except (json.JSONDecodeError, KeyError) as e:
         logger.error(f"Error parsing LLM results for file {file_id}: {e}")
         return jsonify({
@@ -180,11 +180,11 @@ def get_llm_results(file_id):
 @AuthService.login_required
 def get_llm_task_status(task_id):
     """Get status of LLM analysis task"""
-    
+
     try:
         # Get task status
         task_status = BackgroundService.get_task_status(task_id)
-        
+
         # Verify user has access to this task
         user_id = session['user_id']
         if task_status.get('user_id') and task_status['user_id'] != user_id:
@@ -207,7 +207,7 @@ def get_llm_task_status(task_id):
                 created_time = datetime.fromisoformat(task_status['created_at'])
                 elapsed = datetime.utcnow() - created_time
                 llm_status['elapsed_time'] = str(elapsed).split('.')[0]  # Remove microseconds
-                
+
                 # Estimate remaining time based on progress
                 if task_status.get('progress', 0) > 0:
                     total_estimated = elapsed.total_seconds() / (task_status['progress'] / 100)
@@ -244,21 +244,21 @@ def get_llm_task_status(task_id):
 @AuthService.login_required
 def get_llm_usage_stats():
     """Get LLM usage and cost statistics for current user"""
-    
+
     try:
         user_id = session['user_id']
-        
+
         # Get usage statistics
         stats = get_user_llm_stats(user_id)
-        
+
         # Get budget information
         daily_limit = current_app.config.get('LLM_DAILY_LIMIT', 50.0)
         monthly_limit = current_app.config.get('LLM_MONTHLY_LIMIT', 1000.0)
-        
+
         # Calculate usage percentages
         daily_percentage = (stats['daily_cost'] / daily_limit * 100) if daily_limit > 0 else 0
         monthly_percentage = (stats['monthly_cost'] / monthly_limit * 100) if monthly_limit > 0 else 0
-        
+
         usage_stats = {
             'costs': {
                 'today': stats['daily_cost'],
@@ -281,13 +281,13 @@ def get_llm_usage_stats():
             'providers': stats['cost_by_provider'],
             'recent_analyses': stats['recent_analyses']
         }
-        
+
         return jsonify({
             'success': True,
             'stats': usage_stats,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting LLM usage stats: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -296,7 +296,7 @@ def get_llm_usage_stats():
 @AuthService.login_required
 def manage_budget():
     """Get or update LLM analysis budget (admin only for PUT)"""
-    
+
     user_id = session['user_id']
     user = User.query.get(user_id)
 
@@ -309,12 +309,12 @@ def manage_budget():
             'current_usage': get_user_daily_llm_cost(user_id),
             'can_modify': user and hasattr(user, 'is_admin') and user.is_admin
         }
-        
+
         return jsonify({
             'success': True,
             'budget': budget_info
         })
-    
+
     else:  # PUT
         # Only admins can modify budget
         if not (user and hasattr(user, 'is_admin') and user.is_admin):
@@ -322,27 +322,27 @@ def manage_budget():
 
         try:
             data = request.get_json()
-            
+
             # Validate budget values
             daily_limit = float(data.get('daily_limit', 50.0))
             monthly_limit = float(data.get('monthly_limit', 1000.0))
             per_analysis_limit = float(data.get('per_analysis_limit', 5.0))
-            
+
             if daily_limit < 0 or monthly_limit < 0 or per_analysis_limit < 0:
                 return jsonify({'error': 'Budget limits must be positive numbers'}), 400
-            
+
             if daily_limit > monthly_limit:
                 return jsonify({'error': 'Daily limit cannot exceed monthly limit'}), 400
-            
+
             # Update configuration (in a real app, you'd save to database or config file)
             current_app.config['LLM_DAILY_LIMIT'] = daily_limit
             current_app.config['LLM_MONTHLY_LIMIT'] = monthly_limit
             current_app.config['LLM_PER_ANALYSIS_LIMIT'] = per_analysis_limit
-            
+
             # Log the change
             AuthService.log_action('budget_updated', 
                                  f'Updated LLM budget limits: daily=${daily_limit}, monthly=${monthly_limit}')
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Budget limits updated successfully',
@@ -352,7 +352,7 @@ def manage_budget():
                     'per_analysis_limit': per_analysis_limit
                 }
             })
-            
+
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid budget values: {e}'}), 400
 
@@ -360,7 +360,7 @@ def manage_budget():
 @AuthService.login_required
 def get_llm_providers():
     """Get available LLM providers and their capabilities"""
-    
+
     providers = {
         'openai': {
             'name': 'OpenAI',
@@ -377,7 +377,7 @@ def get_llm_providers():
             'available': current_app.config.get('ANTHROPIC_API_KEY') is not None
         }
     }
-    
+
     return jsonify({
         'success': True,
         'providers': providers,
@@ -386,10 +386,10 @@ def get_llm_providers():
 
 @llm_crypto_api_bp.route('/reanalyze/<sha>', methods=['POST'])
 @AuthService.login_required
-@rate_limit(max_requests=5, window_seconds=3600)  # Very limited
+@rate_limit(limit="5 per hour")  # Very limited
 def reanalyze_with_llm(sha):
     """Re-run LLM analysis with different parameters"""
-    
+
     if not validate_sha256(sha):
         return jsonify({'error': 'Invalid SHA256'}), 400
 
@@ -403,13 +403,13 @@ def reanalyze_with_llm(sha):
 
     try:
         data = request.get_json() or {}
-        
+
         # Get analysis parameters
         provider = data.get('provider', 'openai')
         model = data.get('model')
         focus_areas = data.get('focus_areas', ['crypto', 'security'])
         force_reanalysis = data.get('force', False)
-        
+
         # Check if recent analysis exists
         if not force_reanalysis:
             recent_llm = FileContent.query.filter_by(
@@ -418,7 +418,7 @@ def reanalyze_with_llm(sha):
             ).filter(
                 FileContent.created_at > datetime.utcnow() - timedelta(hours=6)
             ).first()
-            
+
             if recent_llm:
                 return jsonify({
                     'error': 'Recent analysis exists. Use force=true to override',
@@ -427,11 +427,11 @@ def reanalyze_with_llm(sha):
 
         # Estimate cost for re-analysis
         estimated_cost = estimate_llm_cost(file, provider, model)
-        
+
         # Check budget
         daily_cost = get_user_daily_llm_cost(user_id)
         daily_limit = current_app.config.get('LLM_DAILY_LIMIT', 50.0)
-        
+
         if daily_cost + estimated_cost > daily_limit:
             return jsonify({
                 'error': f'Re-analysis would exceed daily budget'
@@ -480,7 +480,7 @@ def get_user_daily_llm_cost(user_id: int) -> float:
     """Calculate user's LLM costs for today"""
     try:
         today = datetime.utcnow().date()
-        
+
         # Get all LLM analyses for today
         llm_content = db.session.query(FileContent).join(AnalysisFile).filter(
             and_(
@@ -489,14 +489,14 @@ def get_user_daily_llm_cost(user_id: int) -> float:
                 func.date(FileContent.created_at) == today
             )
         ).all()
-        
+
         total_cost = 0.0
         for content in llm_content:
             if content.content_json and isinstance(content.content_json, dict):
                 total_cost += content.content_json.get('analysis_cost', 0.0)
-        
+
         return total_cost
-        
+
     except Exception as e:
         logger.error(f"Error calculating daily LLM cost for user {user_id}: {e}")
         return 0.0
@@ -507,7 +507,7 @@ def get_user_llm_stats(user_id: int) -> dict:
         # Date ranges
         today = datetime.utcnow().date()
         month_start = today.replace(day=1)
-        
+
         # Get all LLM analyses for user
         llm_content = db.session.query(FileContent).join(AnalysisFile).filter(
             and_(
@@ -515,7 +515,7 @@ def get_user_llm_stats(user_id: int) -> dict:
                 FileContent.content_type == 'llm_analysis_complete'
             )
         ).order_by(desc(FileContent.created_at)).all()
-        
+
         # Calculate statistics
         total_cost = 0.0
         daily_cost = 0.0
@@ -524,32 +524,32 @@ def get_user_llm_stats(user_id: int) -> dict:
         analyses_this_month = 0
         cost_by_provider = {'openai': 0.0, 'anthropic': 0.0, 'other': 0.0}
         recent_analyses = []
-        
+
         for content in llm_content:
             if content.content_json and isinstance(content.content_json, dict):
                 cost = content.content_json.get('analysis_cost', 0.0)
                 provider = content.content_json.get('provider', 'other')
-                
+
                 total_cost += cost
-                
+
                 # Provider costs
                 if provider in cost_by_provider:
                     cost_by_provider[provider] += cost
                 else:
                     cost_by_provider['other'] += cost
-                
+
                 # Date-based calculations
                 if content.created_at:
                     analysis_date = content.created_at.date()
-                    
+
                     if analysis_date == today:
                         daily_cost += cost
                         analyses_today += 1
-                    
+
                     if analysis_date >= month_start:
                         monthly_cost += cost
                         analyses_this_month += 1
-                    
+
                     # Recent analyses (last 10)
                     if len(recent_analyses) < 10:
                         recent_analyses.append({
@@ -558,7 +558,7 @@ def get_user_llm_stats(user_id: int) -> dict:
                             'provider': provider,
                             'file_name': content.file.filename if content.file else 'Unknown'
                         })
-        
+
         return {
             'total_cost': total_cost,
             'daily_cost': daily_cost,
@@ -569,7 +569,7 @@ def get_user_llm_stats(user_id: int) -> dict:
             'cost_by_provider': cost_by_provider,
             'recent_analyses': recent_analyses
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting LLM stats for user {user_id}: {e}")
         return {
@@ -587,10 +587,10 @@ def estimate_llm_cost(file: AnalysisFile, provider: str = 'openai', model: str =
             'openai': {'gpt-4': 0.05, 'gpt-3.5-turbo': 0.01},
             'anthropic': {'claude-3-opus': 0.04, 'claude-3-sonnet': 0.015}
         }
-        
+
         # Get file size in MB
         file_size_mb = (file.file_size or 1024) / (1024 * 1024)
-        
+
         # Get rate for provider/model
         if provider in cost_rates:
             if model and model in cost_rates[provider]:
@@ -600,14 +600,14 @@ def estimate_llm_cost(file: AnalysisFile, provider: str = 'openai', model: str =
                 rate = sum(cost_rates[provider].values()) / len(cost_rates[provider])
         else:
             rate = 0.02  # Default rate
-        
+
         # Estimate based on file size (minimum $0.01)
         estimated_cost = max(0.01, file_size_mb * rate)
-        
+
         # Cap at per-analysis limit
         per_analysis_limit = current_app.config.get('LLM_PER_ANALYSIS_LIMIT', 5.0)
         return min(estimated_cost, per_analysis_limit)
-        
+
     except Exception as e:
         logger.error(f"Error estimating LLM cost: {e}")
         return 1.0  # Default estimate
@@ -616,22 +616,22 @@ def estimate_processing_time(file: AnalysisFile) -> str:
     """Estimate LLM processing time based on file characteristics"""
     try:
         file_size_mb = (file.file_size or 1024) / (1024 * 1024)
-        
+
         # Base time: 30 seconds + 10 seconds per MB
         base_time = 30 + (file_size_mb * 10)
-        
+
         # Adjust for file type complexity
         if file.file_type and any(t in file.file_type.lower() for t in ['archive', 'compressed']):
             base_time *= 1.5
-        
+
         # Convert to minutes
         minutes = int(base_time / 60)
         seconds = int(base_time % 60)
-        
+
         if minutes > 0:
             return f"{minutes}m {seconds}s"
         else:
             return f"{seconds}s"
-            
+
     except Exception:
         return "2-5 minutes"

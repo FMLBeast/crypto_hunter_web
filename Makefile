@@ -344,7 +344,7 @@ monitor: ## Start monitoring dashboard
 	@echo "$(CYAN)Available endpoints:$(NC)"
 	@echo "  🌐 Application: http://localhost:8000"
 	@echo "  ❤️ Health: http://localhost:8000/health"
-	@echo "  🌸 Flower: http://localhost:5555 (if running)"
+ @echo "  🌸 Flower: http://localhost:5556 (if running)"
 	@echo "  🔧 Admin: Create with 'make create-admin-user'"
 
 # Development helpers

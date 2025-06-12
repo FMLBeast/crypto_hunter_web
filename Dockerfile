@@ -1,4 +1,4 @@
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libmagic1 libmagic-dev libpq-dev build-essential \
@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt && pip cache purge
 
-FROM base as development
+FROM base AS development
 RUN pip install --no-cache-dir flask-shell-ipython ipython ipdb watchdog pytest pytest-flask black flake8
 RUN mkdir -p /app/logs /app/uploads /app/instance /app/temp && \
     chown -R appuser:appuser /app && chmod -R 755 /app
@@ -22,7 +22,7 @@ USER appuser
 EXPOSE 8000
 CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8000", "--reload"]
 
-FROM base as production
+FROM base AS production
 COPY --chown=appuser:appuser . .
 RUN mkdir -p /app/logs /app/uploads /app/instance /app/temp /app/static && \
     chown -R appuser:appuser /app && chmod -R 755 /app && \

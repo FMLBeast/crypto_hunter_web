@@ -74,7 +74,7 @@ if [[ "$DB_READY" == true && "$REDIS_READY" == true ]]; then
     echo "============================="
     echo "🌐 Web Application: http://localhost:8000"
     echo "📚 API Documentation: http://localhost:8000/docs"
-    echo "🌺 Task Monitor: http://localhost:5555"
+    echo "🌺 Task Monitor: http://localhost:5556"
     echo "❤️  Health Check: http://localhost:8000/health"
     echo ""
     echo "🔐 Next Steps:"

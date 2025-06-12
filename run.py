@@ -44,20 +44,23 @@ def setup_application(app):
     """Setup the full application with all components"""
 
     # Initialize database if needed
-    try:
-        with app.app_context():
-            from crypto_hunter_web.models import db, init_database
+    with app.app_context():
+        from crypto_hunter_web.models import db, init_database
+        from sqlalchemy import text
 
+        # Check if users table exists
+        try:
+            db.session.execute(text("SELECT 1 FROM users LIMIT 1"))
+            app.logger.info("Users table exists, skipping initialization")
+        except Exception as e:
+            app.logger.info(f"Users table does not exist, creating tables: {e}")
             # Create tables if they don't exist
             db.create_all()
 
             # Initialize with default data if needed
-            init_database(app)
+            init_database()
 
-            app.logger.info("Database setup completed")
-
-    except Exception as e:
-        app.logger.warning(f"Database setup warning: {e}")
+        app.logger.info("Database setup completed")
 
     # Register additional routes
     register_additional_routes(app)

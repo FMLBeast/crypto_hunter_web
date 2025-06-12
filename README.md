@@ -120,7 +120,7 @@ docker-compose exec web flask user create --username admin --email admin@example
 
 - **Web Interface**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/api/docs
-- **Flower (Task Monitor)**: http://localhost:5555
+- **Flower (Task Monitor)**: http://localhost:5556
 - **Grafana (Metrics)**: http://localhost:3000
 
 ## 📖 Usage Guide
@@ -131,7 +131,7 @@ docker-compose exec web flask user create --username admin --email admin@example
    ```bash
    # Web interface
    Navigate to /files/upload
-   
+
    # API
    curl -X POST http://localhost:8000/api/files/upload \
      -H "X-API-Key: your-api-key" \
@@ -592,7 +592,7 @@ flask db downgrade
    # Install Docker and Docker Compose
    curl -fsSL https://get.docker.com -o get-docker.sh
    sh get-docker.sh
-   
+
    # Configure firewall
    ufw allow 80,443/tcp
    ```
@@ -614,10 +614,10 @@ flask db downgrade
    ```bash
    # Deploy with production config
    docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-   
+
    # Initialize database
    docker-compose exec web flask db upgrade
-   
+
    # Create admin user
    docker-compose exec web flask user create --admin
    ```

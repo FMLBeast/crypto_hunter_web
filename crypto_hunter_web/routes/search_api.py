@@ -21,34 +21,34 @@ def hyperfast_search():
         query = request.args.get('q', '').strip()
         page = request.args.get('page', 1, type=int)
         limit = min(request.args.get('limit', 50, type=int), 1000)
-        
+
         # Sanitize search query
         query = sanitize_search_query(query)
-        
+
         # Extract and validate filters
         filters = {}
-        
+
         if request.args.get('file_type'):
             filters['file_type'] = request.args.get('file_type').strip()
-        
+
         if request.args.get('status'):
             filters['status'] = request.args.get('status').strip()
-        
+
         if request.args.get('is_root'):
             filters['is_root'] = request.args.get('is_root').lower() == 'true'
-        
+
         if request.args.get('min_size'):
             try:
                 filters['min_size'] = int(request.args.get('min_size'))
             except ValueError:
                 return jsonify({'error': 'min_size must be an integer'}), 400
-        
+
         if request.args.get('max_size'):
             try:
                 filters['max_size'] = int(request.args.get('max_size'))
             except ValueError:
                 return jsonify({'error': 'max_size must be an integer'}), 400
-        
+
         if request.args.get('priority_min'):
             try:
                 filters['priority_min'] = int(request.args.get('priority_min'))
@@ -56,7 +56,7 @@ def hyperfast_search():
                     return jsonify({'error': 'priority_min must be between 1 and 10'}), 400
             except ValueError:
                 return jsonify({'error': 'priority_min must be an integer'}), 400
-        
+
         # Date range filters
         if request.args.get('created_after'):
             try:
@@ -65,7 +65,7 @@ def hyperfast_search():
                 )
             except ValueError:
                 return jsonify({'error': 'created_after must be in YYYY-MM-DD format'}), 400
-        
+
         if request.args.get('created_before'):
             try:
                 filters['created_before'] = datetime.strptime(
@@ -73,14 +73,14 @@ def hyperfast_search():
                 ) + timedelta(days=1)
             except ValueError:
                 return jsonify({'error': 'created_before must be in YYYY-MM-DD format'}), 400
-        
+
         # Perform search
         results = SearchService.hyperfast_search(query, filters, limit)
-        
+
         # Calculate pagination info
         total_results = results.get('total', 0)
         has_more = total_results >= limit
-        
+
         # Log search for analytics
         AuthService.log_action('search_performed', 
                              f'Hyperfast search: "{query}"',
@@ -91,7 +91,7 @@ def hyperfast_search():
                                  'search_type': results.get('search_type'),
                                  'execution_time': results.get('execution_time')
                              })
-        
+
         return jsonify({
             'success': True,
             'query': query,
@@ -111,7 +111,7 @@ def hyperfast_search():
             },
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in hyperfast search: {e}")
         return jsonify({'error': str(e)}), 500
@@ -125,40 +125,40 @@ def magic_search():
         query = request.args.get('q', '').strip()
         search_type = request.args.get('type', 'all')  # all, patterns, content
         limit = min(request.args.get('limit', 50, type=int), 500)
-        
+
         if not query:
             return jsonify({'error': 'Query parameter is required'}), 400
-        
+
         if len(query) < 2:
             return jsonify({'error': 'Query must be at least 2 characters'}), 400
-        
+
         # Sanitize query
         query = sanitize_search_query(query)
-        
+
         # Validate search type
         if search_type not in ['all', 'patterns', 'content', 'hashes', 'crypto']:
             return jsonify({
                 'error': 'Invalid search type',
                 'valid_types': ['all', 'patterns', 'content', 'hashes', 'crypto']
             }), 400
-        
+
         # Extract filters
         filters = {}
         if request.args.get('file_type'):
             filters['file_type'] = request.args.get('file_type')
         if request.args.get('status'):
             filters['status'] = request.args.get('status')
-        
+
         # Perform magic search
         results = SearchService._magic_search(query, filters, limit)
-        
+
         # Enhance results with pattern analysis
         enhanced_results = []
         pattern_matches = {}
-        
+
         for file_data in results['files']:
             enhanced_file = file_data.copy()
-            
+
             # Check for pattern matches in the query
             for pattern_name, pattern in SearchService.PATTERNS.items():
                 matches = pattern.findall(query)
@@ -166,9 +166,9 @@ def magic_search():
                     if pattern_name not in pattern_matches:
                         pattern_matches[pattern_name] = []
                     pattern_matches[pattern_name].extend(matches[:5])  # Limit to 5 matches
-            
+
             enhanced_results.append(enhanced_file)
-        
+
         # Generate search suggestions based on patterns found
         suggestions = []
         if pattern_matches:
@@ -179,7 +179,7 @@ def magic_search():
                     'suggestion': f'Search for more {pattern_type} patterns',
                     'example_matches': matches[:3]
                 })
-        
+
         AuthService.log_action('magic_search_performed',
                              f'Magic search: "{query}" (type: {search_type})',
                              metadata={
@@ -188,7 +188,7 @@ def magic_search():
                                  'results_count': len(enhanced_results),
                                  'patterns_found': list(pattern_matches.keys())
                              })
-        
+
         return jsonify({
             'success': True,
             'query': query,
@@ -208,7 +208,7 @@ def magic_search():
             },
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in magic search: {e}")
         return jsonify({'error': str(e)}), 500
@@ -220,13 +220,13 @@ def xor_search():
     """XOR correlation search for file relationships"""
     try:
         sha_list = request.args.getlist('sha')
-        
+
         if not sha_list:
             return jsonify({'error': 'At least one SHA hash is required'}), 400
-        
+
         if len(sha_list) > 20:
             return jsonify({'error': 'Maximum 20 files can be compared at once'}), 400
-        
+
         # Validate SHA hashes
         invalid_hashes = [sha for sha in sha_list if not validate_sha256(sha)]
         if invalid_hashes:
@@ -234,16 +234,16 @@ def xor_search():
                 'error': 'Invalid SHA256 hashes',
                 'invalid_hashes': invalid_hashes
             }), 400
-        
+
         # Perform XOR correlation analysis
         results = SearchService.xor_search(sha_list)
-        
+
         if 'error' in results:
             return jsonify(results), 400
-        
+
         # Enhance correlation analysis with additional insights
         enhanced_correlations = results['correlations'].copy()
-        
+
         # Add temporal correlation analysis
         files = results['files']
         creation_times = [f['created_at'] for f in files if f.get('created_at')]
@@ -253,13 +253,13 @@ def xor_search():
             for i in range(len(sorted_times) - 1):
                 delta = (sorted_times[i + 1] - sorted_times[i]).total_seconds()
                 time_deltas.append(delta)
-            
+
             enhanced_correlations['temporal_analysis'] = {
                 'creation_span_seconds': (sorted_times[-1] - sorted_times[0]).total_seconds(),
                 'average_interval': sum(time_deltas) / len(time_deltas) if time_deltas else 0,
                 'sequential_creation': all(delta < 3600 for delta in time_deltas)  # Within 1 hour
             }
-        
+
         # Add finding correlation analysis
         file_ids = [f['id'] for f in files]
         common_findings = db.session.query(
@@ -270,12 +270,12 @@ def xor_search():
         ).group_by(Finding.finding_type).having(
             db.func.count(Finding.id) > 1
         ).all()
-        
+
         enhanced_correlations['finding_correlations'] = [
             {'finding_type': cf[0], 'shared_count': cf[1]} 
             for cf in common_findings
         ]
-        
+
         AuthService.log_action('xor_search_performed',
                              f'XOR correlation analysis for {len(sha_list)} files',
                              metadata={
@@ -283,7 +283,7 @@ def xor_search():
                                  'correlations_found': len(enhanced_correlations),
                                  'sha_hashes': sha_list
                              })
-        
+
         return jsonify({
             'success': True,
             'operation': 'xor_correlation',
@@ -298,7 +298,7 @@ def xor_search():
             },
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in XOR search: {e}")
         return jsonify({'error': str(e)}), 500
@@ -310,7 +310,7 @@ def group_search():
     """Group files by various criteria with filtering"""
     try:
         group_by = request.args.get('group_by', 'type')
-        
+
         # Validate group_by parameter
         valid_groupings = ['type', 'status', 'size', 'priority', 'date', 'findings_count']
         if group_by not in valid_groupings:
@@ -318,7 +318,7 @@ def group_search():
                 'error': f'Invalid group_by parameter: {group_by}',
                 'valid_options': valid_groupings
             }), 400
-        
+
         # Extract filters
         filters = {}
         if request.args.get('file_type'):
@@ -330,7 +330,7 @@ def group_search():
                 filters['priority_min'] = int(request.args.get('min_priority'))
             except ValueError:
                 return jsonify({'error': 'min_priority must be an integer'}), 400
-        
+
         # Date range filters
         if request.args.get('date_from'):
             try:
@@ -339,7 +339,7 @@ def group_search():
                 )
             except ValueError:
                 return jsonify({'error': 'date_from must be in YYYY-MM-DD format'}), 400
-        
+
         # Perform grouping
         if group_by == 'date':
             # Special handling for date grouping
@@ -349,20 +349,20 @@ def group_search():
             results = _group_by_findings_count(filters)
         else:
             results = SearchService.group_files(group_by, filters)
-        
+
         if 'error' in results:
             return jsonify(results), 400
-        
+
         # Calculate additional statistics
         total_files = sum(group['count'] for group in results['groups'])
-        
+
         # Sort groups by count (descending)
         sorted_groups = sorted(results['groups'], key=lambda x: x['count'], reverse=True)
-        
+
         # Calculate percentages
         for group in sorted_groups:
             group['percentage'] = round((group['count'] / total_files * 100), 2) if total_files > 0 else 0
-        
+
         AuthService.log_action('group_search_performed',
                              f'Grouped files by {group_by}',
                              metadata={
@@ -371,7 +371,7 @@ def group_search():
                                  'total_files': total_files,
                                  'groups_count': len(sorted_groups)
                              })
-        
+
         return jsonify({
             'success': True,
             'group_by': group_by,
@@ -385,7 +385,7 @@ def group_search():
             'filters_applied': filters,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in group search: {e}")
         return jsonify({'error': str(e)}), 500
@@ -399,15 +399,15 @@ def search_suggestions():
         partial_query = request.args.get('q', '').strip()
         suggestion_type = request.args.get('type', 'all')  # all, filenames, types, patterns
         limit = min(request.args.get('limit', 10, type=int), 50)
-        
+
         if len(partial_query) < 2:
             return jsonify({
                 'suggestions': [],
                 'message': 'Query too short for suggestions'
             })
-        
+
         suggestions = []
-        
+
         # Filename suggestions
         if suggestion_type in ['all', 'filenames']:
             filename_suggestions = db.session.query(
@@ -415,7 +415,7 @@ def search_suggestions():
             ).filter(
                 AnalysisFile.filename.ilike(f'%{partial_query}%')
             ).distinct().limit(limit // 2).all()
-            
+
             for filename_tuple in filename_suggestions:
                 suggestions.append({
                     'type': 'filename',
@@ -423,7 +423,7 @@ def search_suggestions():
                     'display': f'📄 {filename_tuple[0]}',
                     'score': 0.8
                 })
-        
+
         # File type suggestions
         if suggestion_type in ['all', 'types']:
             type_suggestions = db.session.query(
@@ -431,7 +431,7 @@ def search_suggestions():
             ).filter(
                 AnalysisFile.file_type.ilike(f'%{partial_query}%')
             ).distinct().limit(limit // 3).all()
-            
+
             for type_tuple in type_suggestions:
                 if type_tuple[0]:  # Skip None values
                     suggestions.append({
@@ -440,12 +440,12 @@ def search_suggestions():
                         'display': f'🏷️ Type: {type_tuple[0]}',
                         'score': 0.6
                     })
-        
+
         # Pattern-based suggestions
         if suggestion_type in ['all', 'patterns']:
             pattern_suggestions = []
             query_lower = partial_query.lower()
-            
+
             # Check if query matches known patterns
             for pattern_name, pattern in SearchService.PATTERNS.items():
                 if pattern_name.startswith(query_lower) or query_lower in pattern_name:
@@ -455,9 +455,9 @@ def search_suggestions():
                         'display': f'🔍 Pattern: {pattern_name}',
                         'score': 0.9
                     })
-            
+
             suggestions.extend(pattern_suggestions[:limit // 3])
-        
+
         # SHA hash suggestions (if query looks like hex)
         if len(partial_query) >= 8 and all(c in '0123456789abcdefABCDEF' for c in partial_query):
             hash_matches = db.session.query(
@@ -466,7 +466,7 @@ def search_suggestions():
             ).filter(
                 AnalysisFile.sha256_hash.ilike(f'{partial_query}%')
             ).limit(5).all()
-            
+
             for hash_tuple in hash_matches:
                 suggestions.append({
                     'type': 'hash',
@@ -474,16 +474,16 @@ def search_suggestions():
                     'display': f'🔑 {hash_tuple[0][:16]}... ({hash_tuple[1]})',
                     'score': 1.0
                 })
-        
+
         # Sort suggestions by score and remove duplicates
         unique_suggestions = []
         seen_values = set()
-        
+
         for suggestion in sorted(suggestions, key=lambda x: x['score'], reverse=True):
             if suggestion['value'] not in seen_values:
                 unique_suggestions.append(suggestion)
                 seen_values.add(suggestion['value'])
-        
+
         return jsonify({
             'success': True,
             'query': partial_query,
@@ -496,7 +496,7 @@ def search_suggestions():
             },
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error getting search suggestions: {e}")
         return jsonify({'error': str(e)}), 500
@@ -509,30 +509,30 @@ def generate_metadata(sha):
     try:
         if not validate_sha256(sha):
             return jsonify({'error': 'Invalid SHA256 hash format'}), 400
-        
+
         # Find file
         file = AnalysisFile.find_by_sha(sha)
         if not file:
             return jsonify({'error': 'File not found'}), 404
-        
+
         if not file.filepath or not file.filepath.strip():
             return jsonify({'error': 'File path not available for metadata generation'}), 400
-        
+
         # Check if file exists on disk
         import os
         if not os.path.exists(file.filepath):
             return jsonify({'error': 'File not accessible on disk'}), 404
-        
+
         # Generate metadata
         metadata = MetadataGenerator.generate_file_metadata(file.filepath, file.id)
-        
+
         # Store metadata in database
         try:
             existing_content = FileContent.query.filter_by(
                 file_id=file.id,
                 content_type='metadata_generated'
             ).first()
-            
+
             if existing_content:
                 existing_content.content_text = json.dumps(metadata, indent=2)
                 existing_content.extracted_at = datetime.utcnow()
@@ -546,19 +546,19 @@ def generate_metadata(sha):
                     extraction_method='metadata_generator'
                 )
                 db.session.add(content_entry)
-            
+
             db.session.commit()
-            
+
         except Exception as e:
             current_app.logger.warning(f"Could not store metadata for file {file.id}: {e}")
-        
+
         # Generate summary insights
         insights = []
-        
+
         if metadata.get('magic_patterns'):
             pattern_count = len(metadata['magic_patterns'])
             insights.append(f"Detected {pattern_count} cryptographic patterns")
-        
+
         if metadata.get('content_signatures'):
             entropy_sig = next((s for s in metadata['content_signatures'] if s['type'] == 'entropy'), None)
             if entropy_sig:
@@ -567,12 +567,12 @@ def generate_metadata(sha):
                     insights.append("High entropy detected - likely encrypted or compressed")
                 elif entropy_val < 1.0:
                     insights.append("Low entropy detected - likely plain text or structured data")
-        
+
         if metadata.get('cross_references'):
             ref_count = len(metadata['cross_references'])
             if ref_count > 0:
                 insights.append(f"Found {ref_count} cross-references to other files")
-        
+
         AuthService.log_action('metadata_generated',
                              f'Generated metadata for file {file.filename}',
                              file_id=file.id,
@@ -581,7 +581,7 @@ def generate_metadata(sha):
                                  'signatures_generated': len(metadata.get('content_signatures', [])),
                                  'insights_count': len(insights)
                              })
-        
+
         return jsonify({
             'success': True,
             'file_sha': sha,
@@ -596,7 +596,7 @@ def generate_metadata(sha):
             },
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"Error generating metadata for {sha}: {e}")
         return jsonify({'error': str(e)}), 500
@@ -605,20 +605,20 @@ def generate_metadata(sha):
 @search_api_bp.route('/search/build-index', methods=['POST'])
 @login_required
 @AuthService.admin_required
-@rate_limit(max_requests=5, window_seconds=3600)
+@api_endpoint(rate_limit_requests=5, csrf_exempt=False)
 def build_search_index():
     """Build or rebuild search indexes (admin only)"""
     try:
         force_rebuild = request.args.get('force', 'false').lower() == 'true'
-        
+
         # Build indexes
         success = SearchService.build_search_index()
-        
+
         if success:
             AuthService.log_action('search_index_built',
                                  'Built search indexes',
                                  metadata={'force_rebuild': force_rebuild})
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Search indexes built successfully',
@@ -631,7 +631,7 @@ def build_search_index():
                 'message': 'Failed to build some indexes (may already exist)',
                 'timestamp': datetime.utcnow().isoformat()
             }), 500
-        
+
     except Exception as e:
         current_app.logger.error(f"Error building search index: {e}")
         return jsonify({'error': str(e)}), 500
@@ -642,7 +642,7 @@ def _group_by_date(filters):
     try:
         query = AnalysisFile.query
         query = SearchService._apply_filters(query, filters)
-        
+
         # Group by date (day)
         date_groups = db.session.query(
             db.func.date(AnalysisFile.created_at).label('date'),
@@ -650,14 +650,14 @@ def _group_by_date(filters):
         ).filter(query.whereclause if query.whereclause is not None else True)\
          .group_by(db.func.date(AnalysisFile.created_at))\
          .order_by(db.func.date(AnalysisFile.created_at).desc()).all()
-        
+
         groups = [
             {'key': str(dg[0]) if dg[0] else 'Unknown', 'count': dg[1]}
             for dg in date_groups
         ]
-        
+
         return {'group_by': 'date', 'groups': groups}
-        
+
     except Exception as e:
         return {'error': f'Date grouping failed: {str(e)}'}
 
@@ -667,13 +667,13 @@ def _group_by_findings_count(filters):
     try:
         query = AnalysisFile.query
         query = SearchService._apply_filters(query, filters)
-        
+
         # Group by findings count ranges
         subquery = db.session.query(
             AnalysisFile.id,
             db.func.count(Finding.id).label('findings_count')
         ).outerjoin(Finding).group_by(AnalysisFile.id).subquery()
-        
+
         findings_groups = db.session.query(
             db.func.case([
                 (subquery.c.findings_count == 0, 'No findings'),
@@ -683,14 +683,14 @@ def _group_by_findings_count(filters):
             ], else_='50+ findings').label('findings_range'),
             db.func.count(subquery.c.id).label('count')
         ).group_by('findings_range').all()
-        
+
         groups = [
             {'key': fg[0], 'count': fg[1]}
             for fg in findings_groups
         ]
-        
+
         return {'group_by': 'findings_count', 'groups': groups}
-        
+
     except Exception as e:
         return {'error': f'Findings count grouping failed: {str(e)}'}
 

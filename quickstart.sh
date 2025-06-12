@@ -262,7 +262,7 @@ services:
     networks:
       - crypto-hunter-network
     ports:
-      - "127.0.0.1:5555:5555"
+      - "127.0.0.1:5556:5555"
     depends_on:
       - redis
 
@@ -356,7 +356,7 @@ echo "🎉 CRYPTO HUNTER BETA IS READY!"
 echo "=================================="
 echo "🌐 Web App: http://localhost:8000"
 echo "📚 API Docs: http://localhost:8000/docs"
-echo "🌺 Monitor: http://localhost:5555"
+echo "🌺 Monitor: http://localhost:5556"
 echo "❤️  Health: http://localhost:8000/health"
 echo ""
 echo "Create admin user:"

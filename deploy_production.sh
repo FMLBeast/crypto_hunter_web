@@ -349,7 +349,7 @@ show_status() {
     echo -e "\n${CYAN}Access URLs:${NC}"
     echo "  Web Application: http://localhost:8000"
     echo "  API Documentation: http://localhost:8000/api/docs"
-    echo "  Flower Monitor: http://localhost:5555 (admin/admin123)"
+    echo "  Flower Monitor: http://localhost:5556 (admin/admin123)"
     echo "  Health Check: http://localhost:8000/health"
 
     echo -e "\n${CYAN}Useful Commands:${NC}"

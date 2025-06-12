@@ -102,13 +102,15 @@ def init_extensions(app):
     # SQLAlchemy
     try:
         db.init_app(app)
-        try:
-            with app.app_context():
-                db.create_all()
-        except Exception as e:
-            app.logger.warning(f"DB initialization warning: {e}")
+        with app.app_context():
+            db.create_all()
+            app.logger.info("Database tables created successfully")
     except ImportError as e:
-        app.logger.warning(f"Database extension not available: {e}")
+        app.logger.error(f"Database extension not available: {e}")
+        raise
+    except Exception as e:
+        app.logger.error(f"Database initialization failed: {e}")
+        raise
     # Flask-Login
     try:
         from crypto_hunter_web.extensions import login_manager
@@ -153,6 +155,7 @@ def register_blueprints(app):
         ('crypto_hunter_web.routes.admin', 'admin_bp', None),
         ('crypto_hunter_web.routes.crypto_api', 'crypto_api_bp', '/api/crypto'),
         ('crypto_hunter_web.routes.search_api', 'search_api_bp', '/api/search'),
+        ('crypto_hunter_web.routes.health', 'health_bp', None),
     ]
 
     for module_path, blueprint_name, url_prefix in blueprints:

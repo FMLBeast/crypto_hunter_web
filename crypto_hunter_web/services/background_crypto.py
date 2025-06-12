@@ -16,21 +16,53 @@ from crypto_hunter_web.tasks.crypto_tasks import (
     cipher_comprehensive_analysis,
     hash_cracking_analysis,
     combine_analysis_results,
-    generate_summary_findings
+    generate_summary_findings,
+    continuous_crypto_monitor
 )
-from crypto_hunter_web.utils.redis_client import redis_client
+from crypto_hunter_web.utils.redis_client_util import redis_client
+from crypto_hunter_web.services.celery_app import celery_app
+from crypto_hunter_web.tasks.maintenance_tasks import system_health_check
 
 logger = logging.getLogger(__name__)
+
+# Standalone functions for compatibility with imports
+def cleanup_old_tasks():
+    """Clean up old task records - standalone function that calls TaskRegistry method"""
+    return TaskRegistry.cleanup_old_tasks()
+
+# Re-export imported functions for compatibility
+# These are imported from other modules but need to be available here for imports
+
+# Re-export continuous_crypto_monitor from tasks.crypto_tasks
+# This is already imported above, just making it explicitly available
+__all__ = ['cleanup_old_tasks', 'continuous_crypto_monitor', 'system_health_check', 'manage_priority_queue']
+
+def manage_priority_queue(max_items: int = 10):
+    """
+    Manage priority queue for crypto analysis tasks
+    This is a placeholder implementation that uses BackgroundCryptoManager
+    """
+    logger.info(f"Managing priority queue with max_items={max_items}")
+    try:
+        # Use existing BackgroundCryptoManager functionality
+        # to process high-priority items
+        return BackgroundCryptoManager.start_continuous_analysis(
+            priority_threshold=7,  # Higher priority threshold
+            batch_size=max_items
+        )
+    except Exception as e:
+        logger.error(f"Error managing priority queue: {e}")
+        return 0
 
 
 class TaskRegistry:
     """Enhanced task registry for monitoring and coordination"""
-    
+
     ACTIVE_TASKS = "crypto_active_tasks"
     COMPLETED_TASKS = "crypto_completed_tasks"
     FAILED_TASKS = "crypto_failed_tasks"
     TASK_RESULTS = "crypto_task_results"
-    
+
     @staticmethod
     def register_task(task_id: str, file_id: int, task_type: str, metadata: Dict[str, Any] = None):
         """Register a new task"""
@@ -42,10 +74,10 @@ class TaskRegistry:
             'status': 'running',
             'metadata': metadata or {}
         }
-        
+
         redis_client.hset(TaskRegistry.ACTIVE_TASKS, task_id, json.dumps(task_data))
         redis_client.expire(TaskRegistry.ACTIVE_TASKS, 86400)  # 24 hour expiry
-        
+
         logger.info(f"Registered task {task_id} for file {file_id} ({task_type})")
 
     @staticmethod
@@ -58,15 +90,15 @@ class TaskRegistry:
             task_info['status'] = 'completed'
             task_info['completed_at'] = datetime.utcnow().isoformat()
             task_info['result'] = result
-            
+
             redis_client.hset(TaskRegistry.COMPLETED_TASKS, task_id, json.dumps(task_info))
             redis_client.hdel(TaskRegistry.ACTIVE_TASKS, task_id)
             redis_client.hset(TaskRegistry.TASK_RESULTS, task_id, json.dumps(result))
-            
+
             # Set expiry on results
             redis_client.expire(TaskRegistry.COMPLETED_TASKS, 86400)
             redis_client.expire(TaskRegistry.TASK_RESULTS, 86400)
-            
+
             logger.info(f"Completed task {task_id}")
 
     @staticmethod
@@ -78,12 +110,12 @@ class TaskRegistry:
             task_info['status'] = 'failed'
             task_info['failed_at'] = datetime.utcnow().isoformat()
             task_info['error'] = error
-            
+
             redis_client.hset(TaskRegistry.FAILED_TASKS, task_id, json.dumps(task_info))
             redis_client.hdel(TaskRegistry.ACTIVE_TASKS, task_id)
-            
+
             redis_client.expire(TaskRegistry.FAILED_TASKS, 86400)
-            
+
             logger.error(f"Failed task {task_id}: {error}")
 
     @staticmethod
@@ -93,17 +125,17 @@ class TaskRegistry:
         task_data = redis_client.hget(TaskRegistry.ACTIVE_TASKS, task_id)
         if task_data:
             return json.loads(task_data)
-        
+
         # Check completed tasks
         task_data = redis_client.hget(TaskRegistry.COMPLETED_TASKS, task_id)
         if task_data:
             return json.loads(task_data)
-        
+
         # Check failed tasks
         task_data = redis_client.hget(TaskRegistry.FAILED_TASKS, task_id)
         if task_data:
             return json.loads(task_data)
-        
+
         return None
 
     @staticmethod
@@ -119,7 +151,7 @@ class TaskRegistry:
             # Clean up tasks older than 24 hours
             cutoff_time = datetime.utcnow() - timedelta(hours=24)
             cutoff_str = cutoff_time.isoformat()
-            
+
             for registry in [TaskRegistry.ACTIVE_TASKS, TaskRegistry.COMPLETED_TASKS, TaskRegistry.FAILED_TASKS]:
                 task_ids = redis_client.hkeys(registry)
                 for task_id in task_ids:
@@ -129,7 +161,7 @@ class TaskRegistry:
                         if task_info.get('started_at', '') < cutoff_str:
                             redis_client.hdel(registry, task_id)
                             redis_client.hdel(TaskRegistry.TASK_RESULTS, task_id)
-            
+
             logger.info("Cleaned up old task records")
         except Exception as e:
             logger.error(f"Error cleaning up tasks: {e}")
@@ -137,7 +169,7 @@ class TaskRegistry:
 
 class BackgroundCryptoManager:
     """Enhanced background crypto analysis manager using chord coordination"""
-    
+
     @staticmethod
     def start_continuous_analysis(priority_threshold: int = 5, batch_size: int = 50):
         """Start background analysis for unprocessed files, using parallel task chords."""
@@ -159,22 +191,22 @@ class BackgroundCryptoManager:
             for file in unprocessed_files:
                 # Determine which analysis tasks to run based on file or global settings
                 analysis_tasks = []
-                
+
                 # Always include base pattern analysis (deep scan) for comprehensive coverage
                 analysis_tasks.append(crypto_pattern_deep_scan.s(file.id))
-                
+
                 # If the file might contain blockchain data or keys, include Ethereum analysis
                 analysis_tasks.append(ethereum_comprehensive_analysis.s(file.id))
-                
+
                 # Always include cipher analysis (it will internally skip if not applicable)
                 analysis_tasks.append(cipher_comprehensive_analysis.s(file.id))
-                
+
                 # Include hash cracking if any hash patterns were detected in initial scan
                 analysis_tasks.append(hash_cracking_analysis.s(file.id, []))
 
                 # Register each task for monitoring (task IDs will be available after delay)
                 chord_job = chord(analysis_tasks)(combine_analysis_results.s(file.id))
-                
+
                 # Register the chord job
                 TaskRegistry.register_task(
                     str(chord_job.id), 
@@ -182,7 +214,7 @@ class BackgroundCryptoManager:
                     'comprehensive_analysis_chord',
                     {'subtask_count': len(analysis_tasks)}
                 )
-                
+
                 count += 1
                 logger.info(f"Queued analysis chord for file {file.id} ({file.filename}) with {len(analysis_tasks)} tasks.")
 
@@ -284,7 +316,7 @@ class BackgroundCryptoManager:
             # Check active tasks for this file
             active_tasks = []
             task_ids = redis_client.hkeys(TaskRegistry.ACTIVE_TASKS)
-            
+
             for task_id in task_ids:
                 task_data = redis_client.hget(TaskRegistry.ACTIVE_TASKS, task_id)
                 if task_data:
@@ -355,7 +387,7 @@ class BackgroundCryptoManager:
             if completed_task_ids:
                 total_time = 0
                 time_count = 0
-                
+
                 for task_id in completed_task_ids[:100]:  # Sample last 100 tasks
                     task_data = redis_client.hget(TaskRegistry.COMPLETED_TASKS, task_id)
                     if task_data:
@@ -369,14 +401,14 @@ class BackgroundCryptoManager:
                                 time_count += 1
                             except:
                                 pass
-                
+
                 if time_count > 0:
                     stats['avg_analysis_time'] = total_time / time_count
 
             # Determine system health
             active_ratio = stats['active_tasks'] / max(1, stats['active_tasks'] + stats['completed_tasks'])
             failure_ratio = stats['failed_tasks'] / max(1, stats['completed_tasks'] + stats['failed_tasks'])
-            
+
             if failure_ratio > 0.2:
                 stats['system_health'] = 'critical'
             elif failure_ratio > 0.1 or active_ratio > 0.8:
@@ -446,10 +478,10 @@ class BackgroundCryptoManager:
                 db.session.add(content)
 
             db.session.commit()
-            
+
             # Trigger summary findings generation
             generate_summary_findings.delay(file_id, results)
-            
+
             logger.info(f"Stored background results for file {file_id}")
 
         except SQLAlchemyError as e:

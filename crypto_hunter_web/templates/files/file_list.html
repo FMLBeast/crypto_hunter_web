@@ -37,7 +37,7 @@
                 </p>
             </div>
             <div class="flex space-x-3">
-                <a href="{{ url_for('files.upload') }}" 
+                <a href="{{ url_for('files.upload_file') }}" 
                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium flex items-center">
                     <i class="fas fa-upload mr-2"></i>Upload Files
                 </a>
@@ -414,7 +414,7 @@
                             <i class="fas fa-chevron-left"></i>
                         </a>
                         {% endif %}
-                        
+
                         {% for page_num in files.iter_pages() %}
                             {% if page_num %}
                                 {% if page_num != files.page %}
@@ -433,7 +433,7 @@
                             </span>
                             {% endif %}
                         {% endfor %}
-                        
+
                         {% if files.has_next %}
                         <a href="{{ url_for('files.file_list', page=files.next_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
                            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
@@ -465,7 +465,7 @@
                     Clear Filters
                 </button>
                 {% endif %}
-                <a href="{{ url_for('files.upload') }}" 
+                <a href="{{ url_for('files.upload_file') }}" 
                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
                     Upload Files
                 </a>
@@ -516,7 +516,7 @@ function performMagicSearch() {
         showNotification('Enter a search query first', 'warning');
         return;
     }
-    
+
     showLoading();
     fetch('/api/search/magic', {
         method: 'POST',
@@ -550,7 +550,7 @@ function updateFilters() {
     const root = document.getElementById('filter-root').value;
     const dateFrom = document.getElementById('filter-date-from').value;
     const dateTo = document.getElementById('filter-date-to').value;
-    
+
     updateUrl({
         file_type: type,
         status: status,
@@ -668,7 +668,7 @@ function startBatchAnalysis() {
 function toggleSelectAll() {
     const selectAll = document.getElementById('select-all');
     const checkboxes = document.querySelectorAll('.file-checkbox');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAll.checked;
         if (selectAll.checked) {
@@ -677,14 +677,14 @@ function toggleSelectAll() {
             selectedFiles.delete(checkbox.value);
         }
     });
-    
+
     updateBulkActionsBar();
 }
 
 function updateBulkActionsBar() {
     const bar = document.getElementById('bulk-actions-bar');
     const count = document.getElementById('selected-count');
-    
+
     if (selectedFiles.size > 0) {
         bar.classList.remove('hidden');
         count.textContent = `${selectedFiles.size} files selected`;
@@ -702,7 +702,7 @@ function clearSelection() {
 
 function bulkAnalyze() {
     if (selectedFiles.size === 0) return;
-    
+
     if (confirm(`Start analysis for ${selectedFiles.size} selected files?`)) {
         showLoading();
         fetch('/api/analysis/bulk', {
@@ -733,14 +733,14 @@ function bulkAnalyze() {
 
 function bulkDownload() {
     if (selectedFiles.size === 0) return;
-    
+
     window.open('/api/files/bulk-download?' + 
                 Array.from(selectedFiles).map(id => `ids=${id}`).join('&'), '_blank');
 }
 
 function bulkDelete() {
     if (selectedFiles.size === 0) return;
-    
+
     if (confirm(`Delete ${selectedFiles.size} selected files? This action cannot be undone.`)) {
         showLoading();
         fetch('/api/files/bulk-delete', {
@@ -777,7 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
             performSearch();
         }
     });
-    
+
     // File selection
     document.querySelectorAll('.file-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
@@ -790,13 +790,13 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBulkActionsBar();
         });
     });
-    
+
     // Real-time search suggestions
     let searchTimeout;
     document.getElementById('hyperfast-search').addEventListener('input', function(e) {
         clearTimeout(searchTimeout);
         const query = e.target.value;
-        
+
         if (query.length > 2) {
             searchTimeout = setTimeout(() => {
                 fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`)

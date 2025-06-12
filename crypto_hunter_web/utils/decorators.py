@@ -120,8 +120,35 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
 
     return decorator
 
-def api_endpoint(*args, **kwargs):
+def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, require_auth=False):
+    """
+    Mark function as API endpoint with automatic JSON handling and CSRF protection
+
+    Args:
+        rate_limit_requests: Rate limit for this endpoint
+        cache_ttl: Cache timeout in seconds
+        csrf_exempt: Whether to exempt this endpoint from CSRF protection
+        require_auth: Whether to require authentication for this endpoint
+    """
     def decorator(f):
+        if csrf_exempt:
+            from flask_wtf.csrf import csrf_exempt as csrf_exempt_decorator
+            f = csrf_exempt_decorator(f)
+
+        # Apply authentication if required
+        if require_auth:
+            from flask_login import login_required
+            f = login_required(f)
+
+        # Apply rate limiting if specified
+        if rate_limit_requests:
+            rate_limit_str = f"{rate_limit_requests} per hour"
+            f = rate_limit(rate_limit_str)(f)
+
+        # Apply caching if specified
+        if cache_ttl:
+            f = cache_response(timeout=cache_ttl)(f)
+
         return f
 
     return decorator
@@ -723,6 +750,78 @@ def public_api(rate_limit_val: str = "1000 per hour"):
     return decorator
 
 
+def validate_json(schema=None, required_fields=None):
+    """
+    Validate JSON request data against a schema
+
+    Args:
+        schema: JSON schema to validate against
+        required_fields: List of required fields (alternative to schema)
+    """
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not request.is_json:
+                return jsonify({
+                    'error': 'JSON required',
+                    'message': 'Request must contain JSON data'
+                }), 400
+
+            try:
+                data = request.get_json()
+
+                # Create schema from required_fields if provided
+                if required_fields and not schema:
+                    schema = {'required': required_fields}
+
+                # Validate against schema if provided
+                if schema:
+                    # Simple schema validation
+                    if 'required' in schema:
+                        for field in schema['required']:
+                            if field not in data:
+                                return jsonify({
+                                    'error': 'Validation error',
+                                    'message': f'Missing required field: {field}'
+                                }), 400
+
+                    if 'properties' in schema:
+                        for field, field_schema in schema['properties'].items():
+                            if field in data and 'type' in field_schema:
+                                expected_type = field_schema['type']
+                                actual_value = data[field]
+
+                                # Type checking
+                                type_map = {
+                                    'string': str,
+                                    'integer': int,
+                                    'number': (int, float),
+                                    'boolean': bool,
+                                    'array': list,
+                                    'object': dict
+                                }
+
+                                if expected_type in type_map:
+                                    if not isinstance(actual_value, type_map[expected_type]):
+                                        return jsonify({
+                                            'error': 'Validation error',
+                                            'message': f'Field {field} must be of type {expected_type}'
+                                        }), 400
+
+                # Store validated data in g for easy access
+                g.json_data = data
+
+                return f(*args, **kwargs)
+
+            except Exception as e:
+                return jsonify({
+                    'error': 'JSON parsing error',
+                    'message': str(e)
+                }), 400
+
+        return decorated_function
+    return decorator
+
 # Export all decorators
 __all__ = [
     'rate_limit',
@@ -738,5 +837,6 @@ __all__ = [
     'handle_exceptions',
     'json_api',
     'public_api',
-    'RateLimitExceeded'
+    'RateLimitExceeded',
+    'validate_json'
 ]
