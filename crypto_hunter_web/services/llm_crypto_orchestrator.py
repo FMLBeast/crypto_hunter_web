@@ -17,7 +17,7 @@ import tiktoken
 from crypto_hunter_web.models import db
 from crypto_hunter_web.models import AnalysisFile, FileContent
 from crypto_hunter_web.models import Finding, Vector
-from crypto_hunter_web.services.background_crypto import celery_app
+from crypto_hunter_web.services.celery_app import celery_app
 
 
 class LLMProvider(Enum):

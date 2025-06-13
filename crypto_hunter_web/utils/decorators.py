@@ -123,7 +123,7 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
 
     return decorator
 
-def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, require_auth=False, require_json=False):
+def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, require_auth=False, require_json=False, endpoint=None):
     """
     Mark function as API endpoint with automatic JSON handling and CSRF protection
 
@@ -133,29 +133,49 @@ def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, re
         csrf_exempt: Whether to exempt this endpoint from CSRF protection
         require_auth: Whether to require authentication for this endpoint
         require_json: Whether request must contain JSON
+        endpoint: Custom endpoint name to use (defaults to function name)
     """
-    def decorator(f):
+    def wrapper(f):
+        # Create a decorated function that preserves the original function's attributes
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        # Apply decorators in order, preserving function attributes at each step
+        result = decorated_function
+
+        # Apply CSRF exemption if requested
         if csrf_exempt:
             from flask_wtf.csrf import csrf_exempt as csrf_exempt_decorator
-            f = csrf_exempt_decorator(f)
+            result = csrf_exempt_decorator(result)
 
         # Apply authentication if required
         if require_auth:
             from flask_login import login_required
-            f = login_required(f)
+            result = login_required(result)
 
         # Apply rate limiting if specified
         if rate_limit_requests:
             rate_limit_str = f"{rate_limit_requests} per hour"
-            f = rate_limit(rate_limit_str)(f)
+            result = rate_limit(rate_limit_str)(result)
 
         # Apply caching if specified
         if cache_ttl:
-            f = cache_response(timeout=cache_ttl)(f)
+            result = cache_response(timeout=cache_ttl)(result)
 
-        return f
+        # Ensure the final function has the same name and attributes as the original
+        functools.update_wrapper(result, f)
 
-    return decorator
+        # Preserve the endpoint name to avoid conflicts
+        result.__name__ = f.__name__
+
+        # Set a custom endpoint name if provided, but make it unique by including the original function name
+        if endpoint:
+            result.__name__ = f"{f.__name__}_{endpoint}"
+
+        return result
+
+    return wrapper
 
 
 def require_api_key(permissions: List[str] = None, optional: bool = False):

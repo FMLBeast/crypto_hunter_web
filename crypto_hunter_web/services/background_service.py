@@ -487,7 +487,12 @@ class BackgroundService:
 def tracked_task(*args, **kwargs):
     """Decorator to automatically track Celery tasks"""
     def decorator(func):
-        @celery_app.task(bind=True, *args, **kwargs)
+        # Avoid duplicate 'bind' parameter by removing it from kwargs if present
+        task_kwargs = kwargs.copy()
+        if 'bind' in task_kwargs:
+            del task_kwargs['bind']
+
+        @celery_app.task(bind=True, *args, **task_kwargs)
         def wrapper(self, *task_args, **task_kwargs):
             task_id = self.request.id
 

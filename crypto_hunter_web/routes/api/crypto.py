@@ -16,13 +16,13 @@ from crypto_hunter_web.utils.crypto_patterns import CryptoPatterns
 from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint
 from crypto_hunter_web.utils.validators import validate_sha256
 
-crypto_api_bp = Blueprint('crypto_api', __name__)
+crypto_api_bp = Blueprint('modern_crypto_api', __name__)
 
 
 @crypto_api_bp.route('/analyze/<sha>', methods=['POST'])
 @login_required
 @rate_limit("10 per minute")
-@api_endpoint
+@api_endpoint(endpoint="analyze_crypto_patterns_endpoint")
 def analyze_crypto_patterns(sha):
     """Comprehensive cryptocurrency and cryptographic pattern analysis"""
     if not validate_sha256(sha):
@@ -123,7 +123,7 @@ def analyze_crypto_patterns(sha):
 @crypto_api_bp.route('/patterns/search', methods=['POST'])
 @login_required
 @rate_limit("20 per minute")
-@api_endpoint
+@api_endpoint(endpoint="search_crypto_patterns_endpoint")
 def search_crypto_patterns():
     """Search for specific cryptocurrency patterns across all files"""
     try:
@@ -235,7 +235,7 @@ def search_crypto_patterns():
 @crypto_api_bp.route('/wallets/identify', methods=['POST'])
 @login_required
 @rate_limit("15 per minute")
-@api_endpoint
+@api_endpoint(endpoint="identify_wallet_addresses_endpoint")
 def identify_wallet_addresses():
     """Identify and analyze cryptocurrency wallet addresses"""
     try:

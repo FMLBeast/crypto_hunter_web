@@ -9,7 +9,7 @@ services:
       FLASK_ENV: development
       FLASK_DEBUG: 1
     volumes:
-      - .:/app
+      - ..:/app
     ports:
       - "8000:8000"
 
@@ -21,7 +21,7 @@ services:
       FLASK_ENV: development
       FLASK_DEBUG: 1
     volumes:
-      - .:/app
+      - ..:/app
 
   beat:
     build:
@@ -31,7 +31,7 @@ services:
       FLASK_ENV: development
       FLASK_DEBUG: 1
     volumes:
-      - .:/app
+      - ..:/app
 
   flower:
     build:
@@ -41,4 +41,4 @@ services:
       FLASK_ENV: development
       FLASK_DEBUG: 1
     volumes:
-      - .:/app
+      - ..:/app

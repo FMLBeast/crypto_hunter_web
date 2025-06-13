@@ -63,7 +63,7 @@ services:
 
   web:
     build:
-      context: .
+      context: ..
       target: production
     image: crypto-hunter:latest
     container_name: crypto-hunter-web
@@ -72,7 +72,7 @@ services:
     volumes:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
-      - ./instance:/app/instance
+      - ../instance:/app/instance
     networks:
       - crypto-hunter-network
     ports:
@@ -91,7 +91,7 @@ services:
 
   worker:
     build:
-      context: .
+      context: ..
       target: production
     image: crypto-hunter:latest
     container_name: crypto-hunter-worker
@@ -101,7 +101,7 @@ services:
     volumes:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
-      - ./instance:/app/instance
+      - ../instance:/app/instance
     networks:
       - crypto-hunter-network
     depends_on:
@@ -112,7 +112,7 @@ services:
 
   beat:
     build:
-      context: .
+      context: ..
       target: production
     image: crypto-hunter:latest
     container_name: crypto-hunter-beat
@@ -129,7 +129,7 @@ services:
 
   flower:
     build:
-      context: .
+      context: ..
       target: production
     image: crypto-hunter:latest
     container_name: crypto-hunter-flower

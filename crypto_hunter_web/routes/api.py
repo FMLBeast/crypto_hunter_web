@@ -15,7 +15,6 @@ from crypto_hunter_web.routes.background_api import background_api_bp
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.utils.decorators import rate_limit
 from crypto_hunter_web.utils.validators import validate_sha256
-from .crypto_api import crypto_api_bp
 from .llm_crypto_api import llm_crypto_api_bp
 from .search_api import search_api_bp
 
@@ -24,7 +23,6 @@ api_bp = Blueprint('api', __name__)
 
 # Register sub-blueprints
 api_bp.register_blueprint(background_api_bp, url_prefix='/background_api')
-api_bp.register_blueprint(crypto_api_bp, url_prefix='/crypto_api')
 api_bp.register_blueprint(llm_crypto_api_bp, url_prefix='/llm_crypto_api')
 api_bp.register_blueprint(search_api_bp, url_prefix='/search_api')
 
