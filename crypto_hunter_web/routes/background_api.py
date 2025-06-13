@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, session
 from datetime import datetime, timedelta
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.background_service import BackgroundService
-from crypto_hunter_web.models import db, AnalysisFile, Finding, User
+from crypto_hunter_web.models import db, AnalysisFile, Finding, User, FileStatus
 from crypto_hunter_web.utils.decorators import rate_limit
 import logging
 
@@ -74,7 +74,7 @@ def get_user_tasks():
 
         completed_tasks = []
         for file in recent_files:
-            if file.status == 'complete':
+            if file.status == FileStatus.COMPLETE:
                 completed_tasks.append({
                     'task_type': 'file_analysis',
                     'file_id': file.id,
@@ -375,12 +375,12 @@ def live_monitor():
         # Get file analysis progress
         analyzing_files = AnalysisFile.query.filter_by(
             created_by=user_id, 
-            status='analyzing'
+            status=FileStatus.PROCESSING
         ).count()
 
         pending_files = AnalysisFile.query.filter_by(
             created_by=user_id, 
-            status='pending'
+            status=FileStatus.PENDING
         ).count()
 
         # Recent findings (last hour)

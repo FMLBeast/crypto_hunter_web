@@ -8,6 +8,7 @@ from crypto_hunter_web.models import db
 from crypto_hunter_web.models import AnalysisFile, FileContent
 from crypto_hunter_web.models import Finding, Vector
 from crypto_hunter_web.models import User
+from crypto_hunter_web.models import FileStatus, FindingStatus
 from crypto_hunter_web.utils.decorators import rate_limit
 from crypto_hunter_web.utils.validators import validate_sha256
 import json
@@ -190,8 +191,8 @@ def system_status():
     try:
         # Get basic stats
         total_files = AnalysisFile.query.count()
-        analyzed_files = AnalysisFile.query.filter_by(status='complete').count()
-        pending_files = AnalysisFile.query.filter_by(status='pending').count()
+        analyzed_files = AnalysisFile.query.filter_by(status=FileStatus.COMPLETE).count()
+        pending_files = AnalysisFile.query.filter_by(status=FileStatus.PENDING).count()
         root_files = AnalysisFile.query.filter_by(is_root_file=True).count()
 
         # Get recent activity
@@ -202,7 +203,7 @@ def system_status():
         # Get finding stats
         from crypto_hunter_web import Finding
         total_findings = Finding.query.count()
-        verified_findings = Finding.query.filter_by(status='verified').count()
+        verified_findings = Finding.query.filter_by(status=FindingStatus.CONFIRMED).count()
 
         return jsonify({
             'success': True,

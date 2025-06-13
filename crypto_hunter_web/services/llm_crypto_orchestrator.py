@@ -415,7 +415,7 @@ Format as JSON with sections: confidence, findings, recommendations, follow_up_s
 Analyze this content for steganographic techniques and hidden messages:
 
 Content:{content[:1500]}
-            
+
 Focus on:
 1. LSB steganography indicators in data patterns
 2. Text-based hiding techniques (whitespace, invisible characters)
@@ -431,7 +431,7 @@ Provide specific extraction methods and tools to use.
 Deep Ethereum blockchain analysis of this content:
 
 Content:{content[:1500]}
-            
+
 Ethereum patterns detected: {existing_analysis.get('ethereum_analysis', {})}
 
 Analyze for:
@@ -450,7 +450,7 @@ Provide actionable steps for key recovery or address generation.
 Classical and modern cipher analysis for this content:
 
 Content:{content[:1500]}
-            
+
 Analyze for:
 1. Caesar cipher with optimal shift detection
 2. Vigenère cipher with key length analysis
@@ -466,7 +466,7 @@ Provide specific decryption approaches and parameter recommendations.
 Quick scan for obvious crypto patterns and immediate wins:
 
 Content:{content[:1000]}
-            
+
 Look for:
 1. Base64 encoded strings
 2. Hex patterns
@@ -532,6 +532,182 @@ Provide quick actionable steps and confidence scores.
 
         return parsed
 
+    def extract_with_llm(self, file_id: int, content_preview: str, extraction_method: str, parameters: Dict) -> Dict[str, Any]:
+        """Use LLM to orchestrate extraction using the specified method
+
+        Args:
+            file_id: ID of the file to extract from
+            content_preview: Preview of the file content
+            extraction_method: Extraction method to use
+            parameters: Parameters for the extraction method
+
+        Returns:
+            Dictionary with extraction results
+        """
+        # Generate content hash for caching
+        content_hash = hashlib.sha256(content_preview.encode()).hexdigest()[:16]
+        cache_key = f"llm_extraction_{file_id}_{extraction_method}_{content_hash}"
+
+        if cache_key in self.response_cache:
+            return self.response_cache[cache_key]
+
+        # Create extraction prompt
+        extraction_prompt = self._create_extraction_prompt(content_preview, extraction_method, parameters)
+
+        # Use GPT-4 for extraction orchestration (high value task)
+        provider = LLMProvider.OPENAI_GPT4
+        estimated_cost = self.cost_manager.estimate_cost(provider, extraction_prompt, 800)
+
+        # Check budget
+        can_afford, budget_msg = self.cost_manager.check_budget(estimated_cost)
+        if not can_afford:
+            return {
+                'success': False,
+                'error': f'Budget limit exceeded: {budget_msg}',
+                'extraction_method': extraction_method,
+                'llm_orchestrated': True
+            }
+
+        try:
+            # Get LLM response
+            start_time = time.time()
+            response = self._get_llm_response(provider, extraction_prompt)
+            processing_time = time.time() - start_time
+
+            # Track cost
+            tokens_used = self._count_tokens(extraction_prompt) + self._count_tokens(response)
+            actual_cost = self.cost_manager.calculate_cost(provider, tokens_used)
+            self.cost_manager.record_cost(provider, actual_cost)
+
+            # Parse extraction guidance
+            extraction_guidance = self._parse_extraction_guidance(response, extraction_method)
+
+            # Get the actual extractor
+            from crypto_hunter_web.services.extractors import get_extractor
+            extractor = get_extractor(extraction_method)
+
+            if not extractor:
+                return {
+                    'success': False,
+                    'error': f'Unknown extraction method: {extraction_method}',
+                    'llm_guidance': extraction_guidance,
+                    'llm_orchestrated': True,
+                    'cost': actual_cost
+                }
+
+            # Apply LLM-optimized parameters
+            optimized_parameters = {**parameters, **extraction_guidance.get('parameters', {})}
+
+            # Perform extraction with LLM-optimized parameters
+            file = AnalysisFile.query.get(file_id)
+            result = extractor.extract(file.filepath, optimized_parameters)
+
+            # Enhance result with LLM analysis
+            enhanced_result = {
+                'success': result.get('success', False),
+                'data': result.get('data', b''),
+                'error': result.get('error', ''),
+                'details': result.get('details', ''),
+                'command_line': result.get('command_line', ''),
+                'confidence': result.get('confidence', 0),
+                'llm_orchestrated': True,
+                'llm_guidance': extraction_guidance,
+                'extraction_method': extraction_method,
+                'optimized_parameters': optimized_parameters,
+                'analysis_cost': actual_cost,
+                'processing_time': processing_time,
+                'provider': provider.value,
+                'model_used': 'gpt-4',
+                'analysis_results': [{
+                    'strategy': 'llm_extraction',
+                    'provider': provider.value,
+                    'confidence_score': 8.5,
+                    'cost': actual_cost,
+                    'findings': extraction_guidance.get('findings', []),
+                    'recommendations': extraction_guidance.get('recommendations', [])
+                }]
+            }
+
+            # Cache successful results
+            self.response_cache[cache_key] = enhanced_result
+
+            return enhanced_result
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'LLM extraction failed: {str(e)}',
+                'extraction_method': extraction_method,
+                'llm_orchestrated': True
+            }
+
+    def _create_extraction_prompt(self, content_preview: str, extraction_method: str, parameters: Dict) -> str:
+        """Create prompt for extraction guidance"""
+        return f"""
+You are an expert in digital forensics and steganography extraction. Your task is to guide the extraction process 
+for a file using the '{extraction_method}' method.
+
+File content preview:
+```
+{content_preview[:1500]}
+```
+
+Current extraction parameters:
+```
+{json.dumps(parameters, indent=2)}
+```
+
+Your task:
+1. Analyze the file content preview
+2. Determine optimal parameters for the '{extraction_method}' extraction method
+3. Provide guidance on how to extract hidden data effectively
+
+Respond with a JSON object containing:
+- "analysis": Your analysis of the file content
+- "parameters": Optimized parameters for the extraction method
+- "findings": List of potential findings based on content analysis
+- "recommendations": List of recommendations for further analysis
+- "confidence": Confidence score (0-10) that this extraction will succeed
+
+Only respond with valid JSON. Do not include any other text.
+"""
+
+    def _parse_extraction_guidance(self, llm_response: str, extraction_method: str) -> Dict:
+        """Parse LLM response for extraction guidance"""
+        try:
+            # Try to parse as JSON
+            guidance = json.loads(llm_response)
+            return guidance
+        except json.JSONDecodeError:
+            # If not valid JSON, extract structured information
+            guidance = {
+                'analysis': 'LLM response parsing failed',
+                'parameters': {},
+                'findings': [],
+                'recommendations': [f'Try manual extraction with {extraction_method}'],
+                'confidence': 3.0
+            }
+
+            # Try to extract parameters section
+            param_match = re.search(r'"parameters"\s*:\s*({[^}]+})', llm_response)
+            if param_match:
+                try:
+                    params_str = param_match.group(1)
+                    # Fix common JSON formatting issues
+                    params_str = re.sub(r'(\w+):', r'"\1":', params_str)
+                    params_str = params_str.replace("'", '"')
+                    guidance['parameters'] = json.loads(params_str)
+                except:
+                    pass
+
+            # Extract findings
+            findings_match = re.search(r'"findings"\s*:\s*\[(.*?)\]', llm_response, re.DOTALL)
+            if findings_match:
+                findings_str = findings_match.group(1)
+                guidance['findings'] = [f.strip().strip('"\'') for f in findings_str.split(',') if f.strip()]
+
+            return guidance
+
     def _generate_final_recommendations(self, analysis_results: List[Dict]) -> List[str]:
         """Generate final recommendations from all analysis results"""
 
@@ -555,8 +731,18 @@ Provide quick actionable steps and confidence scores.
 
 # Background Tasks Integration
 @celery_app.task(bind=True, max_retries=2)
-def llm_orchestrated_analysis(self, file_id: int):
-    """LLM-orchestrated analysis background task"""
+def llm_orchestrated_analysis(self, file_id: int, extraction_method=None, parameters=None, provider=None, model=None, focus_areas=None, force_reanalysis=False):
+    """LLM-orchestrated analysis background task
+
+    Args:
+        file_id: ID of the file to analyze
+        extraction_method: Optional extraction method to use (for extraction mode)
+        parameters: Optional parameters for extraction
+        provider: Optional LLM provider to use
+        model: Optional LLM model to use
+        focus_areas: Optional focus areas for analysis
+        force_reanalysis: Whether to force reanalysis
+    """
 
     try:
         file = AnalysisFile.query.get(file_id)
@@ -589,13 +775,38 @@ def llm_orchestrated_analysis(self, file_id: int):
 
         # Perform LLM-guided analysis
         content_preview = content.decode('utf-8', errors='ignore')
-        llm_results = orchestrator.analyze_file_with_llm(file_id, content_preview, existing_analysis)
+
+        # If extraction_method is provided, use extraction mode
+        if extraction_method:
+            self.update_state(state='PROGRESS', meta={
+                'stage': 'llm_extraction', 
+                'progress': 40,
+                'extraction_method': extraction_method
+            })
+
+            # Perform LLM-guided extraction
+            llm_results = orchestrator.extract_with_llm(
+                file_id, 
+                content_preview, 
+                extraction_method, 
+                parameters or {}
+            )
+        else:
+            # Regular analysis mode
+            llm_results = orchestrator.analyze_file_with_llm(
+                file_id, 
+                content_preview, 
+                existing_analysis,
+                provider=provider,
+                model=model,
+                focus_areas=focus_areas
+            )
 
         self.update_state(state='PROGRESS', meta={'stage': 'processing_results', 'progress': 80})
 
         # Create findings for high-confidence discoveries
-        for result in llm_results['analysis_results']:
-            if result['confidence_score'] >= 8:
+        for result in llm_results.get('analysis_results', []):
+            if result.get('confidence_score', 0) >= 8:
                 create_llm_finding.delay(file_id, result)
 
         # Store LLM analysis results

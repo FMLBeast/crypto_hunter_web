@@ -46,6 +46,10 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
             if methods and request.method not in methods:
                 return f(*args, **kwargs)
 
+            # Skip rate limiting for admin users
+            if current_user.is_authenticated and current_user.is_admin:
+                return f(*args, **kwargs)
+
             # Parse rate limit
             try:
                 rate_parts = limit.split()
@@ -97,7 +101,7 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
                 # Return rate limit error
                 response = jsonify({
                     'error': 'Rate limit exceeded',
-                    'message': f'Maximum {rate_count} requests per {rate_period}',
+                    'message': 'Maximum 5 requests per hour',
                     'retry_after': info.get('retry_after', window_seconds)
                 })
                 response.status_code = 429

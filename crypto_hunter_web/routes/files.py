@@ -13,6 +13,7 @@ import mimetypes
 from pathlib import Path
 import tempfile
 import shutil
+import uuid
 
 from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, Vector, User, AuditLog, FileStatus, FindingStatus, BulkImport
 from crypto_hunter_web.services.file_service import FileService
@@ -115,8 +116,32 @@ def dashboard():
             'queue_size': FileService.get_queue_size()
         }
 
-        return render_template('files/dashboard.html',
+        # Calculate additional variables needed by the template
+        total_files = stats['total_files']
+        complete_files = stats['analyzed_files']
+        analyzing_files = stats['pending_files']
+        progress_percentage = (complete_files / total_files * 100) if total_files > 0 else 0
+
+        # Get system status and active tasks
+        system_status = {}
+        active_tasks = []
+        try:
+            # Get system status which includes worker info, task counts, etc.
+            system_status = BackgroundService.get_system_status()
+
+            # Try to get active tasks from the background service
+            active_tasks = BackgroundService.get_active_tasks()
+        except Exception as e:
+            current_app.logger.warning(f"Could not get system status or active tasks: {e}")
+
+        return render_template('dashboard/index.html',
                                stats=stats,
+                               total_files=total_files,
+                               complete_files=complete_files,
+                               analyzing_files=analyzing_files,
+                               progress_percentage=progress_percentage,
+                               active_tasks=active_tasks,
+                               system_status=system_status,
                                recent_files=recent_files,
                                recent_findings=recent_findings,
                                chart_data=json.dumps(chart_data),
@@ -127,7 +152,17 @@ def dashboard():
     except Exception as e:
         current_app.logger.error(f"Dashboard error: {e}", exc_info=True)
         flash('Error loading dashboard. Please try again.', 'error')
-        return render_template('files/dashboard.html', stats={}, recent_files=[], recent_findings=[])
+        # Provide default values for all required template variables
+        return render_template('dashboard/index.html', 
+                              stats={}, 
+                              total_files=0, 
+                              complete_files=0, 
+                              analyzing_files=0, 
+                              progress_percentage=0, 
+                              active_tasks=[], 
+                              system_status={},
+                              recent_files=[], 
+                              recent_findings=[])
 
 
 @files_bp.route('/list')
@@ -341,7 +376,12 @@ def upload_file():
                           .filter(AnalysisFile.created_by == current_user.id).scalar() or 0
     }
 
-    return render_template('files/upload.html', upload_stats=upload_stats)
+    # Get recent uploads for the user
+    recent_uploads = db.session.query(AnalysisFile).filter(
+        AnalysisFile.created_by == current_user.id
+    ).order_by(db.desc(AnalysisFile.created_at)).limit(10).all()
+
+    return render_template('files/upload.html', upload_stats=upload_stats, recent_uploads=recent_uploads)
 
 
 @files_bp.route('/<sha>/details')
@@ -791,6 +831,90 @@ def bulk_actions():
         return jsonify({'error': 'Bulk action failed'}), 500
 
 
+@files_bp.route('/preview_csv', methods=['POST'])
+@login_required
+@rate_limit("10 per minute")
+def preview_csv():
+    """Preview CSV file contents without importing"""
+    try:
+        # Check if CSV file was uploaded
+        if 'csv_file' not in request.files:
+            return jsonify({'error': 'No CSV file selected'}), 400
+
+        csv_file = request.files['csv_file']
+        if csv_file.filename == '':
+            return jsonify({'error': 'No CSV file selected'}), 400
+
+        # Validate file extension
+        if not csv_file.filename.lower().endswith('.csv'):
+            return jsonify({'error': 'File must be a CSV file'}), 400
+
+        # Read the CSV file
+        csv_content = csv_file.read().decode('utf-8')
+
+        # Parse CSV
+        import csv
+        import io
+
+        # First pass: count total rows and validate format
+        csv_reader = csv.reader(io.StringIO(csv_content))
+
+        # Skip header row
+        try:
+            header = next(csv_reader, None)
+        except Exception as e:
+            return jsonify({'error': f'Invalid CSV format: {str(e)}'}), 400
+
+        if not header:
+            return jsonify({'error': 'Empty CSV file'}), 400
+
+        # Count total rows
+        total_rows = sum(1 for _ in csv_reader)
+
+        # Reset for second pass
+        io.StringIO(csv_content).seek(0)
+        csv_reader = csv.reader(io.StringIO(csv_content))
+
+        # Skip header again
+        next(csv_reader, None)
+
+        # Get sample rows (first 100)
+        sample_size = min(100, total_rows)
+        sample_rows = []
+
+        for i, row in enumerate(csv_reader):
+            if i >= sample_size:
+                break
+
+            if len(row) < 1 or not row[0]:
+                continue
+
+            file_path = row[0]
+            file_name = os.path.basename(file_path)
+
+            # Get additional info if available
+            file_type = row[1] if len(row) > 1 and row[1] else "Unknown"
+            file_size = row[2] if len(row) > 2 and row[2] else "Unknown"
+
+            sample_rows.append({
+                'file_path': file_path,
+                'file_name': file_name,
+                'file_type': file_type,
+                'file_size': file_size
+            })
+
+        return jsonify({
+            'success': True,
+            'total_files': total_rows,
+            'sample_files': sample_rows,
+            'sample_size': len(sample_rows)
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"CSV preview error: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to preview CSV file'}), 500
+
+
 @files_bp.route('/bulk_import', methods=['GET', 'POST'])
 @login_required
 @rate_limit("5 per hour")
@@ -824,149 +948,132 @@ def bulk_import():
                 priority = 5
 
             # Create a bulk import record
-            bulk_import = BulkImport(
-                import_type='files',
-                status='processing',
-                source_file=csv_file.filename,
-                file_size=0,  # Will be updated later
-                created_by=current_user.id
-            )
-            db.session.add(bulk_import)
-            db.session.commit()
+            try:
+                # Try to create a BulkImport record with minimal fields to avoid issues with missing columns
+                bulk_import = BulkImport(
+                    import_type='files',
+                    status='pending',
+                    source_file=csv_file.filename,
+                    file_size=0,  # Will be updated later
+                    created_by=current_user.id
+                )
+                db.session.add(bulk_import)
+                db.session.commit()
+            except Exception as e:
+                # If there's an error (like missing columns), log it and try a more explicit approach
+                current_app.logger.warning(f"Error creating BulkImport: {e}")
+                db.session.rollback()
 
-            # Process the CSV file
-            import csv
-            import io
+                # Create a new record with explicit column insertion to avoid missing columns
+                stmt = db.text("""
+                    INSERT INTO bulk_imports 
+                    (public_id, import_type, status, source_file, file_size, created_by, created_at, updated_at) 
+                    VALUES (:public_id, :import_type, :status, :source_file, :file_size, :created_by, :created_at, :updated_at)
+                    RETURNING id
+                """)
+
+                now = datetime.utcnow()
+                result = db.session.execute(stmt, {
+                    'public_id': str(uuid.uuid4()),
+                    'import_type': 'files',
+                    'status': 'pending',
+                    'source_file': csv_file.filename,
+                    'file_size': 0,
+                    'created_by': current_user.id,
+                    'created_at': now,
+                    'updated_at': now
+                })
+
+                # Get the ID of the newly created record
+                bulk_import_id = result.scalar()
+
+                # Fetch the record using a raw SQL query to avoid including task_id column
+                stmt = db.text("""
+                    SELECT id, public_id, import_type, status, total_items, processed_items, 
+                           successful_items, failed_items, error_message, error_details,
+                           source_file, file_size, file_hash, created_by, created_at, updated_at, completed_at
+                    FROM bulk_imports
+                    WHERE id = :id
+                """)
+                result = db.session.execute(stmt, {'id': bulk_import_id}).fetchone()
+
+                # Create a BulkImport object manually
+                bulk_import = BulkImport(
+                    id=result[0],
+                    public_id=result[1],
+                    import_type=result[2],
+                    status=result[3],
+                    total_items=result[4],
+                    processed_items=result[5],
+                    successful_items=result[6],
+                    failed_items=result[7],
+                    error_message=result[8],
+                    error_details=result[9],
+                    source_file=result[10],
+                    file_size=result[11],
+                    file_hash=result[12],
+                    created_by=result[13],
+                    created_at=result[14],
+                    updated_at=result[15],
+                    completed_at=result[16]
+                )
+                db.session.commit()
 
             # Read the CSV file
             csv_content = csv_file.read().decode('utf-8')
-            csv_file.seek(0)  # Reset file pointer for potential future use
 
             # Update file size
             bulk_import.file_size = len(csv_content)
             db.session.commit()
 
-            # Parse CSV
-            csv_reader = csv.reader(io.StringIO(csv_content))
+            # Prepare options for the background task
+            options = {
+                'priority': priority,
+                'auto_analyze': auto_analyze,
+                'notes': notes,
+                'tags': tags
+            }
 
-            # Count total items
-            total_items = sum(1 for _ in csv_reader) - 1  # Subtract header row
-            io.StringIO(csv_content).seek(0)  # Reset the StringIO object
-            csv_reader = csv.reader(io.StringIO(csv_content))
+            # Queue the CSV processing task
+            from crypto_hunter_web.tasks.analysis_tasks import process_csv_bulk_import
+            task = process_csv_bulk_import.delay(bulk_import.id, csv_content, options)
 
-            bulk_import.total_items = total_items
-            db.session.commit()
+            # Track the task
+            BackgroundService.track_task(
+                task_id=task.id,
+                task_type='bulk_import',
+                file_id=0,  # No specific file ID for bulk import
+                user_id=current_user.id,
+                metadata={
+                    'bulk_import_id': bulk_import.id,
+                    'filename': csv_file.filename,
+                    'options': options
+                }
+            )
 
-            # Skip header row
-            next(csv_reader, None)
-
-            # Process each row
-            processed_items = 0
-            successful_items = 0
-            failed_items = 0
-            errors = []
-
-            for row in csv_reader:
-                processed_items += 1
-
-                try:
-                    if len(row) < 1:
-                        continue
-
-                    file_path = row[0]
-
-                    # Skip if file path is empty
-                    if not file_path:
-                        continue
-
-                    # Validate file path
-                    if not os.path.exists(file_path):
-                        failed_items += 1
-                        errors.append(f"File not found: {file_path}")
-                        continue
-
-                    # Create a FileStorage object
-                    with open(file_path, 'rb') as f:
-                        file_content = f.read()
-
-                    file_name = os.path.basename(file_path)
-                    file_storage = FileStorage(
-                        stream=io.BytesIO(file_content),
-                        filename=file_name,
-                        content_type=mimetypes.guess_type(file_name)[0]
-                    )
-
-                    # Validate file
-                    if not FileService.validate_upload(file_storage):
-                        failed_items += 1
-                        errors.append(f"{file_name}: Invalid file type or size")
-                        continue
-
-                    # Process upload
-                    result = FileService.process_upload(
-                        file=file_storage,
-                        user_id=current_user.id,
-                        priority=priority,
-                        is_root_file=True,
-                        notes=notes,
-                        tags=tags
-                    )
-
-                    if result['success']:
-                        successful_items += 1
-
-                        # Queue for analysis if requested
-                        if auto_analyze:
-                            from crypto_hunter_web.services.background_service import BackgroundService
-                            BackgroundService.queue_analysis(result['file'].id)
-                    else:
-                        failed_items += 1
-                        errors.append(f"{file_name}: {result['error']}")
-
-                except Exception as e:
-                    current_app.logger.error(f"Bulk import error for row {processed_items}: {e}")
-                    failed_items += 1
-                    errors.append(f"Row {processed_items}: {str(e)}")
-
-                # Update progress
-                bulk_import.processed_items = processed_items
-                bulk_import.successful_items = successful_items
-                bulk_import.failed_items = failed_items
+            # Update bulk import with task ID if the column exists
+            try:
+                bulk_import.task_id = task.id
                 db.session.commit()
+            except Exception as e:
+                # If the task_id column doesn't exist, log the error but continue
+                current_app.logger.warning(f"Could not update task_id: {e}")
+                db.session.rollback()
 
-            # Update bulk import record
-            bulk_import.status = 'completed'
-            bulk_import.completed_at = datetime.utcnow()
-            bulk_import.error_details = {'errors': errors} if errors else {}
-            db.session.commit()
+            # Log action
+            AuditLog.log_action(
+                user_id=current_user.id,
+                action='bulk_import_started',
+                description=f'Started bulk import from {csv_file.filename}',
+                metadata={
+                    'bulk_import_id': bulk_import.id,
+                    'task_id': task.id,
+                    'options': options
+                }
+            )
 
-            # Show results
-            if successful_items > 0:
-                flash(f"Successfully imported {successful_items} file(s)", 'success')
-
-                if auto_analyze:
-                    flash(f"Files queued for analysis", 'info')
-
-                # Log successful imports
-                AuditLog.log_action(
-                    user_id=current_user.id,
-                    action='files_bulk_imported',
-                    description=f'Bulk imported {successful_items} files',
-                    metadata={
-                        'file_count': successful_items,
-                        'failed_count': failed_items,
-                        'auto_analyze': auto_analyze
-                    }
-                )
-
-            if failed_items > 0:
-                flash(f"Failed to import {failed_items} file(s)", 'error')
-                for error in errors[:10]:  # Show only first 10 errors
-                    flash(error, 'error')
-                if len(errors) > 10:
-                    flash(f"... and {len(errors) - 10} more errors", 'error')
-
-            return redirect(url_for('files.file_list'))
+            flash(f"Bulk import from {csv_file.filename} has been queued for processing. You can check the status on this page.", 'info')
+            return redirect(url_for('files.bulk_import'))
 
         except Exception as e:
             current_app.logger.error(f"Bulk import error: {e}", exc_info=True)
@@ -975,16 +1082,42 @@ def bulk_import():
     # Get upload statistics for display
     upload_stats = {
         'max_file_size': current_app.config.get('MAX_CONTENT_LENGTH', 1073741824),
-        'allowed_extensions': list(current_app.config.get('ALLOWED_EXTENSIONS', set())),
-        'total_files': current_user.created_files.count(),
-        'total_size': db.session.query(db.func.sum(AnalysisFile.file_size)) \
-                          .filter(AnalysisFile.created_by == current_user.id).scalar() or 0
+        'allowed_extensions': list(current_app.config.get('ALLOWED_EXTENSIONS', set()))
     }
 
+    # Use a new session for these queries to avoid PendingRollbackError
+    try:
+        # Count total files created by user
+        total_files = db.session.query(db.func.count(AnalysisFile.id)) \
+                        .filter(AnalysisFile.created_by == current_user.id).scalar() or 0
+
+        # Get total size of files created by user
+        total_size = db.session.query(db.func.sum(AnalysisFile.file_size)) \
+                        .filter(AnalysisFile.created_by == current_user.id).scalar() or 0
+
+        upload_stats['total_files'] = total_files
+        upload_stats['total_size'] = total_size
+    except Exception as e:
+        # If there's an error, log it and set default values
+        current_app.logger.warning(f"Error getting upload stats: {e}")
+        upload_stats['total_files'] = 0
+        upload_stats['total_size'] = 0
+        # Ensure session is rolled back
+        db.session.rollback()
+
     # Get recent imports
-    recent_imports = BulkImport.query.filter_by(created_by=current_user.id) \
-                              .order_by(BulkImport.created_at.desc()) \
-                              .limit(5).all()
+    # Using specific column selection to avoid querying non-existent columns
+    recent_imports = db.session.query(
+        BulkImport.id, BulkImport.public_id, BulkImport.import_type, 
+        BulkImport.status, BulkImport.total_items, BulkImport.processed_items,
+        BulkImport.successful_items, BulkImport.failed_items,
+        BulkImport.error_message, BulkImport.error_details,
+        BulkImport.source_file, BulkImport.file_size, BulkImport.file_hash,
+        BulkImport.created_by, BulkImport.created_at, BulkImport.updated_at,
+        BulkImport.completed_at
+    ).filter_by(created_by=current_user.id) \
+     .order_by(BulkImport.created_at.desc()) \
+     .limit(5).all()
 
     return render_template('files/bulk_import.html', upload_stats=upload_stats, recent_imports=recent_imports)
 

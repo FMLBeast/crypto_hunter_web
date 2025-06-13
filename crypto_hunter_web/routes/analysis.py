@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc, and_, or_
 from typing import Optional,Dict, Any
-from crypto_hunter_web.models import db, AnalysisFile, Finding, Vector, User, FileContent
+from crypto_hunter_web.models import db, AnalysisFile, Finding, Vector, User, FileContent, FileStatus
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.utils.validators import validate_sha256
 
@@ -509,8 +509,8 @@ def analysis_stats():
 
         # File analysis statistics
         total_files = AnalysisFile.query.count()
-        analyzed_files = AnalysisFile.query.filter(AnalysisFile.status == 'complete').count()
-        pending_files = AnalysisFile.query.filter(AnalysisFile.status == 'pending').count()
+        analyzed_files = AnalysisFile.query.filter(AnalysisFile.status == FileStatus.COMPLETE).count()
+        pending_files = AnalysisFile.query.filter(AnalysisFile.status == FileStatus.PENDING).count()
 
         # Finding statistics
         total_findings = Finding.query.count()

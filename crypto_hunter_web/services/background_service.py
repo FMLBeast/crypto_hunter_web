@@ -12,21 +12,21 @@ from celery.result import AsyncResult
 from sqlalchemy import desc
 
 from crypto_hunter_web.extensions import redis_client
-from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User
+from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User, FileStatus
 from crypto_hunter_web.services.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 class BackgroundService:
     """Real background service for monitoring analysis tasks"""
-    
+
     # Redis keys for task tracking
     ACTIVE_TASKS_KEY = "crypto_hunter:active_tasks"
     USER_TASKS_KEY = "crypto_hunter:user_tasks:{user_id}"
     FILE_TASKS_KEY = "crypto_hunter:file_tasks:{file_id}"
     TASK_STATUS_KEY = "crypto_hunter:task_status:{task_id}"
     TASK_RESULTS_KEY = "crypto_hunter:task_results:{task_id}"
-    
+
     @classmethod
     def track_task(cls, task_id: str, task_type: str, file_id: int, user_id: int, metadata: Dict = None):
         """Track a background task in Redis"""
@@ -83,7 +83,7 @@ class BackgroundService:
             # Get existing task info
             task_key = cls.TASK_STATUS_KEY.format(task_id=task_id)
             existing_data = redis_client.get(task_key)
-            
+
             if existing_data:
                 task_info = json.loads(existing_data)
             else:
@@ -120,7 +120,7 @@ class BackgroundService:
         try:
             # Get Celery task result
             celery_result = AsyncResult(task_id, app=celery_app)
-            
+
             task_data = {
                 'task_id': task_id,
                 'state': celery_result.state,
@@ -139,7 +139,7 @@ class BackgroundService:
             if redis_client.client:
                 redis_key = cls.TASK_STATUS_KEY.format(task_id=task_id)
                 redis_data = redis_client.get(redis_key)
-                
+
                 if redis_data:
                     redis_info = json.loads(redis_data)
                     task_data.update({
@@ -173,14 +173,14 @@ class BackgroundService:
 
             user_key = cls.USER_TASKS_KEY.format(user_id=user_id)
             task_ids = redis_client.client.lrange(user_key, 0, 20)
-            
+
             tasks = []
             for task_id in task_ids:
                 task_id = task_id.decode('utf-8') if isinstance(task_id, bytes) else task_id
-                
+
                 # Get task status
                 task_info = cls.get_task_status(task_id)
-                
+
                 # Only include active tasks
                 if task_info['state'] in ['PENDING', 'PROGRESS', 'RETRY']:
                     tasks.append(task_info)
@@ -200,7 +200,7 @@ class BackgroundService:
 
             file_key = cls.FILE_TASKS_KEY.format(file_id=file_id)
             task_ids = redis_client.client.lrange(file_key, 0, 10)
-            
+
             tasks = []
             for task_id in task_ids:
                 task_id = task_id.decode('utf-8') if isinstance(task_id, bytes) else task_id
@@ -221,7 +221,7 @@ class BackgroundService:
             inspect = celery_app.control.inspect()
             stats = inspect.stats()
             active_tasks = inspect.active()
-            
+
             # Redis task counts
             active_count = 0
             if redis_client.client:
@@ -229,9 +229,9 @@ class BackgroundService:
 
             # Database stats
             total_files = AnalysisFile.query.count()
-            analyzing_files = AnalysisFile.query.filter_by(status='analyzing').count()
-            pending_files = AnalysisFile.query.filter_by(status='pending').count()
-            
+            analyzing_files = AnalysisFile.query.filter_by(status=FileStatus.PROCESSING).count()
+            pending_files = AnalysisFile.query.filter_by(status=FileStatus.PENDING).count()
+
             return {
                 'workers': {
                     'online': len(stats) if stats else 0,
@@ -270,10 +270,10 @@ class BackgroundService:
 
             # Cancel in Celery
             celery_app.control.revoke(task_id, terminate=True)
-            
+
             # Update status in Redis
             cls.update_task_status(task_id, 'cancelled')
-            
+
             logger.info(f"Task {task_id} cancelled by user {user_id}")
             return True
 
@@ -293,19 +293,19 @@ class BackgroundService:
 
             # Get all active task IDs
             active_task_ids = redis_client.client.smembers(cls.ACTIVE_TASKS_KEY)
-            
+
             cleaned_count = 0
             for task_id in active_task_ids:
                 task_id = task_id.decode('utf-8') if isinstance(task_id, bytes) else task_id
-                
+
                 # Get task info
                 task_key = cls.TASK_STATUS_KEY.format(task_id=task_id)
                 task_data = redis_client.get(task_key)
-                
+
                 if task_data:
                     task_info = json.loads(task_data)
                     created_at = task_info.get('created_at', '')
-                    
+
                     # Remove if too old
                     if created_at < cutoff_str:
                         redis_client.delete(task_key)
@@ -322,7 +322,7 @@ class BackgroundService:
         """Get recent findings across all files"""
         try:
             findings = Finding.query.order_by(desc(Finding.created_at)).limit(limit).all()
-            
+
             return [{
                 'id': finding.public_id.hex,
                 'title': finding.title,
@@ -346,9 +346,9 @@ class BackgroundService:
                 query = query.filter_by(created_by=user_id)
 
             total_files = query.count()
-            complete_files = query.filter_by(status='complete').count()
-            analyzing_files = query.filter_by(status='analyzing').count()
-            pending_files = query.filter_by(status='pending').count()
+            complete_files = query.filter_by(status=FileStatus.COMPLETE).count()
+            analyzing_files = query.filter_by(status=FileStatus.PROCESSING).count()
+            pending_files = query.filter_by(status=FileStatus.PENDING).count()
 
             # Findings stats
             findings_query = Finding.query
@@ -392,11 +392,11 @@ def tracked_task(*args, **kwargs):
         @celery_app.task(bind=True, *args, **kwargs)
         def wrapper(self, *task_args, **task_kwargs):
             task_id = self.request.id
-            
+
             # Extract file_id and user_id from task arguments
             file_id = task_kwargs.get('file_id') or (task_args[0] if task_args else None)
             user_id = task_kwargs.get('user_id') or (task_args[2] if len(task_args) > 2 else None)
-            
+
             if file_id and user_id:
                 # Track task start
                 BackgroundService.track_task(
@@ -406,19 +406,19 @@ def tracked_task(*args, **kwargs):
                     user_id,
                     {'function': func.__name__}
                 )
-            
+
             try:
                 # Update status to running
                 BackgroundService.update_task_status(task_id, 'running')
-                
+
                 # Execute the actual task
                 result = func(self, *task_args, **task_kwargs)
-                
+
                 # Update status to completed
                 BackgroundService.update_task_status(task_id, 'completed')
-                
+
                 return result
-                
+
             except Exception as e:
                 # Update status to failed
                 BackgroundService.update_task_status(
@@ -427,7 +427,7 @@ def tracked_task(*args, **kwargs):
                     metadata={'error': str(e)}
                 )
                 raise
-        
+
         return wrapper
     return decorator
 
@@ -449,7 +449,7 @@ def analyze_file_comprehensive(self, file_id: int, analysis_types: List[str], us
             raise ValueError(f"File {file_id} not found")
 
         # Update file status
-        file_obj.status = 'analyzing'
+        file_obj.status = FileStatus.PROCESSING
         db.session.commit()
 
         # Progress updates throughout analysis
@@ -467,13 +467,13 @@ def analyze_file_comprehensive(self, file_id: int, analysis_types: List[str], us
             BackgroundService.update_task_status(
                 self.request.id, 'running', progress=progress, stage=stage
             )
-            
+
             # Simulate analysis work (replace with real analysis)
             import time
             time.sleep(2)
 
         # Update file status to complete
-        file_obj.status = 'complete'
+        file_obj.status = FileStatus.COMPLETE
         file_obj.analyzed_at = datetime.utcnow()
         db.session.commit()
 
@@ -488,6 +488,6 @@ def analyze_file_comprehensive(self, file_id: int, analysis_types: List[str], us
         # Update file status to error
         file_obj = AnalysisFile.query.get(file_id)
         if file_obj:
-            file_obj.status = 'error'
+            file_obj.status = FileStatus.ERROR
             db.session.commit()
         raise

@@ -168,7 +168,7 @@ def api_activity():
             files_data = [{
                 'filename': f.filename,
                 'sha256': f.sha256_hash,
-                'status': f.status,
+                'status': f.status.value if hasattr(f.status, 'value') else str(f.status),
                 'created_at': f.created_at.isoformat() if f.created_at else None
             } for f in recent_files]
 

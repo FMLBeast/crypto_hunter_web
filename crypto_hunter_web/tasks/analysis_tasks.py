@@ -4,8 +4,15 @@ File analysis tasks for background processing
 import os
 import time
 import logging
+import csv
+import io
+import mimetypes
 from typing import Dict, Any, List
+from werkzeug.datastructures import FileStorage
 from crypto_hunter_web.services.celery_app import celery_app
+from crypto_hunter_web.models import db, AnalysisFile, BulkImport, FileStatus
+from crypto_hunter_web.services.file_service import FileService
+from crypto_hunter_web.services.background_service import BackgroundService
 
 logger = logging.getLogger(__name__)
 
@@ -134,4 +141,155 @@ def scan_for_malware_patterns(file_id: int) -> Dict[str, Any]:
 
     except Exception as exc:
         logger.error(f"Malware scanning failed for file {file_id}: {exc}")
+        raise
+
+
+@celery_app.task(bind=True)
+def process_csv_bulk_import(self, bulk_import_id: int, csv_content: str, options: Dict[str, Any]) -> Dict[str, Any]:
+    """Process CSV file for bulk import in the background"""
+    try:
+        logger.info(f"Starting bulk import processing for import ID {bulk_import_id}")
+
+        # Get the bulk import record
+        bulk_import = BulkImport.query.get(bulk_import_id)
+        if not bulk_import:
+            raise ValueError(f"Bulk import {bulk_import_id} not found")
+
+        # Update status to processing
+        bulk_import.status = 'processing'
+        db.session.commit()
+
+        # Parse CSV
+        csv_reader = csv.reader(io.StringIO(csv_content))
+
+        # Count total items (skip header row)
+        total_items = sum(1 for _ in csv_reader) - 1
+        io.StringIO(csv_content).seek(0)  # Reset the StringIO object
+        csv_reader = csv.reader(io.StringIO(csv_content))
+
+        # Skip header row
+        next(csv_reader, None)
+
+        # Update total items count
+        bulk_import.total_items = total_items
+        db.session.commit()
+
+        # Process each row
+        processed_items = 0
+        successful_items = 0
+        failed_items = 0
+        errors = []
+
+        # Get options
+        priority = options.get('priority', 5)
+        auto_analyze = options.get('auto_analyze', False)
+        notes = options.get('notes', '')
+        tags = options.get('tags', [])
+
+        for row in csv_reader:
+            processed_items += 1
+
+            # Update progress every 10 items or at 10% intervals
+            if processed_items % 10 == 0 or processed_items / total_items * 100 % 10 == 0:
+                self.update_state(state='PROGRESS', meta={
+                    'processed': processed_items,
+                    'total': total_items,
+                    'successful': successful_items,
+                    'failed': failed_items,
+                    'progress': int(processed_items / total_items * 100)
+                })
+
+                # Update bulk import record
+                bulk_import.processed_items = processed_items
+                bulk_import.successful_items = successful_items
+                bulk_import.failed_items = failed_items
+                db.session.commit()
+
+            try:
+                if len(row) < 1:
+                    continue
+
+                file_path = row[0]
+
+                # Skip if file path is empty
+                if not file_path:
+                    continue
+
+                # Validate file path
+                if not os.path.exists(file_path):
+                    failed_items += 1
+                    errors.append(f"File not found: {file_path}")
+                    continue
+
+                # Create a FileStorage object
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+
+                file_name = os.path.basename(file_path)
+                file_storage = FileStorage(
+                    stream=io.BytesIO(file_content),
+                    filename=file_name,
+                    content_type=mimetypes.guess_type(file_name)[0]
+                )
+
+                # Validate file
+                if not FileService.validate_upload(file_storage):
+                    failed_items += 1
+                    errors.append(f"{file_name}: Invalid file type or size")
+                    continue
+
+                # Process upload
+                result = FileService.process_upload(
+                    file=file_storage,
+                    user_id=bulk_import.created_by,
+                    priority=priority,
+                    is_root_file=True,
+                    notes=notes,
+                    tags=tags
+                )
+
+                if result['success']:
+                    successful_items += 1
+
+                    # Queue for analysis if requested
+                    if auto_analyze:
+                        BackgroundService.queue_analysis(result['file'].id)
+                else:
+                    failed_items += 1
+                    errors.append(f"{file_name}: {result['error']}")
+
+            except Exception as e:
+                logger.error(f"Bulk import error for row {processed_items}: {e}")
+                failed_items += 1
+                errors.append(f"Row {processed_items}: {str(e)}")
+
+        # Update final status
+        bulk_import.status = 'completed'
+        bulk_import.completed_at = time.time()
+        bulk_import.processed_items = processed_items
+        bulk_import.successful_items = successful_items
+        bulk_import.failed_items = failed_items
+        bulk_import.error_details = {'errors': errors} if errors else {}
+        db.session.commit()
+
+        logger.info(f"Bulk import completed: {successful_items} successful, {failed_items} failed")
+
+        return {
+            'bulk_import_id': bulk_import_id,
+            'total_items': total_items,
+            'processed_items': processed_items,
+            'successful_items': successful_items,
+            'failed_items': failed_items,
+            'errors': errors[:10]  # Return only first 10 errors
+        }
+
+    except Exception as exc:
+        logger.error(f"Bulk import processing failed: {exc}")
+
+        # Update bulk import status to error
+        if 'bulk_import' in locals() and bulk_import:
+            bulk_import.status = 'error'
+            bulk_import.error_details = {'error': str(exc)}
+            db.session.commit()
+
         raise

@@ -1,6 +1,7 @@
-from flask import session
+from flask import session, current_app, request
 from werkzeug.security import check_password_hash
 from crypto_hunter_web.models import db, User, AuditLog
+from flask_login import current_user
 
 class AuthService:
     @staticmethod
@@ -59,3 +60,42 @@ class AuthService:
 
             return fn(*args, **kwargs)
         return wrapper
+
+    @staticmethod
+    def log_action(action, description=None, metadata=None):
+        """Log user action to audit log
+
+        Args:
+            action (str): The action being performed
+            description (str, optional): Description of the action
+            metadata (dict, optional): Additional metadata for the action
+        """
+        try:
+            # Get user ID from current_user if authenticated, otherwise from session
+            user_id = None
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+                user_id = current_user.id
+            elif 'user_id' in session:
+                user_id = session['user_id']
+
+            # Get IP address if available
+            ip_address = request.remote_addr if request and hasattr(request, 'remote_addr') else None
+
+            # Create audit log entry
+            log_entry = AuditLog.log_action(
+                user_id=user_id,
+                action=action,
+                description=description,
+                success=True,
+                ip_address=ip_address,
+                metadata=metadata
+            )
+
+            # Commit the transaction
+            db.session.commit()
+            return log_entry
+        except Exception as e:
+            # Log error but don't raise exception to prevent disrupting main flow
+            if current_app:
+                current_app.logger.error(f"Error logging action {action}: {str(e)}")
+            return None

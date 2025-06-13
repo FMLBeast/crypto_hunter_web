@@ -46,18 +46,63 @@ def setup_application(app):
     # Initialize database if needed
     with app.app_context():
         from crypto_hunter_web.models import db, init_database
-        from sqlalchemy import text
+        from sqlalchemy import text, inspect
 
-        # Check if users table exists
+        # Check if database schema matches the models
+        schema_matches = True
         try:
+            # First check if users table exists at all
             db.session.execute(text("SELECT 1 FROM users LIMIT 1"))
-            app.logger.info("Users table exists, skipping initialization")
+            app.logger.info("Users table exists, checking schema...")
+
+            # Check if schema matches the models
+            inspector = inspect(db.engine)
+
+            # Import all model classes we want to check
+            from crypto_hunter_web.models import User, AnalysisFile, Finding, Vector, ApiKey, AuditLog
+
+            # Check each model's table and columns
+            for model_class in [User, AnalysisFile, Finding, Vector, ApiKey, AuditLog]:
+                table_name = model_class.__tablename__
+
+                # Get expected columns from the model
+                model_columns = {column.name for column in model_class.__table__.columns}
+
+                # Get actual columns from the database
+                db_columns = {column['name'] for column in inspector.get_columns(table_name)}
+
+                # Check for missing columns
+                missing_columns = model_columns - db_columns
+                if missing_columns:
+                    app.logger.warning(f"Table '{table_name}' is missing columns: {missing_columns}")
+                    schema_matches = False
+                    break
+
+            if schema_matches:
+                app.logger.info("Database schema matches the models, skipping initialization")
+            else:
+                app.logger.warning("Database schema does not match the models")
+
+                # Check if auto-reinitialization is enabled
+                auto_reinit = os.getenv('AUTO_REINIT_DB', 'false').lower() == 'true'
+
+                if auto_reinit:
+                    app.logger.info("AUTO_REINIT_DB is set to true, reinitializing database...")
+                    # Drop all tables
+                    db.drop_all()
+                    # Create tables
+                    db.create_all()
+                    # Initialize with default data
+                    init_database()
+                else:
+                    app.logger.warning("AUTO_REINIT_DB is not set to true. Database schema mismatch remains.")
+                    app.logger.warning("Set AUTO_REINIT_DB=true in your environment to automatically fix schema mismatches.")
+
         except Exception as e:
-            app.logger.info(f"Users table does not exist, creating tables: {e}")
+            app.logger.info(f"Database tables do not exist or cannot be accessed, creating tables: {e}")
             # Create tables if they don't exist
             db.create_all()
-
-            # Initialize with default data if needed
+            # Initialize with default data
             init_database()
 
         app.logger.info("Database setup completed")
@@ -157,7 +202,13 @@ def setup_comprehensive_error_handlers(app):
 
     @app.errorhandler(429)
     def rate_limit_exceeded(error):
-        return jsonify({'error': 'Rate limit exceeded'}), 429
+        response = jsonify({
+            'error': 'Rate limit exceeded',
+            'message': 'Maximum 5 requests per hour',
+            'retry_after': getattr(error, 'retry_after', 60)
+        }), 429
+        response[0].headers['Retry-After'] = str(getattr(error, 'retry_after', 60))
+        return response
 
     @app.errorhandler(500)
     def internal_error(error):
@@ -262,6 +313,10 @@ FLASK_ENV=development
 SECRET_KEY={os.urandom(16).hex()}
 DEBUG=true
 DATABASE_URL=sqlite:///instance/crypto_hunter.db
+
+# Database Management
+# Set to 'true' to automatically reinitialize the database if the schema doesn't match the models
+AUTO_REINIT_DB=false
 """
 
     with open('.env', 'w') as f:

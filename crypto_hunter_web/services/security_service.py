@@ -304,12 +304,23 @@ class SecurityService:
 
             if current_count >= limit:
                 # Rate limit exceeded
-                ttl = service.redis_client.ttl(rate_key)
+                # Get the oldest request timestamp
+                oldest_request = service.redis_client.zrange(rate_key, 0, 0, withscores=True)
+                if oldest_request:
+                    # Calculate when the oldest request will expire from the window
+                    oldest_timestamp = int(oldest_request[0][1])
+                    retry_after = (oldest_timestamp + window) - current_time
+                    # Ensure retry_after is at least 1 second
+                    retry_after = max(1, retry_after)
+                else:
+                    # Fallback if no requests found (shouldn't happen)
+                    retry_after = window
+
                 return False, {
                     'limit': limit,
                     'current': current_count,
                     'window': window,
-                    'retry_after': ttl
+                    'retry_after': retry_after
                 }
 
             # Add current request

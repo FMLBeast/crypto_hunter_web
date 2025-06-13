@@ -15,7 +15,7 @@ import magic
 import chardet
 from collections import defaultdict, Counter
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, FileStatus
 from crypto_hunter_web.utils.crypto_patterns import CryptoPatterns
 from crypto_hunter_web.utils.validators import validate_file_size, sanitize_filename
 
@@ -336,7 +336,7 @@ class ContentAnalyzer:
                     ['strings', '-n', str(self.MIN_STRING_LENGTH), file_obj.filepath],
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=None
                 )
                 if result.returncode == 0:
                     system_strings = result.stdout.strip().split('\n')
@@ -759,7 +759,7 @@ class ContentAnalyzer:
             db.session.add(analysis_content)
 
             # Update file status
-            file_obj.status = 'complete'
+            file_obj.status = FileStatus.COMPLETE
             file_obj.analyzed_at = datetime.utcnow()
             file_obj.confidence_score = results.get('confidence_score', 0.5)
 
@@ -773,7 +773,7 @@ class ContentAnalyzer:
     def _save_analysis_error(self, file_obj: AnalysisFile, error_message: str):
         """Save analysis error to database"""
         try:
-            file_obj.status = 'error'
+            file_obj.status = FileStatus.ERROR
             file_obj.analysis_metadata = {'error': error_message, 'error_time': datetime.utcnow().isoformat()}
             db.session.commit()
         except Exception:

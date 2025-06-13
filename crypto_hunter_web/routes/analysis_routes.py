@@ -6,7 +6,7 @@ Analysis routes - Real implementation for viewing analysis results
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from sqlalchemy import desc, func
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User
+from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User, FileStatus, FindingStatus
 from crypto_hunter_web.utils.validators import validate_sha256
 from crypto_hunter_web.services.background_service import BackgroundService
 from crypto_hunter_web.services.llm_crypto_orchestrator import llm_orchestrated_analysis
@@ -22,7 +22,7 @@ def file_results(sha):
         return "Invalid SHA256 hash", 400
 
     file = AnalysisFile.query.filter_by(sha256_hash=sha).first_or_404()
-    
+
     # Update last accessed
     file.last_accessed = db.session.execute('SELECT NOW()').scalar()
     db.session.commit()
@@ -40,7 +40,7 @@ def start_analysis(sha):
         return jsonify({'error': 'Invalid SHA256'}), 400
 
     file = AnalysisFile.query.filter_by(sha256_hash=sha).first_or_404()
-    
+
     # Get analysis options
     data = request.get_json() or {}
     analysis_types = data.get('analysis_types', ['crypto', 'strings', 'metadata'])
@@ -49,7 +49,7 @@ def start_analysis(sha):
 
     try:
         # Update file status
-        file.status = 'analyzing'
+        file.status = FileStatus.PROCESSING
         db.session.commit()
 
         # Start background analysis
@@ -91,7 +91,7 @@ def findings_list():
     """List all findings with filtering and pagination"""
     page = request.args.get('page', 1, type=int)
     per_page = 25
-    
+
     # Filters
     file_id = request.args.get('file_id', type=int)
     category = request.args.get('category')
@@ -101,7 +101,7 @@ def findings_list():
 
     # Build query
     query = Finding.query
-    
+
     if file_id:
         query = query.filter_by(file_id=file_id)
     if category:
@@ -115,7 +115,7 @@ def findings_list():
 
     # Order by confidence and recency
     query = query.order_by(desc(Finding.confidence_level), desc(Finding.created_at))
-    
+
     findings = query.paginate(
         page=page, per_page=per_page, error_out=False
     )
@@ -125,7 +125,7 @@ def findings_list():
         'total_findings': Finding.query.count(),
         'crypto_findings': Finding.query.filter_by(category='crypto').count(),
         'high_confidence': Finding.query.filter(Finding.confidence_level >= 8).count(),
-        'unverified': Finding.query.filter_by(status='unverified').count()
+        'unverified': Finding.query.filter_by(status=FindingStatus.UNVERIFIED).count()
     }
 
     return render_template('analysis/findings_list.html', 
@@ -144,7 +144,7 @@ def findings_list():
 def finding_detail(finding_id):
     """View detailed information about a specific finding"""
     finding = Finding.query.filter_by(public_id=finding_id).first_or_404()
-    
+
     # Get related findings (same file, similar type)
     related_findings = Finding.query.filter(
         Finding.file_id == finding.file_id,
@@ -160,10 +160,10 @@ def finding_detail(finding_id):
 @AuthService.login_required
 def analysis_dashboard():
     """Analysis dashboard with overview and recent activity"""
-    
+
     # Get user's files and findings
     user_id = session['user_id']
-    
+
     # Recent analysis activity
     recent_files = AnalysisFile.query.filter_by(created_by=user_id).order_by(
         desc(AnalysisFile.analyzed_at)
@@ -177,7 +177,7 @@ def analysis_dashboard():
     stats = {
         'total_files': AnalysisFile.query.filter_by(created_by=user_id).count(),
         'completed_analyses': AnalysisFile.query.filter_by(
-            created_by=user_id, status='complete'
+            created_by=user_id, status=FileStatus.COMPLETE
         ).count(),
         'total_findings': db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
             AnalysisFile.created_by == user_id
@@ -194,7 +194,7 @@ def analysis_dashboard():
     # Analysis progress over time (last 30 days)
     from datetime import datetime, timedelta
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    
+
     daily_analysis = db.session.query(
         func.date(AnalysisFile.analyzed_at).label('date'),
         func.count(AnalysisFile.id).label('count')
@@ -220,17 +220,17 @@ def analysis_dashboard():
 def verify_finding(finding_id):
     """Verify a finding"""
     finding = Finding.query.filter_by(public_id=finding_id).first_or_404()
-    
+
     # Update finding status
-    finding.status = 'verified'
+    finding.status = FindingStatus.CONFIRMED
     finding.verified_by = session['user_id']
     finding.verified_at = db.session.execute('SELECT NOW()').scalar()
-    
+
     db.session.commit()
-    
+
     AuthService.log_action('finding_verified', f'Verified finding: {finding.title}', 
                           finding_id=finding.id)
-    
+
     return jsonify({'success': True, 'message': 'Finding verified'})
 
 @analysis_bp.route('/api/findings/<uuid:finding_id>/collect', methods=['POST'])
@@ -238,14 +238,14 @@ def verify_finding(finding_id):
 def collect_finding(finding_id):
     """Add finding to user's collection"""
     finding = Finding.query.filter_by(public_id=finding_id).first_or_404()
-    
+
     # Add to collections (implementation depends on your collection system)
     # For now, just mark as important
     finding.is_bookmarked = True
     finding.bookmarked_by = session['user_id']
-    
+
     db.session.commit()
-    
+
     return jsonify({'success': True, 'message': 'Finding collected'})
 
 @analysis_bp.route('/api/files/<sha>/export')
@@ -256,7 +256,7 @@ def export_file_analysis(sha):
         return jsonify({'error': 'Invalid SHA256'}), 400
 
     file = AnalysisFile.query.filter_by(sha256_hash=sha).first_or_404()
-    
+
     # Build comprehensive export data
     export_data = {
         'file_info': {
@@ -322,13 +322,13 @@ def get_background_tasks():
     """Get background tasks for user or specific file"""
     user_id = session['user_id']
     file_id = request.args.get('file_id', type=int)
-    
+
     try:
         if file_id:
             tasks = BackgroundService.get_file_tasks(file_id)
         else:
             tasks = BackgroundService.get_user_active_tasks(user_id)
-        
+
         return jsonify({
             'success': True,
             'tasks': tasks

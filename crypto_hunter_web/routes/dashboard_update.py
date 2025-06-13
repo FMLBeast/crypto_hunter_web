@@ -15,67 +15,67 @@ def index():
     try:
         # Import models with error handling
         try:
-            from crypto_hunter_web.models import AnalysisFile, Finding, FileContent, User
+            from crypto_hunter_web.models import AnalysisFile, Finding, FileContent, User, FileStatus
             from crypto_hunter_web.extensions import db
             from crypto_hunter_web.services.background_service import BackgroundService
-            
+
             # Get current user if logged in
             user_id = session.get('user_id')
-            
+
             # Get file statistics
             if user_id:
                 # User-specific stats
                 total_files = db.session.query(func.count(AnalysisFile.id)).filter(
                     AnalysisFile.created_by == user_id
                 ).scalar() or 0
-                
+
                 complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                    and_(AnalysisFile.created_by == user_id, AnalysisFile.status == 'complete')
+                    and_(AnalysisFile.created_by == user_id, AnalysisFile.status == FileStatus.COMPLETE)
                 ).scalar() or 0
-                
+
                 analyzing_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                    and_(AnalysisFile.created_by == user_id, AnalysisFile.status == 'analyzing')
+                    and_(AnalysisFile.created_by == user_id, AnalysisFile.status == FileStatus.PROCESSING)
                 ).scalar() or 0
-                
+
                 # Get user's recent files
                 recent_files = db.session.query(AnalysisFile).filter(
                     AnalysisFile.created_by == user_id
                 ).order_by(desc(AnalysisFile.created_at)).limit(5).all()
-                
+
                 # Get user's recent findings
                 recent_findings = db.session.query(Finding).join(AnalysisFile).filter(
                     AnalysisFile.created_by == user_id
                 ).order_by(desc(Finding.created_at)).limit(5).all()
-                
+
                 # Get active background tasks for user
                 active_tasks = BackgroundService.get_user_active_tasks(user_id)
-                
+
             else:
                 # System-wide stats for non-logged in users
                 total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
                 complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                    AnalysisFile.status == 'complete'
+                    AnalysisFile.status == FileStatus.COMPLETE
                 ).scalar() or 0
                 analyzing_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                    AnalysisFile.status == 'analyzing'
+                    AnalysisFile.status == FileStatus.PROCESSING
                 ).scalar() or 0
-                
+
                 recent_files = []
                 recent_findings = []
                 active_tasks = []
 
             # Calculate progress
             progress_percentage = (complete_files / total_files * 100) if total_files > 0 else 0
-            
+
             # Get analysis vectors with real data
             analysis_vectors = []
-            
+
             if user_id:
                 # Crypto patterns analysis
                 crypto_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
                     and_(AnalysisFile.created_by == user_id, Finding.category == 'crypto')
                 ).scalar() or 0
-                
+
                 analysis_vectors.append({
                     'name': 'Crypto Patterns',
                     'completed': crypto_findings,
@@ -83,12 +83,12 @@ def index():
                     'icon': '🔐',
                     'description': 'Cryptocurrency addresses, keys, hashes'
                 })
-                
+
                 # String analysis
                 string_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
                     and_(AnalysisFile.created_by == user_id, Finding.category == 'strings')
                 ).scalar() or 0
-                
+
                 analysis_vectors.append({
                     'name': 'String Analysis',
                     'completed': string_findings,
@@ -96,7 +96,7 @@ def index():
                     'icon': '📝',
                     'description': 'Text patterns, encodings, metadata'
                 })
-                
+
                 # LLM analysis
                 llm_analyzed = db.session.query(func.count(FileContent.id)).join(AnalysisFile).filter(
                     and_(
@@ -104,7 +104,7 @@ def index():
                         FileContent.content_type == 'llm_analysis_complete'
                     )
                 ).scalar() or 0
-                
+
                 analysis_vectors.append({
                     'name': 'AI Analysis',
                     'completed': llm_analyzed,
@@ -112,12 +112,12 @@ def index():
                     'icon': '🤖',
                     'description': 'LLM insights and recommendations'
                 })
-                
+
                 # Technical analysis
                 technical_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
                     and_(AnalysisFile.created_by == user_id, Finding.category == 'technical')
                 ).scalar() or 0
-                
+
                 analysis_vectors.append({
                     'name': 'Technical Analysis',
                     'completed': technical_findings,
@@ -125,13 +125,13 @@ def index():
                     'icon': '⚙️',
                     'description': 'Binary analysis, forensics, steganography'
                 })
-            
+
             # Get system status for background services
             system_status = BackgroundService.get_system_status()
-            
+
             # Get LLM usage statistics
             llm_stats = get_llm_usage_stats(user_id) if user_id else {}
-            
+
         except ImportError as e:
             logger.warning(f"Models not available, using dummy data: {e}")
             # Fallback to dummy data if models aren't available
@@ -162,7 +162,7 @@ def index():
                              active_tasks=active_tasks,
                              system_status=system_status,
                              llm_stats=llm_stats)
-    
+
     except Exception as e:
         logger.error(f"Error loading dashboard: {e}")
         # Return minimal dashboard on error
@@ -182,53 +182,53 @@ def index():
 def api_stats():
     """Real-time dashboard stats API endpoint"""
     try:
-        from crypto_hunter_web.models import AnalysisFile, Finding, FileContent
+        from crypto_hunter_web.models import AnalysisFile, Finding, FileContent, FileStatus
         from crypto_hunter_web.extensions import db
         from crypto_hunter_web.services.background_service import BackgroundService
-        
+
         user_id = session.get('user_id')
-        
+
         if user_id:
             # User-specific stats
             total_files = db.session.query(func.count(AnalysisFile.id)).filter(
                 AnalysisFile.created_by == user_id
             ).scalar() or 0
-            
+
             complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == 'complete')
+                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == FileStatus.COMPLETE)
             ).scalar() or 0
-            
+
             pending_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == 'pending')
+                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == FileStatus.PENDING)
             ).scalar() or 0
-            
+
             analyzing_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == 'analyzing')
+                and_(AnalysisFile.created_by == user_id, AnalysisFile.status == FileStatus.PROCESSING)
             ).scalar() or 0
-            
+
             total_findings = db.session.query(func.count(Finding.id)).join(AnalysisFile).filter(
                 AnalysisFile.created_by == user_id
             ).scalar() or 0
-            
+
             # Get active tasks count
             active_tasks = BackgroundService.get_user_active_tasks(user_id)
             active_tasks_count = len(active_tasks)
-            
+
         else:
             # System-wide stats
             total_files = db.session.query(func.count(AnalysisFile.id)).scalar() or 0
             complete_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'complete'
+                AnalysisFile.status == FileStatus.COMPLETE
             ).scalar() or 0
             pending_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'pending'
+                AnalysisFile.status == FileStatus.PENDING
             ).scalar() or 0
             analyzing_files = db.session.query(func.count(AnalysisFile.id)).filter(
-                AnalysisFile.status == 'analyzing'
+                AnalysisFile.status == FileStatus.PROCESSING
             ).scalar() or 0
             total_findings = db.session.query(func.count(Finding.id)).scalar() or 0
             active_tasks_count = 0
-        
+
         return jsonify({
             'total_files': total_files,
             'complete_files': complete_files,
@@ -239,7 +239,7 @@ def api_stats():
             'progress_percentage': (complete_files / total_files * 100) if total_files > 0 else 0,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except ImportError:
         return jsonify({
             'total_files': 0, 'complete_files': 0, 'pending_files': 0,
@@ -256,20 +256,20 @@ def api_activity():
     try:
         from crypto_hunter_web.models import AnalysisFile, Finding
         from crypto_hunter_web.extensions import db
-        
+
         user_id = session.get('user_id')
-        
+
         if user_id:
             # User's recent files
             recent_files = db.session.query(AnalysisFile).filter(
                 AnalysisFile.created_by == user_id
             ).order_by(desc(AnalysisFile.created_at)).limit(10).all()
-            
+
             # User's recent findings
             recent_findings = db.session.query(Finding).join(AnalysisFile).filter(
                 AnalysisFile.created_by == user_id
             ).order_by(desc(Finding.created_at)).limit(10).all()
-            
+
             files_data = [{
                 'filename': f.filename,
                 'sha256': f.sha256_hash,
@@ -278,7 +278,7 @@ def api_activity():
                 'file_size': f.file_size,
                 'file_type': f.file_type
             } for f in recent_files]
-            
+
             findings_data = [{
                 'id': f.public_id.hex if hasattr(f, 'public_id') else str(f.id),
                 'title': f.title,
@@ -288,17 +288,17 @@ def api_activity():
                 'file_name': f.file.filename,
                 'created_at': f.created_at.isoformat() if f.created_at else None
             } for f in recent_findings]
-            
+
         else:
             files_data = []
             findings_data = []
-        
+
         return jsonify({
             'recent_files': files_data,
             'recent_findings': findings_data,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except ImportError:
         return jsonify({'recent_files': [], 'recent_findings': [], 
                        'timestamp': datetime.utcnow().isoformat()})
@@ -311,23 +311,23 @@ def api_background_status():
     """Get real-time background services status"""
     try:
         from crypto_hunter_web.services.background_service import BackgroundService
-        
+
         user_id = session.get('user_id')
-        
+
         # Get system status
         system_status = BackgroundService.get_system_status()
-        
+
         # Get user's active tasks if logged in
         user_tasks = []
         if user_id:
             user_tasks = BackgroundService.get_user_active_tasks(user_id)
-        
+
         return jsonify({
             'system': system_status,
             'user_tasks': user_tasks,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting background status: {e}")
         return jsonify({
@@ -348,14 +348,14 @@ def api_llm_stats():
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
-        
+
         stats = get_llm_usage_stats(user_id)
         return jsonify({
             'success': True,
             'stats': stats,
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting LLM stats: {e}")
         return jsonify({'error': str(e)}), 500
@@ -365,7 +365,7 @@ def get_llm_usage_stats(user_id: int) -> dict:
     try:
         from crypto_hunter_web.models import AnalysisFile, FileContent
         from crypto_hunter_web.extensions import db
-        
+
         # Get LLM analysis content for user's files
         llm_content = db.session.query(FileContent).join(AnalysisFile).filter(
             and_(
@@ -373,28 +373,28 @@ def get_llm_usage_stats(user_id: int) -> dict:
                 FileContent.content_type == 'llm_analysis_complete'
             )
         ).all()
-        
+
         total_cost = 0.0
         total_analyses = len(llm_content)
         cost_by_day = {}
         cost_by_provider = {'openai': 0.0, 'anthropic': 0.0}
-        
+
         for content in llm_content:
             if content.content_json and isinstance(content.content_json, dict):
                 cost = content.content_json.get('analysis_cost', 0.0)
                 provider = content.content_json.get('provider', 'unknown')
-                
+
                 total_cost += cost
-                
+
                 # Group by day
                 if content.created_at:
                     day_key = content.created_at.date().isoformat()
                     cost_by_day[day_key] = cost_by_day.get(day_key, 0.0) + cost
-                
+
                 # Group by provider
                 if provider in cost_by_provider:
                     cost_by_provider[provider] += cost
-        
+
         # Calculate 30-day stats
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         recent_content = [c for c in llm_content if c.created_at and c.created_at >= thirty_days_ago]
@@ -403,7 +403,7 @@ def get_llm_usage_stats(user_id: int) -> dict:
             for c in recent_content 
             if c.content_json and isinstance(c.content_json, dict)
         )
-        
+
         return {
             'total_cost_30_days': cost_30_days,
             'total_analyses': total_analyses,
@@ -415,7 +415,7 @@ def get_llm_usage_stats(user_id: int) -> dict:
                 if c.created_at and c.created_at.date() == datetime.utcnow().date()
             ])
         }
-        
+
     except Exception as e:
         logger.error(f"Error calculating LLM stats: {e}")
         return {

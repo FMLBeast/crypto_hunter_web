@@ -1,5 +1,5 @@
 version: '3.8'
-# Updated Docker Compose configuration - reviewed and verified
+# Complete Docker Compose configuration for Crypto Hunter
 name: crypto-hunter
 
 x-common-env: &common-env
@@ -8,8 +8,12 @@ x-common-env: &common-env
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/2
   CELERY_RESULT_BACKEND: redis://redis:6379/3
-  FLASK_ENV: production
-  LOG_LEVEL: INFO
+  FLASK_ENV: ${FLASK_ENV:-production}
+  FLASK_DEBUG: ${FLASK_DEBUG:-0}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  SQLALCHEMY_DATABASE_URI: postgresql://crypto_hunter:${DB_PASSWORD}@db:5432/crypto_hunter
+  SQLALCHEMY_TRACK_MODIFICATIONS: ${SQLALCHEMY_TRACK_MODIFICATIONS:-False}
+  AUTO_REINIT_DB: ${AUTO_REINIT_DB:-false}
   ENABLE_REGISTRATION: "false"
   ENABLE_AI_ANALYSIS: "true"
   ENABLE_BACKGROUND_TASKS: "true"
@@ -24,8 +28,10 @@ services:
       POSTGRES_DB: crypto_hunter
       POSTGRES_USER: crypto_hunter
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: md5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - crypto-hunter-network
     ports:
@@ -138,11 +144,62 @@ services:
       redis:
         condition: service_healthy
 
+  # Database management tools for development
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: crypto-hunter-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin_servers.json:/pgadmin4/servers.json
+      - ./pgpassfile:/var/lib/pgadmin/.pgpass:ro
+    command: >
+      sh -c "
+        chmod 600 /var/lib/pgadmin/.pgpass &&
+        /entrypoint.sh
+      "
+    networks:
+      - crypto-hunter-network
+    ports:
+      - "127.0.0.1:5051:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - dev
+      - tools
+
+  # Redis management tool
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: crypto-hunter-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+      HTTP_USER: ${REDIS_COMMANDER_USER:-admin}
+      HTTP_PASSWORD: ${REDIS_COMMANDER_PASSWORD:-admin123}
+    networks:
+      - crypto-hunter-network
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - dev
+      - tools
+
 volumes:
   postgres_data:
   redis_data:
   uploads_data:
   logs_data:
+  pgadmin_data:
 
 networks:
   crypto-hunter-network:

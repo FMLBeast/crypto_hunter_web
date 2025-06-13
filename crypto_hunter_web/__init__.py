@@ -140,7 +140,7 @@ def register_blueprints(app):
 
     # Main dashboard blueprint
     try:
-        from crypto_hunter_web.routes.dashboard import dashboard_bp
+        from crypto_hunter_web.routes.dashboard_update import dashboard_bp
         app.register_blueprint(dashboard_bp)
     except ImportError as e:
         app.logger.warning(f"Dashboard blueprint not available: {e}")

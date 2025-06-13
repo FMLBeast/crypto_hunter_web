@@ -7,7 +7,7 @@ This file ensures all route blueprints are properly registered.
 from flask import Blueprint
 
 # Import all blueprints
-from crypto_hunter_web.routes.dashboard import dashboard_bp
+from crypto_hunter_web.routes.dashboard_update import dashboard_bp
 from crypto_hunter_web.routes.auth import auth_bp
 from crypto_hunter_web.routes.files import files_bp
 from crypto_hunter_web.routes.analysis import analysis_bp

@@ -7,7 +7,7 @@ import subprocess
 import psutil
 import os
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, User
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, User, FileStatus
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.background_crypto import BackgroundCryptoManager
 from crypto_hunter_web.utils.redis_client_util import redis_client
@@ -422,7 +422,7 @@ def _get_application_metrics():
             # Files analyzed (completed status changes)
             metrics['files_analyzed_last_day'] = AnalysisFile.query.filter(
                 AnalysisFile.updated_at >= day_ago,
-                AnalysisFile.status == 'complete'
+                AnalysisFile.status == FileStatus.COMPLETE
             ).count()
 
             # Findings created

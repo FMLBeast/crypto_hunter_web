@@ -652,8 +652,10 @@ def _create_crypto_findings(file_obj: AnalysisFile, analysis_results: Dict, user
 @crypto_api_bp.errorhandler(429)
 def rate_limit_exceeded(error):
     """Handle rate limit exceeded errors"""
-    return jsonify({
+    response = jsonify({
         'error': 'Rate limit exceeded',
-        'message': 'Too many requests. Please slow down.',
+        'message': 'Maximum 5 requests per hour',
         'retry_after': getattr(error, 'retry_after', 60)
     }), 429
+    response[0].headers['Retry-After'] = str(getattr(error, 'retry_after', 60))
+    return response

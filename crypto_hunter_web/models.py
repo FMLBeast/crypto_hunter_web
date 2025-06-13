@@ -8,7 +8,7 @@ from enum import Enum
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import JSON, UUID, TIMESTAMP, DOUBLE_PRECISION
 from sqlalchemy import Index, text, event, func
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
@@ -20,11 +20,11 @@ from crypto_hunter_web import db
 
 class UserLevel(Enum):
     """User experience levels"""
-    ANALYST = "Analyst"
-    INTERMEDIATE = "Intermediate"
-    ADVANCED = "Advanced"
-    EXPERT = "Expert"
-    MASTER = "Master"
+    ANALYST = "ANALYST"
+    INTERMEDIATE = "INTERMEDIATE"
+    ADVANCED = "ADVANCED"
+    EXPERT = "EXPERT"
+    MASTER = "MASTER"
 
 
 class FileStatus(Enum):
@@ -82,10 +82,10 @@ class User(UserMixin, db.Model):
     streak_days = db.Column(db.Integer, default=0, nullable=False)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_login = db.Column(db.DateTime, index=True)
-    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = db.Column(TIMESTAMP, index=True)
+    last_active = db.Column(TIMESTAMP, default=datetime.utcnow)
     login_count = db.Column(db.Integer, default=0, nullable=False)
 
     # Security
@@ -93,8 +93,8 @@ class User(UserMixin, db.Model):
     two_factor_secret = db.Column(db.String(32))
     api_key_hash = db.Column(db.String(255))
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
-    locked_until = db.Column(db.DateTime)
-    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    locked_until = db.Column(TIMESTAMP)
+    password_changed_at = db.Column(TIMESTAMP, default=datetime.utcnow)
 
     # Preferences and settings
     preferences = db.Column(JSON, default=dict)
@@ -210,6 +210,7 @@ class AnalysisFile(db.Model):
         Index('idx_file_parent', 'parent_file_sha'),
         Index('idx_file_created', 'created_at'),
         Index('idx_file_root', 'is_root_file'),
+        db.UniqueConstraint('sha256_hash', name='uq_file_sha256'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -232,7 +233,7 @@ class AnalysisFile(db.Model):
     # Analysis status and metadata
     status = db.Column(db.Enum(FileStatus), default=FileStatus.PENDING, nullable=False, index=True)
     priority = db.Column(db.Integer, default=5, nullable=False, index=True)  # 1-10 scale
-    confidence_score = db.Column(db.Float, default=0.0)  # AI confidence in analysis
+    confidence_score = db.Column(DOUBLE_PRECISION, default=0.0)  # AI confidence in analysis
 
     # File classification
     is_root_file = db.Column(db.Boolean, default=False, nullable=False, index=True)
@@ -246,10 +247,10 @@ class AnalysisFile(db.Model):
     extraction_depth = db.Column(db.Integer, default=0, nullable=False)
 
     # Timestamps and tracking
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    analyzed_at = db.Column(db.DateTime)
-    last_accessed = db.Column(db.DateTime)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    analyzed_at = db.Column(TIMESTAMP)
+    last_accessed = db.Column(TIMESTAMP)
 
     # User tracking
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
@@ -261,8 +262,8 @@ class AnalysisFile(db.Model):
     notes = db.Column(db.Text)
 
     # Performance metrics
-    analysis_duration = db.Column(db.Float)  # seconds
-    processing_cost = db.Column(db.Float)  # AI processing cost
+    analysis_duration = db.Column(DOUBLE_PRECISION)  # seconds
+    processing_cost = db.Column(DOUBLE_PRECISION)  # AI processing cost
 
     # Relationships
     content_entries = db.relationship('FileContent', backref='file', lazy='dynamic', cascade='all, delete-orphan')
@@ -404,7 +405,7 @@ class FileContent(db.Model):
     truncated_at = db.Column(db.Integer)  # Byte position where truncated
 
     # Extraction information
-    extracted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    extracted_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
     extracted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     extraction_method = db.Column(db.String(50))  # manual, auto, ai, etc.
     extraction_extra_data = db.Column(JSON, default=dict)
@@ -501,9 +502,9 @@ class Finding(db.Model):
     false_positive_reason = db.Column(db.Text)
 
     # Timestamps and tracking
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    validated_at = db.Column(db.DateTime)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    validated_at = db.Column(TIMESTAMP)
 
     # User tracking
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -511,7 +512,7 @@ class Finding(db.Model):
 
     # Quality metrics
     user_rating = db.Column(db.Integer)  # 1-5 user rating
-    ai_confidence = db.Column(db.Float)  # AI model confidence
+    ai_confidence = db.Column(DOUBLE_PRECISION)  # AI model confidence
 
     @validates('confidence_level')
     def validate_confidence(self, key, confidence):
@@ -582,6 +583,7 @@ class Vector(db.Model):
     __table_args__ = (
         Index('idx_vector_file_type', 'file_id', 'vector_type'),
         Index('idx_vector_created', 'created_at'),
+        Index('idx_vector_category', 'category'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -589,18 +591,22 @@ class Vector(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     # Vector information
+    name = db.Column(db.String(100))  # Name of the vector
     vector_type = db.Column(db.String(50), nullable=False, index=True)  # content, filename, metadata
     embedding_model = db.Column(db.String(50), nullable=False)  # openai, sentence-transformers, etc.
     vector_data = db.Column(JSON, nullable=False)  # The actual vector
     dimension = db.Column(db.Integer, nullable=False)
+
+    # Classification
+    category = db.Column(db.String(50), index=True)  # steganography, forensics, cryptography, etc.
 
     # Source information
     source_text = db.Column(db.Text)
     source_extra_data = db.Column(JSON, default=dict)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f'<Vector {self.vector_type}({self.dimension}D)>'
@@ -628,12 +634,12 @@ class ApiKey(db.Model):
     rate_limit = db.Column(db.Integer, default=1000)  # Requests per hour
 
     # Usage tracking
-    last_used = db.Column(db.DateTime)
+    last_used = db.Column(TIMESTAMP)
     usage_count = db.Column(db.Integer, default=0, nullable=False)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(TIMESTAMP)
 
     def is_expired(self) -> bool:
         """Check if API key is expired"""
@@ -672,7 +678,7 @@ class AuditLog(db.Model):
     auditlog_extra_data = db.Column(JSON, default=dict)
 
     # Timestamp
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
 
     @classmethod
     def log_action(cls, user_id: int, action: str, description: str = None,
@@ -724,7 +730,7 @@ class ExtractionRelationship(db.Model):
     extra_data = db.Column(JSON, default=dict)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
 
     # Relationships
     source_file = db.relationship('AnalysisFile', foreign_keys=[source_file_id],
@@ -736,6 +742,9 @@ class ExtractionRelationship(db.Model):
 class FileNode(db.Model):
     """Graph node representation of files for visualization"""
     __tablename__ = 'file_nodes'
+    __table_args__ = (
+        db.UniqueConstraint('file_sha', name='uq_file_node_sha'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
@@ -757,8 +766,8 @@ class FileNode(db.Model):
 
     # Metadata
     extra_data = db.Column(JSON, default=dict)  # Changed from metadata
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     file = db.relationship('AnalysisFile', foreign_keys=[file_id], backref='graph_nodes')
@@ -786,7 +795,7 @@ class GraphEdge(db.Model):
 
     # Metadata
     extra_data = db.Column(JSON, default=dict)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
 
     # Relationships
     source_node = db.relationship('FileNode', foreign_keys=[source_node_id])
@@ -822,7 +831,7 @@ class RegionOfInterest(db.Model):
 
     # Metadata
     extra_data = db.Column(JSON, default=dict)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     # Relationships
@@ -882,8 +891,8 @@ class FileDerivation(db.Model):
     parent = db.relationship('FileNode', foreign_keys=[parent_sha], backref='derived_children')
     child = db.relationship('FileNode', foreign_keys=[child_sha], backref='derived_from')
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f'<FileDerivation {self.parent_sha[:8]}...→{self.child_sha[:8]}... via {self.operation}>'
@@ -904,8 +913,8 @@ class CombinationRelationship(db.Model):
     result_file = db.relationship('AnalysisFile', foreign_keys=[result_file_id], backref='combination_results')
     sources = db.relationship('CombinationSource', backref='combination', cascade='all, delete-orphan')
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f'<CombinationRelationship {self.id}: {self.combination_method}>'
@@ -924,7 +933,7 @@ class CombinationSource(db.Model):
     # Relationships
     source_file = db.relationship('AnalysisFile', foreign_keys=[source_file_id], backref='combination_sources')
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow)
 
     def __repr__(self):
         return f'<CombinationSource {self.combination_id}: {self.source_file_id} (order: {self.order_index})>'
@@ -945,6 +954,9 @@ class BulkImport(db.Model):
     successful_items = db.Column(db.Integer, default=0)
     failed_items = db.Column(db.Integer, default=0)
 
+    # Task tracking
+    task_id = db.Column(db.String(36), index=True)  # Celery task ID
+
     # Error tracking
     error_message = db.Column(db.Text)
     error_details = db.Column(JSON, default=dict)
@@ -956,9 +968,9 @@ class BulkImport(db.Model):
 
     # User and timestamps
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(TIMESTAMP)
 
     # Relationships
     creator = db.relationship('User', backref='bulk_imports')
@@ -984,7 +996,7 @@ def init_database():
             display_name='Administrator',
             is_admin=True,
             is_verified=True,
-            level=UserLevel.ADMIN
+            level=UserLevel.MASTER
         )
         admin.set_password('admin123')
         db.session.add(admin)
