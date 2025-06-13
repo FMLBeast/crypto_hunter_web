@@ -76,7 +76,7 @@ def create_app(config_name=None):
     app.register_blueprint(search_bp)
 
     from crypto_hunter_web.routes.api.crypto import crypto_api_bp as modern_crypto_api_bp
-    app.register_blueprint(modern_crypto_api_bp)
+    app.register_blueprint(modern_crypto_api_bp, url_prefix='/api/crypto')
 
     # Register puzzle blueprint
     from crypto_hunter_web.routes.puzzle_routes import puzzle_bp
@@ -109,8 +109,10 @@ def create_app(config_name=None):
     # Shell context
     @app.shell_context_processor
     def make_shell_context():
-        from crypto_hunter_web.models import User, AnalysisFile, Finding, FileContent
-        from crypto_hunter_web.models.puzzle import PuzzleSession, PuzzleStep, PuzzleCollaborator
+        from crypto_hunter_web.models import (
+            User, AnalysisFile, Finding, FileContent,
+            PuzzleSession, PuzzleStep, PuzzleCollaborator
+        )
         return {
             'db': db, 
             'User': User, 

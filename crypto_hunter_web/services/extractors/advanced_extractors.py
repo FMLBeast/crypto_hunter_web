@@ -15,8 +15,7 @@ try:
     CV2_AVAILABLE = True
 except ImportError:
     CV2_AVAILABLE = False
-    print("OpenCV functionality not available: No module named 'cv2'")
-    print("To enable advanced image processing features, install opencv-python: pip install opencv-python")
+    print("ExtractionEngine not available: No module named 'cv2'")
 
 class XORBitplanesExtractor(BaseExtractor):
     """Extractor for XOR operations between bitplanes"""

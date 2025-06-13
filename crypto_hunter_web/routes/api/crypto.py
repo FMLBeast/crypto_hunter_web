@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta
 from typing import Dict
+from functools import wraps
 
 from crypto_hunter_web.services.ai_service import AIService
 from crypto_hunter_web.services.crypto_analyzer import CryptoAnalyzer
@@ -18,11 +19,22 @@ from crypto_hunter_web.utils.validators import validate_sha256
 
 crypto_api_bp = Blueprint('modern_crypto_api', __name__)
 
+# Custom wrapper to avoid decorator conflicts
+def crypto_api_wrapper(endpoint_name):
+    """Custom wrapper to ensure unique endpoint names"""
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            return f(*args, **kwargs)
+        wrapper.__name__ = f'crypto_{endpoint_name}_wrapper'
+        return wrapper
+    return decorator
 
-@crypto_api_bp.route('/analyze/<sha>', methods=['POST'])
+
+@crypto_api_bp.route('/analyze/<sha>', methods=['POST'], endpoint='analyze_crypto_patterns')
 @login_required
 @rate_limit("10 per minute")
-@api_endpoint(endpoint="analyze_crypto_patterns_endpoint")
+@crypto_api_wrapper('analyze_patterns')
 def analyze_crypto_patterns(sha):
     """Comprehensive cryptocurrency and cryptographic pattern analysis"""
     if not validate_sha256(sha):
@@ -120,10 +132,10 @@ def analyze_crypto_patterns(sha):
         return jsonify({'error': 'Analysis failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/patterns/search', methods=['POST'])
+@crypto_api_bp.route('/patterns/search', methods=['POST'], endpoint='search_crypto_patterns')
 @login_required
 @rate_limit("20 per minute")
-@api_endpoint(endpoint="search_crypto_patterns_endpoint")
+@crypto_api_wrapper('search_patterns')
 def search_crypto_patterns():
     """Search for specific cryptocurrency patterns across all files"""
     try:
@@ -232,10 +244,10 @@ def search_crypto_patterns():
         return jsonify({'error': 'Search failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/wallets/identify', methods=['POST'])
+@crypto_api_bp.route('/wallets/identify', methods=['POST'], endpoint='identify_wallet_addresses')
 @login_required
 @rate_limit("15 per minute")
-@api_endpoint(endpoint="identify_wallet_addresses_endpoint")
+@crypto_api_wrapper('identify_wallets')
 def identify_wallet_addresses():
     """Identify and analyze cryptocurrency wallet addresses"""
     try:
@@ -300,10 +312,10 @@ def identify_wallet_addresses():
         return jsonify({'error': 'Identification failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/keys/analyze', methods=['POST'])
+@crypto_api_bp.route('/keys/analyze', methods=['POST'], endpoint='analyze_cryptographic_keys')
 @login_required
 @rate_limit("10 per minute")
-@api_endpoint
+@crypto_api_wrapper('analyze_keys')
 def analyze_cryptographic_keys():
     """Analyze cryptographic keys and certificates"""
     try:
@@ -349,10 +361,10 @@ def analyze_cryptographic_keys():
         return jsonify({'error': 'Analysis failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/blockchain/query', methods=['POST'])
+@crypto_api_bp.route('/blockchain/query', methods=['POST'], endpoint='query_blockchain_data')
 @login_required
 @rate_limit("5 per minute")
-@api_endpoint
+@crypto_api_wrapper('blockchain_query')
 def query_blockchain_data():
     """Query blockchain data for addresses found in files"""
     try:
@@ -414,10 +426,10 @@ def query_blockchain_data():
         return jsonify({'error': 'Query failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/statistics', methods=['GET'])
+@crypto_api_bp.route('/statistics', methods=['GET'], endpoint='get_crypto_statistics')
 @login_required
 @rate_limit("30 per minute")
-@api_endpoint
+@crypto_api_wrapper('get_statistics')
 def get_crypto_statistics():
     """Get comprehensive cryptocurrency analysis statistics"""
     try:
@@ -516,10 +528,10 @@ def get_crypto_statistics():
         return jsonify({'error': 'Statistics generation failed', 'details': str(e)}), 500
 
 
-@crypto_api_bp.route('/export', methods=['POST'])
+@crypto_api_bp.route('/export', methods=['POST'], endpoint='export_crypto_findings')
 @login_required
 @rate_limit("5 per hour")
-@api_endpoint
+@crypto_api_wrapper('export_findings')
 def export_crypto_findings():
     """Export cryptocurrency findings in various formats"""
     try:

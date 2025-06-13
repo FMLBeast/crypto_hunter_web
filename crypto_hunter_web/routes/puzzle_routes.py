@@ -11,8 +11,8 @@ from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError
 
 from crypto_hunter_web import db
-from crypto_hunter_web.models.puzzle import (
-    PuzzleSession, PuzzleStep, PuzzleCollaborator, 
+from crypto_hunter_web.models import (
+    PuzzleSession, PuzzleStep, PuzzleCollaborator,
     PuzzleStepFile, PuzzleStepFinding, PuzzleStepRegion
 )
 from crypto_hunter_web.models import AnalysisFile, Finding, RegionOfInterest, FileContent

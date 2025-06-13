@@ -169,9 +169,9 @@ def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, re
         # Preserve the endpoint name to avoid conflicts
         result.__name__ = f.__name__
 
-        # Set a custom endpoint name if provided, but make it unique by including the original function name
+        # Set a custom endpoint name if provided
         if endpoint:
-            result.__name__ = f"{f.__name__}_{endpoint}"
+            result.__name__ = endpoint
 
         return result
 
