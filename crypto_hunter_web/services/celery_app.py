@@ -29,6 +29,7 @@ def make_celery(app=None):
             'crypto_hunter_web.tasks.maintenance_tasks',
             'crypto_hunter_web.tasks.analysis_tasks',
             'crypto_hunter_web.tasks.crypto_tasks',
+            'crypto_hunter_web.tasks.extraction',
         ]
     )
 

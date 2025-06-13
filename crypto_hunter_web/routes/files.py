@@ -324,9 +324,13 @@ def upload_file():
                     if result['success']:
                         uploaded_files.append(result['file'])
 
-                        # Queue for analysis if requested
+                        # Queue for processing if requested
                         if auto_analyze:
-                            BackgroundService.queue_analysis(result['file'].id)
+                            from crypto_hunter_web.tasks.engine_tasks import process_file
+                            process_file.delay(result['file'].id, ['analysis', 'extraction'], {
+                                'priority': priority,
+                                'auto_analyze': auto_analyze
+                            })
                     else:
                         errors.append(f"{file.filename}: {result['error']}")
 
@@ -1034,9 +1038,14 @@ def bulk_import():
                 'tags': tags
             }
 
-            # Queue the CSV processing task
-            from crypto_hunter_web.tasks.analysis_tasks import process_csv_bulk_import
-            task = process_csv_bulk_import.delay(bulk_import.id, csv_content, options)
+            # Queue the CSV processing task using the engine approach
+            from crypto_hunter_web.tasks.engine_tasks import process_bulk_import
+            task = process_bulk_import.delay(
+                bulk_import.id, 
+                csv_content, 
+                ['upload', 'analysis', 'extraction'], 
+                options
+            )
 
             # Track the task
             BackgroundService.track_task(
@@ -1047,7 +1056,8 @@ def bulk_import():
                 metadata={
                     'bulk_import_id': bulk_import.id,
                     'filename': csv_file.filename,
-                    'options': options
+                    'options': options,
+                    'engines': ['upload', 'analysis', 'extraction']
                 }
             )
 

@@ -337,19 +337,42 @@ def enhanced_import():
         filepath = os.path.join(tempfile.gettempdir(), filename)
         csv_file.save(filepath)
 
-        # Start enhanced import
-        from crypto_hunter_web.services.enhanced_import_service import EnhancedImportService
+        # Start enhanced import using the engine approach
+        from crypto_hunter_web.tasks.engine_tasks import process_api_import
 
-        if offline_mode:
-            bulk_import = EnhancedImportService.import_offline_mode(filepath, session['user_id'])
-        else:
-            bulk_import = EnhancedImportService.import_with_crypto_analysis(
-                filepath,
-                session['user_id'],
-                analyze_crypto=True,
-                use_llm=use_llm,
-                llm_budget=llm_budget
-            )
+        # Prepare options
+        options = {
+            'offline_mode': offline_mode,
+            'use_llm': use_llm,
+            'llm_budget': llm_budget,
+            'analyze_crypto': True
+        }
+
+        # Determine engines to use
+        engines = ['upload', 'analysis', 'extraction']
+        if use_llm:
+            engines.append('llm')
+        if not offline_mode:
+            engines.append('crypto')
+
+        # Queue the task
+        task = process_api_import.delay(filepath, session['user_id'], engines, options)
+
+        # Create a placeholder bulk import record for tracking
+        from crypto_hunter_web.models import BulkImport
+        from datetime import datetime
+
+        bulk_import = BulkImport(
+            import_type='api',
+            status='processing',
+            source_file=os.path.basename(filepath),
+            created_by=session['user_id'],
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            task_id=task.id
+        )
+        db.session.add(bulk_import)
+        db.session.commit()
 
         return jsonify({
             'success': True,

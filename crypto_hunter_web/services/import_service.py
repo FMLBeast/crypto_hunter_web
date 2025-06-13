@@ -96,11 +96,12 @@ class ImportService:
 
     @staticmethod
     def scan_directory(directory_path: str, user_id: int, recursive: bool = True) -> BulkImport:
-        """Directory scanning with crypto intelligence and background processing"""
+        """Directory scanning with engines approach and background processing"""
+        # Create a bulk import record
         bulk_import = BulkImport(
             filename=f"Directory: {os.path.basename(directory_path)}",
             imported_by=user_id,
-            status='processing',
+            status='queued',
             started_at=datetime.utcnow()
         )
         db.session.add(bulk_import)
@@ -113,60 +114,35 @@ class ImportService:
             if not os.access(directory_path, os.R_OK):
                 raise PermissionError(f"Cannot read directory: {directory_path}")
 
-            # Get all valid files with intelligence filtering
-            files_to_process = ImportService._get_valid_files(directory_path, recursive)
+            # Prepare options
+            options = {
+                'recursive': recursive,
+                'priority': 5,  # Default priority
+                'auto_analyze': True
+            }
 
-            bulk_import.total_files = len(files_to_process)
+            # Queue the directory processing task using the engine approach
+            from crypto_hunter_web.tasks.engine_tasks import process_directory
+            task = process_directory.delay(
+                directory_path,
+                user_id,
+                ['upload', 'analysis', 'extraction', 'crypto'],  # Default engines for directory scan
+                options
+            )
+
+            # Update bulk import with task ID
+            bulk_import.task_id = task.id
+            bulk_import.status = 'processing'
             db.session.commit()
 
-            logger.info(f"Starting directory scan of {len(files_to_process)} files from {directory_path}")
-
-            # Process files in batches with priority queue
-            imported_count = 0
-            batch = []
-
-            for file_info in files_to_process:
-                try:
-                    file_data = ImportService._prepare_file_data(file_info, 'directory_scan')
-
-                    if file_data:
-                        batch.append(file_data)
-
-                        if len(batch) >= ImportService.BATCH_SIZE:
-                            imported_count += ImportService._process_file_batch(
-                                batch, bulk_import, user_id
-                            )
-                            batch = []
-
-                except Exception as e:
-                    ImportService._log_detailed_error(
-                        bulk_import, f"Error processing {file_info['path']}: {str(e)}"
-                    )
-                    logger.error(f"Error processing {file_info['path']}: {e}")
-
-            # Process remaining batch
-            if batch:
-                imported_count += ImportService._process_file_batch(
-                    batch, bulk_import, user_id
-                )
-
-            # Finalize
-            bulk_import.successful_imports = imported_count
-            bulk_import.processed_files = len(files_to_process)
-            bulk_import.status = 'completed'
-            bulk_import.completed_at = datetime.utcnow()
-            db.session.commit()
-
-            # Start background crypto analysis
-            ImportService.finalize_import_with_background_processing(bulk_import)
-
-            logger.info(f"Directory scan completed: {imported_count} files imported from {directory_path}")
-
+            # Log action
             AuthService.log_action(
-                'directory_scan_completed',
-                f'Scanned {directory_path}, imported {imported_count} files',
+                'directory_scan_queued',
+                f'Queued directory scan for {directory_path}',
                 user_id
             )
+
+            logger.info(f"Directory scan queued for {directory_path} with task ID {task.id}")
 
             return bulk_import
 
@@ -174,9 +150,7 @@ class ImportService:
             bulk_import.status = 'failed'
             bulk_import.error_log = f"Directory scan failed: {str(e)}"
             bulk_import.completed_at = datetime.utcnow()
-
-            with ImportService._db_transaction():
-                db.session.add(bulk_import)
+            db.session.commit()
 
             logger.error(f"Directory scan failed: {e}")
             raise

@@ -576,6 +576,39 @@ flask db upgrade
 flask db downgrade
 ```
 
+### Database Schema Validation
+
+The application automatically checks if the database schema matches the SQLAlchemy models during startup. If a mismatch is detected, it can automatically re-initialize the database.
+
+```bash
+# Enable automatic database re-initialization in .env
+AUTO_REINIT_DB=true
+```
+
+> **Warning**: When `AUTO_REINIT_DB` is set to `true`, the application will drop and recreate all tables if a schema mismatch is detected. This will delete all data in the database. Use with caution in production environments.
+
+You can also manually check and fix schema mismatches using the provided script:
+
+```bash
+# Check schema without making changes
+python database/check_db_schema.py
+
+# Check and automatically fix schema mismatches
+AUTO_REINIT_DB=true python database/check_db_schema.py
+```
+
+## 📁 Project Organization
+
+The project has been reorganized to make it cleaner and more maintainable. Files have been grouped into the following directories:
+
+- **extraction**: Contains extraction-related files
+- **database**: Contains database-related files
+- **docker**: Contains Docker-related files
+- **docs**: Contains documentation files
+- **scripts**: Contains scripts for various tasks
+
+For more details, see [REORGANIZATION.md](REORGANIZATION.md).
+
 ## 🚀 Production Deployment
 
 ### Prerequisites

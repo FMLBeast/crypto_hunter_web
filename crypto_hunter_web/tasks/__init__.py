@@ -7,6 +7,7 @@ try:
     from .crypto_tasks import *
     from .analysis_tasks import *
     from .maintenance_tasks import *
+    from .engine_tasks import *
 except ImportError:
     # Graceful fallback if tasks don't exist
     pass
