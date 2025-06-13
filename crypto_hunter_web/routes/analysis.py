@@ -1,10 +1,12 @@
 # crypto_hunter_web/routes/analysis.py - COMPLETE ADVANCED IMPLEMENTATION
 
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
-from datetime import datetime, timedelta
-from sqlalchemy import func, desc, and_, or_
-from typing import Optional,Dict, Any
+from sqlalchemy import func, and_, or_
+
 from crypto_hunter_web.models import db, AnalysisFile, Finding, Vector, User, FileContent, FileStatus
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.utils.validators import validate_sha256

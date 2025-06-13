@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # crypto_hunter_web/routes/dashboard.py - Updated with real data integration
 
-from flask import Blueprint, render_template, jsonify, current_app, session
-from sqlalchemy import func, desc, and_
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
+
+from flask import Blueprint, render_template, jsonify, session
+from sqlalchemy import func, desc, and_
 
 dashboard_bp = Blueprint('dashboard', __name__)
 logger = logging.getLogger(__name__)

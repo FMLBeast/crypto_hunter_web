@@ -1,14 +1,14 @@
 # crypto_hunter_web/services/search_service.py - COMPLETE IMPROVED VERSION
 
-import re
 import hashlib
+import re
 from collections import Counter
 from typing import List, Dict, Any, Optional
-from datetime import datetime
-from sqlalchemy import func, or_, text, and_
-from crypto_hunter_web.models import db
+
+from sqlalchemy import func, or_, text
+
 from crypto_hunter_web.models import AnalysisFile, FileContent
-from crypto_hunter_web.models import Finding
+from crypto_hunter_web.models import db
 
 
 class SearchService:

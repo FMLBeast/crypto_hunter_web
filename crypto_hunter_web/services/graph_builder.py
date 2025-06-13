@@ -1,8 +1,10 @@
 # crypto_hunter_web/services/graph_builder.py
 
-import networkx as nx
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict
+
+import networkx as nx
+
 from crypto_hunter_web import db
 from crypto_hunter_web.models import FileNode, FileDerivation
 

@@ -3,17 +3,18 @@
 LLM Crypto Analysis API Routes - Real implementation
 """
 
-from flask import Blueprint, request, jsonify, session, current_app
-from datetime import datetime, timedelta
-from sqlalchemy import func, desc, and_
 import json
 import logging
+from datetime import datetime, timedelta
 
+from flask import Blueprint, request, jsonify, session, current_app
+from sqlalchemy import func, desc, and_
+
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, User
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, User
+from crypto_hunter_web.services.background_service import BackgroundService
 from crypto_hunter_web.utils.decorators import rate_limit
 from crypto_hunter_web.utils.validators import validate_sha256
-from crypto_hunter_web.services.background_service import BackgroundService
 
 llm_crypto_api_bp = Blueprint('llm_crypto_api', __name__)
 logger = logging.getLogger(__name__)

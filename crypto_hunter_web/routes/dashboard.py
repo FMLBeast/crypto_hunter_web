@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # crypto_hunter_web/routes/dashboard.py
 
-from flask import Blueprint, render_template, jsonify, current_app
-from sqlalchemy import func, desc
 import logging
+
+from flask import Blueprint, render_template, jsonify
+from sqlalchemy import func, desc
 
 dashboard_bp = Blueprint('dashboard', __name__)
 logger = logging.getLogger(__name__)

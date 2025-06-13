@@ -6,8 +6,8 @@ Production-ready Flask application runner with comprehensive error handling
 
 import os
 import sys
-import logging
 from pathlib import Path
+
 from flask import Flask, jsonify
 
 # Add project root to Python path

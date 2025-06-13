@@ -1,20 +1,20 @@
 # crypto_hunter_web/routes/api/crypto.py - COMPLETE CRYPTO ANALYSIS API
 
+import json
+from datetime import datetime, timedelta
+from typing import Dict
+
+from crypto_hunter_web.services.ai_service import AIService
+from crypto_hunter_web.services.crypto_analyzer import CryptoAnalyzer
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from datetime import datetime, timedelta
-import json
-import asyncio
-from typing import Dict, List, Optional, Any
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, Vector, AuditLog
-from crypto_hunter_web.services.crypto_analyzer import CryptoAnalyzer
-from crypto_hunter_web.services.ai_service import AIService
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, AuditLog
 from crypto_hunter_web.services.background_service import BackgroundService
 from crypto_hunter_web.services.security_service import SecurityService
-from crypto_hunter_web.utils.validators import validate_sha256, validate_json_input
-from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint, require_api_key
 from crypto_hunter_web.utils.crypto_patterns import CryptoPatterns
+from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint
+from crypto_hunter_web.utils.validators import validate_sha256
 
 crypto_api_bp = Blueprint('crypto_api', __name__)
 

@@ -1,18 +1,18 @@
 # crypto_hunter_web/models.py - COMPLETE OPTIMIZED MODELS
 
-import os
 import hashlib
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Union
-from enum import Enum
+import uuid
 from datetime import datetime
+from datetime import timedelta
+from enum import Enum
+from typing import Optional, Dict, Any, Union
+
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import Index, text, event
 from sqlalchemy.dialects.postgresql import JSON, UUID, TIMESTAMP, DOUBLE_PRECISION
-from sqlalchemy import Index, text, event, func
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
-import uuid
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Import db from main app
 from crypto_hunter_web import db

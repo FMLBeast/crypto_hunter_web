@@ -1,15 +1,15 @@
 """
 Crypto analysis tasks for background processing
 """
-import os
-import time
-import logging
 import json
-from typing import Dict, Any, List, Optional
+import logging
+import time
 from datetime import datetime
-from crypto_hunter_web.services.celery_app import celery_app
+from typing import Dict, Any, List
+
 from crypto_hunter_web import db
 from crypto_hunter_web.models import FileContent
+from crypto_hunter_web.services.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

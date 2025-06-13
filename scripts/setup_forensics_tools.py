@@ -4,16 +4,16 @@ scripts/setup_forensics_tools.py
 Automated installation and setup of best-in-class forensics tools
 """
 
-import os
-import sys
-import subprocess
-import platform
-import shutil
-import urllib.request
-import tempfile
 import json
+import os
+import platform
+import subprocess
+import sys
+import tempfile
+import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
+
 
 class ForensicsToolsInstaller:
     """Automated installer for forensics and analysis tools"""

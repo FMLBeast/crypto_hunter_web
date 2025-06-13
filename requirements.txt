@@ -88,3 +88,6 @@ tiktoken==0.5.1
 # Optional Blockchain Analysis (commented out if not needed)
 # web3==6.10.0
 # bitcoinlib==0.12.0
+
+Flask-SocketIO~=5.5.1
+binwalk~=2.3.3

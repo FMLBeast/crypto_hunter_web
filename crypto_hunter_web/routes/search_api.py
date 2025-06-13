@@ -1,13 +1,14 @@
 # crypto_hunter_web/routes/search_api.py - COMPLETE SEARCH API IMPLEMENTATION
 
-from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required, current_user
 from datetime import datetime, timedelta
+
+from flask import Blueprint, request, jsonify, current_app
+from flask_login import login_required
 
 from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.search_service import SearchService, MetadataGenerator
-from crypto_hunter_web.utils.decorators import rate_limit, cache_response, api_endpoint, validate_json
+from crypto_hunter_web.utils.decorators import api_endpoint
 from crypto_hunter_web.utils.validators import validate_sha256, sanitize_search_query
 
 search_api_bp = Blueprint('search_api', __name__)

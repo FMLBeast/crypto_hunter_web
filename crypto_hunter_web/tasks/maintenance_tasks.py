@@ -1,10 +1,11 @@
 """
 Maintenance and cleanup tasks
 """
-import time
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 from typing import Dict, Any
+
 from crypto_hunter_web.services.celery_app import celery_app
 
 logger = logging.getLogger(__name__)

@@ -3,20 +3,20 @@ Comprehensive bulk import service with crypto intelligence integration
 """
 
 import csv
-import os
 import hashlib
-import json
+import logging
+import mimetypes
+import os
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-import mimetypes
-import logging
-from typing import Dict, List, Optional, Tuple, Any
-import chardet
-from contextlib import contextmanager
+from typing import Dict, List, Optional, Any
 
-from crypto_hunter_web.models import db, AnalysisFile, ExtractionRelationship, BulkImport
-from crypto_hunter_web.services.file_analyzer import FileAnalyzer
+import chardet
+
+from crypto_hunter_web.models import db, AnalysisFile, BulkImport
 from crypto_hunter_web.services.auth_service import AuthService
+from crypto_hunter_web.services.file_analyzer import FileAnalyzer
 
 logger = logging.getLogger(__name__)
 

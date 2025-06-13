@@ -1,28 +1,24 @@
 # crypto_hunter_web/routes/files.py - COMPLETE FILE MANAGEMENT ROUTES
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify, \
+import json
+import mimetypes
+import os
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify, \
     send_file
 from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
-from datetime import datetime, timedelta
-import os
-import json
-import hashlib
-import mimetypes
-from pathlib import Path
-import tempfile
-import shutil
-import uuid
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, Vector, User, AuditLog, FileStatus, FindingStatus, BulkImport
-from crypto_hunter_web.services.file_service import FileService
-from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.services.content_analyzer import ContentAnalyzer
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, User, AuditLog, FileStatus, FindingStatus, \
+    BulkImport
 from crypto_hunter_web.services.background_service import BackgroundService
-from crypto_hunter_web.utils.validators import validate_filename, validate_file_path, validate_sha256
-from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint
-from crypto_hunter_web.utils.file_utils import calculate_file_hash, detect_file_type, get_file_size_human
+from crypto_hunter_web.services.file_service import FileService
+from crypto_hunter_web.utils.decorators import rate_limit
+from crypto_hunter_web.utils.file_utils import get_file_size_human
+from crypto_hunter_web.utils.validators import validate_sha256
 
 files_bp = Blueprint('files', __name__, url_prefix='/files')
 

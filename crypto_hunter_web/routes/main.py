@@ -1,7 +1,7 @@
 """
 Main routes for Crypto Hunter - BETA VERSION
 """
-from flask import Blueprint, render_template, jsonify, current_app
+from flask import Blueprint, jsonify, current_app
 
 main_bp = Blueprint('main', __name__)
 

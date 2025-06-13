@@ -5,18 +5,15 @@ dev.py - Crypto Hunter Development Automation
 Best-in-class development experience with comprehensive tooling
 """
 
-import os
-import sys
-import subprocess
-import time
-import signal
-import threading
-import json
-import shutil
-from pathlib import Path
-from typing import List, Dict, Optional
 import argparse
 import platform
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import List
 
 
 class Colors:

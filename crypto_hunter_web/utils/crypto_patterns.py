@@ -1,12 +1,8 @@
 # crypto_hunter_web/utils/crypto_patterns.py - COMPLETE CRYPTO PATTERN DETECTION
 
-import re
-import hashlib
-import base64
 import logging
-from typing import Dict, List, Optional, Any, Tuple, Union
-from collections import defaultdict
-import binascii
+import re
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 

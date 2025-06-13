@@ -2,19 +2,19 @@
 Complete API routes for advanced features integration
 """
 
-from flask import Blueprint, request, jsonify, session
-from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.models import db
-from crypto_hunter_web.models import AnalysisFile, FileContent
-from crypto_hunter_web.models import Finding, Vector
-from crypto_hunter_web.models import User
-from crypto_hunter_web.models import FileStatus, FindingStatus
-from crypto_hunter_web.utils.decorators import rate_limit
-from crypto_hunter_web.utils.validators import validate_sha256
 import json
 
+from flask import Blueprint, request, jsonify, session
+
+from crypto_hunter_web.models import AnalysisFile, FileContent
+from crypto_hunter_web.models import FileStatus, FindingStatus
+from crypto_hunter_web.models import Vector
+from crypto_hunter_web.models import db
 # Import the API route blueprints
 from crypto_hunter_web.routes.background_api import background_api_bp
+from crypto_hunter_web.services.auth_service import AuthService
+from crypto_hunter_web.utils.decorators import rate_limit
+from crypto_hunter_web.utils.validators import validate_sha256
 from .crypto_api import crypto_api_bp
 from .llm_crypto_api import llm_crypto_api_bp
 from .search_api import search_api_bp

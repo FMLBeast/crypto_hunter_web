@@ -4,18 +4,16 @@ Route blueprints for the Crypto Hunter application.
 This file ensures all route blueprints are properly registered.
 """
 
-from flask import Blueprint
-
-# Import all blueprints
-from crypto_hunter_web.routes.dashboard_update import dashboard_bp
-from crypto_hunter_web.routes.auth import auth_bp
-from crypto_hunter_web.routes.files import files_bp
+from crypto_hunter_web.routes.admin import admin_bp
 from crypto_hunter_web.routes.analysis import analysis_bp
-from crypto_hunter_web.routes.graph import graph_bp
+from crypto_hunter_web.routes.auth import auth_bp
 from crypto_hunter_web.routes.content import content_bp
 from crypto_hunter_web.routes.crypto_api import crypto_api_bp
+# Import all blueprints
+from crypto_hunter_web.routes.dashboard_update import dashboard_bp
+from crypto_hunter_web.routes.files import files_bp
+from crypto_hunter_web.routes.graph import graph_bp
 from crypto_hunter_web.routes.search_api import search_api_bp
-from crypto_hunter_web.routes.admin import admin_bp
 
 # Export all blueprints
 __all__ = [

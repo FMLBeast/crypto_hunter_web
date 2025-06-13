@@ -6,7 +6,6 @@ Centralized Flask extensions with proper error handling
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -1,18 +1,20 @@
 """
 File analysis tasks for background processing
 """
-import os
-import time
-import logging
 import csv
 import io
+import logging
 import mimetypes
-from typing import Dict, Any, List
+import os
+import time
+from typing import Dict, Any
+
 from werkzeug.datastructures import FileStorage
-from crypto_hunter_web.services.celery_app import celery_app
-from crypto_hunter_web.models import db, AnalysisFile, BulkImport, FileStatus
-from crypto_hunter_web.services.file_service import FileService
+
+from crypto_hunter_web.models import db, BulkImport
 from crypto_hunter_web.services.background_service import BackgroundService
+from crypto_hunter_web.services.celery_app import celery_app
+from crypto_hunter_web.services.file_service import FileService
 
 logger = logging.getLogger(__name__)
 

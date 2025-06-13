@@ -4,8 +4,9 @@ import click
 import networkx as nx
 from networkx.readwrite.graphml import write_graphml as write_graphml_xml
 from sqlalchemy.inspection import inspect
+
 from .models import FileNode
-from . import db
+
 
 @click.command('import-files')
 @click.argument('csv_path')

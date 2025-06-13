@@ -2,16 +2,14 @@
 Comprehensive cryptographic intelligence and analysis service
 """
 
-import re
 import base64
 import hashlib
-import hmac
-import binascii
-import json
-import requests
-import os
-from typing import Dict, List, Any, Optional, Tuple
+import re
 from collections import Counter
+from typing import Dict, List, Any
+
+import requests
+
 try:
     from Crypto.Cipher import AES
     from Crypto.PublicKey import RSA
@@ -27,11 +25,7 @@ except ImportError:
     # Fallback if eth dependencies not available
     ecdsa = keccak = None
 
-import struct
 import string
-import itertools
-from concurrent.futures import ThreadPoolExecutor
-import time
 
 
 class CryptoIntelligence:

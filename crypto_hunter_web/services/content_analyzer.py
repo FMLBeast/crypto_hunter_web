@@ -1,23 +1,23 @@
 # crypto_hunter_web/services/content_analyzer.py - COMPLETE FILE ANALYSIS ENGINE
 
+import hashlib
+import logging
+import mimetypes
 import os
 import re
-import hashlib
-import mimetypes
 import subprocess
 import tempfile
-import logging
-from typing import Dict, List, Optional, Any, Tuple, Union
-from pathlib import Path
-from contextlib import contextmanager
+from collections import Counter
 from datetime import datetime
-import magic
+from pathlib import Path
+from typing import Dict, List, Any
+
 import chardet
-from collections import defaultdict, Counter
+import magic
 
 from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, FileStatus
 from crypto_hunter_web.utils.crypto_patterns import CryptoPatterns
-from crypto_hunter_web.utils.validators import validate_file_size, sanitize_filename
+from crypto_hunter_web.utils.validators import validate_file_size
 
 logger = logging.getLogger(__name__)
 

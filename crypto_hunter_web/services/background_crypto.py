@@ -1,11 +1,11 @@
 # crypto_hunter_web/services/background_crypto.py - COMPLETE IMPROVED VERSION
 
 import json
-import time
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-from celery import chord, group
+
+from celery import chord
 from sqlalchemy.exc import SQLAlchemyError
 
 from crypto_hunter_web import db
@@ -19,9 +19,8 @@ from crypto_hunter_web.tasks.crypto_tasks import (
     generate_summary_findings,
     continuous_crypto_monitor
 )
-from crypto_hunter_web.utils.redis_client_util import redis_client
-from crypto_hunter_web.services.celery_app import celery_app
 from crypto_hunter_web.tasks.maintenance_tasks import system_health_check
+from crypto_hunter_web.utils.redis_client_util import redis_client
 
 logger = logging.getLogger(__name__)
 

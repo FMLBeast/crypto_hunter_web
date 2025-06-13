@@ -4,20 +4,18 @@ crypto_hunter_web/services/advanced_forensics.py
 Best-in-class forensics analysis toolkit with comprehensive tool integration
 """
 
+import logging
 import os
+import shutil
 import subprocess
 import tempfile
-import shutil
-import json
-import logging
-import magic
-import hashlib
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
-import threading
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
+
+import magic
 
 logger = logging.getLogger(__name__)
 

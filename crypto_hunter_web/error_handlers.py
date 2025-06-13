@@ -3,11 +3,12 @@
 import logging
 import traceback
 from datetime import datetime
+
 from flask import request, jsonify, render_template, current_app, g
-from werkzeug.exceptions import HTTPException, RequestEntityTooLarge, NotFound, Forbidden, Unauthorized, BadRequest, InternalServerError
-from werkzeug.http import HTTP_STATUS_CODES
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from flask_login import current_user
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from werkzeug.exceptions import HTTPException, Forbidden, Unauthorized
+from werkzeug.http import HTTP_STATUS_CODES
 
 from crypto_hunter_web.models import db, AuditLog
 from crypto_hunter_web.services.security_service import SecurityService

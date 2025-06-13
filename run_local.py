@@ -6,7 +6,6 @@ Quick setup and run for development
 
 import os
 import sys
-import subprocess
 from pathlib import Path
 
 
@@ -93,6 +92,29 @@ def run_server():
         print(f"❌ Error starting server: {e}")
         print("💡 Try running: pip install -r requirements.txt")
         sys.exit(1)
+
+
+def install_requirements():
+    """Install required packages"""
+    print("📦 Checking and installing requirements...")
+
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print("✅ Requirements installed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to install requirements: {e}")
+        print(f"Error output: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"❌ Error during requirements installation: {e}")
+        return False
 
 
 def main():

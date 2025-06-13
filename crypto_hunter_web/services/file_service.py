@@ -1,22 +1,23 @@
 # crypto_hunter_web/services/file_service.py - COMPLETE FILE MANAGEMENT SERVICE
 
-import os
 import hashlib
-import tempfile
-import shutil
-import mimetypes
 import logging
-from typing import Dict, List, Optional, Any, Tuple, Union
+import mimetypes
+import os
+import shutil
+import tempfile
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, timedelta
+from typing import Dict, List, Any
+
 import magic
-import subprocess
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
+from flask import current_app
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, AuditLog
-from crypto_hunter_web.utils.validators import validate_filename, validate_file_size
+from crypto_hunter_web.models import db, AnalysisFile, FileContent
 from crypto_hunter_web.utils.crypto_patterns import CryptoPatterns
+from crypto_hunter_web.utils.validators import validate_filename, validate_file_size
 
 logger = logging.getLogger(__name__)
 

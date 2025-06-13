@@ -1,15 +1,15 @@
 # crypto_hunter_web/services/security_service.py - COMPLETE SECURITY SERVICE
 
-import logging
 import hashlib
+import logging
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Tuple
 from urllib.parse import urlparse
-from collections import defaultdict
+
 import redis
-from flask import current_app, request, session
+from flask import current_app, request
 
 from crypto_hunter_web.models import db, User, AuditLog, ApiKey
 
@@ -351,7 +351,6 @@ class SecurityService:
 
         # Use PBKDF2 with SHA-256
         import hashlib
-        import os
 
         key = hashlib.pbkdf2_hmac(
             'sha256',

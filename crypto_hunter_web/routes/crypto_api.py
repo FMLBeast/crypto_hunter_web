@@ -1,14 +1,13 @@
 # crypto_hunter_web/routes/crypto.py - COMPLETE CRYPTO API IMPLEMENTATION
 
-from flask import Blueprint, request, jsonify, current_app
-from flask_login import login_required, current_user
-from datetime import datetime
 import hashlib
-import json
+from datetime import datetime
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding
+from flask import Blueprint, request, jsonify, current_app
+
+from crypto_hunter_web.models import AnalysisFile, FileContent, Finding
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint, validate_json
+from crypto_hunter_web.utils.decorators import api_endpoint, validate_json
 from crypto_hunter_web.utils.validators import validate_sha256, validate_hex_string
 
 crypto_api_bp = Blueprint('crypto_api', __name__)

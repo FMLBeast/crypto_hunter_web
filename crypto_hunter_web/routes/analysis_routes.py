@@ -3,14 +3,14 @@
 Analysis routes - Real implementation for viewing analysis results
 """
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
+from flask import Blueprint, render_template, request, jsonify, session
 from sqlalchemy import desc, func
+
+from crypto_hunter_web.models import db, AnalysisFile, Finding, User, FileStatus, FindingStatus
 from crypto_hunter_web.services.auth_service import AuthService
-from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User, FileStatus, FindingStatus
-from crypto_hunter_web.utils.validators import validate_sha256
 from crypto_hunter_web.services.background_service import BackgroundService
 from crypto_hunter_web.services.llm_crypto_orchestrator import llm_orchestrated_analysis
-import json
+from crypto_hunter_web.utils.validators import validate_sha256
 
 analysis_bp = Blueprint('analysis', __name__)
 

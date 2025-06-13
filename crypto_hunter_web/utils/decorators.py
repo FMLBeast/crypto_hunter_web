@@ -1,17 +1,17 @@
 # crypto_hunter_web/utils/decorators.py - COMPLETE DECORATOR UTILITIES
 
-import time
+import functools
 import json
 import logging
-import functools
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable, Union
-from flask import request, jsonify, current_app, g, session, make_response
-from flask_login import current_user
-import redis
-from werkzeug.exceptions import TooManyRequests
+import time
+from datetime import datetime
+from typing import List, Callable
 
-from crypto_hunter_web.models import db, AuditLog, ApiKey
+import redis
+from flask import request, jsonify, current_app, g, make_response, redirect
+from flask_login import current_user
+
+from crypto_hunter_web.models import AuditLog
 from crypto_hunter_web.services.security_service import SecurityService
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
                 # Return rate limit error
                 response = jsonify({
                     'error': 'Rate limit exceeded',
-                    'message': 'Maximum 5 requests per hour',
+                    'message': f'Maximum {rate_count} requests per {rate_period}',
                     'retry_after': info.get('retry_after', window_seconds)
                 })
                 response.status_code = 429
@@ -124,7 +124,7 @@ def rate_limit(limit: str = "100 per hour", per_user: bool = True,
 
     return decorator
 
-def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, require_auth=False):
+def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, require_auth=False, require_json=False):
     """
     Mark function as API endpoint with automatic JSON handling and CSRF protection
 
@@ -133,6 +133,7 @@ def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, re
         cache_ttl: Cache timeout in seconds
         csrf_exempt: Whether to exempt this endpoint from CSRF protection
         require_auth: Whether to require authentication for this endpoint
+        require_json: Whether request must contain JSON
     """
     def decorator(f):
         if csrf_exempt:
@@ -157,11 +158,6 @@ def api_endpoint(rate_limit_requests=None, cache_ttl=None, csrf_exempt=False, re
 
     return decorator
 
-def cache_result(timeout):
-    def decorator(f):
-        return f
-
-    return decorator
 
 def require_api_key(permissions: List[str] = None, optional: bool = False):
     """
@@ -176,8 +172,7 @@ def require_api_key(permissions: List[str] = None, optional: bool = False):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
             # Get API key from header
-            api_key = request.headers.get('X-API-Key') or request.headers.get('Authorization', '').replace('Bearer ',
-                                                                                                           '')
+            api_key = request.headers.get('X-API-Key') or request.headers.get('Authorization', '').replace('Bearer ', '')
 
             if not api_key:
                 if optional:
@@ -218,94 +213,47 @@ def require_api_key(permissions: List[str] = None, optional: bool = False):
 
 
 
-
+def cache_result(timeout):
     """
-    Mark function as API endpoint with automatic JSON handling
+    Cache function result for specified timeout
 
     Args:
-        require_json: Whether request must contain JSON
-        validate_schema: JSON schema to validate against
-        max_content_length: Maximum request content length
+        timeout: Cache timeout in seconds
     """
-
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
-            # Check content length
-            if max_content_length and request.content_length:
-                if request.content_length > max_content_length:
-                    return jsonify({
-                        'error': 'Request too large',
-                        'message': f'Maximum content length is {max_content_length} bytes'
-                    }), 413
+            # Generate cache key based on function name and arguments
+            cache_key = f"cache_result:{f.__module__}:{f.__name__}:{str(args)}:{str(kwargs)}"
 
-            # Check for JSON requirement
-            if require_json:
-                if not request.is_json:
-                    return jsonify({
-                        'error': 'JSON required',
-                        'message': 'Request must contain JSON data'
-                    }), 400
+            # Try to get from cache
+            try:
+                redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
+                cached_result = redis_client.get(cache_key)
 
-                # Validate JSON schema
-                if validate_schema:
-                    try:
-                        data = request.get_json()
-                        # Simple schema validation (in production, use jsonschema library)
-                        if 'required' in validate_schema:
-                            for field in validate_schema['required']:
-                                if field not in data:
-                                    return jsonify({
-                                        'error': 'Validation error',
-                                        'message': f'Missing required field: {field}'
-                                    }), 400
+                if cached_result:
+                    return json.loads(cached_result)
 
-                        if 'properties' in validate_schema:
-                            for field, field_schema in validate_schema['properties'].items():
-                                if field in data and 'type' in field_schema:
-                                    expected_type = field_schema['type']
-                                    actual_value = data[field]
+            except Exception as e:
+                logger.warning(f"Cache read failed: {e}")
 
-                                    # Type checking
-                                    type_map = {
-                                        'string': str,
-                                        'integer': int,
-                                        'number': (int, float),
-                                        'boolean': bool,
-                                        'array': list,
-                                        'object': dict
-                                    }
+            # Execute function
+            result = f(*args, **kwargs)
 
-                                    if expected_type in type_map:
-                                        if not isinstance(actual_value, type_map[expected_type]):
-                                            return jsonify({
-                                                'error': 'Validation error',
-                                                'message': f'Field {field} must be of type {expected_type}'
-                                            }), 400
+            # Cache result
+            try:
+                redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
+                redis_client.setex(
+                    cache_key,
+                    timeout,
+                    json.dumps(result)
+                )
+            except Exception as e:
+                logger.warning(f"Cache write failed: {e}")
 
-                    except Exception as e:
-                        return jsonify({
-                            'error': 'JSON parsing error',
-                            'message': str(e)
-                        }), 400
-
-            # Set API response headers
-            response = f(*args, **kwargs)
-
-            if hasattr(response, 'headers'):
-                response.headers['Content-Type'] = 'application/json'
-                response.headers['X-API-Version'] = '1.0'
-                response.headers['X-Request-ID'] = getattr(g, 'request_id', 'unknown')
-
-            return response
+            return result
 
         return decorated_function
-
-    return decorator
-
-def cache_result(timeout):
-    def decorator(f):
-        return f
     return decorator
 
 def require_permissions(*permissions):
@@ -423,6 +371,7 @@ def cache_response(timeout: int = 300, key_func: Callable = None,
                         return response
 
                     # Cache the response
+                    redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
                     redis_client.setex(
                         cache_key,
                         timeout,
@@ -578,10 +527,17 @@ def log_api_access(include_request_body: bool = False, include_response: bool = 
                     audit_data['request_body'] = '<invalid json>'
 
             start_time = datetime.utcnow()
+            end_time = None
+            duration = None
 
             try:
                 # Execute function
                 result = f(*args, **kwargs)
+
+                # Calculate duration
+                end_time = datetime.utcnow()
+                duration = (end_time - start_time).total_seconds()
+                audit_data['duration'] = duration
 
                 # Include response if requested
                 if include_response and hasattr(result, 'get_json'):
@@ -603,6 +559,12 @@ def log_api_access(include_request_body: bool = False, include_response: bool = 
                 return result
 
             except Exception as e:
+                # Calculate duration for failed requests too
+                if not end_time:
+                    end_time = datetime.utcnow()
+                    duration = (end_time - start_time).total_seconds()
+                    audit_data['duration'] = duration
+
                 # Log failed access
                 audit_data['error'] = str(e)
 
@@ -623,19 +585,19 @@ def log_api_access(include_request_body: bool = False, include_response: bool = 
     return decorator
 
 
-def require_https(redirect: bool = False):
+def require_https(should_redirect: bool = False):
     """
     Require HTTPS for endpoint access
 
     Args:
-        redirect: Whether to redirect HTTP to HTTPS (vs. return error)
+        should_redirect: Whether to redirect HTTP to HTTPS (vs. return error)
     """
 
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
             if not request.is_secure and not current_app.debug:
-                if redirect:
+                if should_redirect:
                     # Redirect to HTTPS
                     url = request.url.replace('http://', 'https://', 1)
                     return redirect(url, code=301)
@@ -691,6 +653,14 @@ def handle_exceptions(default_status: int = 500, log_errors: bool = True):
                     'message': 'Requested resource does not exist'
                 }), 404
 
+            except KeyError as e:
+                if log_errors:
+                    logger.warning(f"KeyError in {request.endpoint}: {e}")
+                return jsonify({
+                    'error': 'Missing parameter',
+                    'message': f'Required parameter missing: {str(e)}'
+                }), 400
+
             except Exception as e:
                 if log_errors:
                     logger.error(f"Unhandled exception in {request.endpoint}: {e}", exc_info=True)
@@ -740,7 +710,7 @@ def public_api(rate_limit_val: str = "1000 per hour"):
 
     def decorator(f):
         decorators = [
-            api_endpoint(),
+            api_endpoint(require_json=False),
             rate_limit(rate_limit_val, per_user=False),
             handle_exceptions(),
             measure_performance()

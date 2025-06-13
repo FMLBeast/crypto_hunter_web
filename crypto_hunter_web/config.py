@@ -1,13 +1,12 @@
 # crypto_hunter_web/config.py - COMPLETE CONFIGURATION MANAGEMENT
 
-import os
 import json
 import logging
-from datetime import timedelta
-from typing import Dict, List, Optional, Any, Union
-from pathlib import Path
-from urllib.parse import quote_plus
+import os
 import secrets
+from datetime import timedelta
+from typing import Dict, List, Any
+from urllib.parse import quote_plus
 
 
 class ConfigurationError(Exception):
@@ -30,6 +29,7 @@ class BaseConfig:
     TESTING = False
 
     # Database
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///instance/crypto_hunter.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = False
     SQLALCHEMY_ENGINE_OPTIONS = {

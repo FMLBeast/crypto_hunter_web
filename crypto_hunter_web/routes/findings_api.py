@@ -3,14 +3,14 @@
 Findings API Routes - Real implementation for managing analysis findings
 """
 
+import logging
+from datetime import datetime, timedelta
+
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy import desc, func, and_, or_
-from datetime import datetime, timedelta
-import json
-import logging
 
-from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.models import db, Finding, AnalysisFile, User, FindingStatus
+from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.utils.decorators import rate_limit
 from crypto_hunter_web.utils.validators import validate_uuid
 
@@ -153,6 +153,10 @@ def list_findings():
 def get_finding_detail(finding_id):
     """Get detailed information about a specific finding"""
     try:
+        # Validate UUID format
+        if not validate_uuid(finding_id):
+            return jsonify({'success': False, 'error': 'Invalid finding ID format'}), 400
+
         user_id = session['user_id']
 
         # Get finding and verify access
@@ -241,6 +245,10 @@ def get_finding_detail(finding_id):
 def verify_finding(finding_id):
     """Verify or update verification status of a finding"""
     try:
+        # Validate UUID format
+        if not validate_uuid(finding_id):
+            return jsonify({'success': False, 'error': 'Invalid finding ID format'}), 400
+
         user_id = session['user_id']
         user = User.query.get(user_id)
 
@@ -302,6 +310,10 @@ def verify_finding(finding_id):
 def collect_finding(finding_id):
     """Add finding to user's collection or bookmark it"""
     try:
+        # Validate UUID format
+        if not validate_uuid(finding_id):
+            return jsonify({'success': False, 'error': 'Invalid finding ID format'}), 400
+
         user_id = session['user_id']
 
         # Get finding and verify access
@@ -349,6 +361,10 @@ def collect_finding(finding_id):
 def export_finding(finding_id):
     """Export detailed finding information"""
     try:
+        # Validate UUID format
+        if not validate_uuid(finding_id):
+            return jsonify({'success': False, 'error': 'Invalid finding ID format'}), 400
+
         user_id = session['user_id']
 
         # Get finding and verify access
@@ -433,6 +449,11 @@ def bulk_findings_action():
 
         if len(finding_ids) > 50:  # Limit bulk operations
             return jsonify({'success': False, 'error': 'Too many findings (max 50)'}), 400
+
+        # Validate all UUIDs in the list
+        for finding_id in finding_ids:
+            if not validate_uuid(finding_id):
+                return jsonify({'success': False, 'error': f'Invalid finding ID format: {finding_id}'}), 400
 
         # Get findings and verify access
         findings = db.session.query(Finding).join(AnalysisFile).filter(

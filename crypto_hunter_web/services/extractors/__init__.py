@@ -3,14 +3,15 @@ crypto_hunter_web/services/extractors/__init__.py
 Updated extractors system integrated with forensics toolkit
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict
+
 from .base import BaseExtractor
-from .forensics_extractor import ForensicsExtractor
-from .zsteg import ZStegExtractor
-from .steghide import SteghideExtractor
 from .binwalk import BinwalkExtractor
 from .custom import CustomExtractor
+from .forensics_extractor import ForensicsExtractor
 from .pnganalyzer import analyze_png_file, extract_png_metadata
+from .steghide import SteghideExtractor
+from .zsteg import ZStegExtractor
 
 # Registry of available extractors
 EXTRACTORS = {
@@ -122,9 +123,6 @@ __all__ = [
 # Updated ZSteg extractor
 # ===================================================================
 
-import os
-import re
-import subprocess
 from .base import BaseExtractor
 
 class ZStegExtractor(BaseExtractor):
@@ -313,8 +311,6 @@ class ZStegExtractor(BaseExtractor):
 # Updated Steghide extractor
 # ===================================================================
 
-import os
-import tempfile
 from .base import BaseExtractor
 
 class SteghideExtractor(BaseExtractor):
@@ -469,7 +465,6 @@ class SteghideExtractor(BaseExtractor):
 # Updated Binwalk extractor
 # ===================================================================
 
-import os
 import tempfile
 import shutil
 import magic
@@ -689,7 +684,6 @@ class BinwalkExtractor(BaseExtractor):
 
 import os
 import re
-import subprocess
 from .base import BaseExtractor
 
 class CustomExtractor(BaseExtractor):

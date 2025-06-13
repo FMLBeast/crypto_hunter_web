@@ -238,7 +238,7 @@
     <div class="mb-8">
         <div class="space-y-3">
             {% for alert in system_alerts %}
-            <div class="admin-card {{ alert.severity }} rounded-lg p-4 {% if alert.severity == 'critical' %}security-alert{% endif %}">
+            <div class="admin-card {{ alert.severity }} rounded-lg p-4 {% if alert.severity == 'critical' %}security-alert{% endif %}" data-alert-id="{{ alert.id }}">
                 <div class="flex items-start">
                     <div class="flex-shrink-0">
                         {% if alert.severity == 'critical' %}
@@ -276,8 +276,8 @@
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">System Load</p>
                     <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.cpu_usage }}%</p>
-                    <div class="metric-trend {{ 'up' if system_metrics.cpu_trend > 0 else 'down' if system_metrics.cpu_trend < 0 else 'neutral' }}">
-                        <i class="fas fa-{{ 'arrow-up' if system_metrics.cpu_trend > 0 else 'arrow-down' if system_metrics.cpu_trend < 0 else 'minus' }} mr-1"></i>
+                    <div class="metric-trend {% if system_metrics.cpu_trend > 0 %}up{% elif system_metrics.cpu_trend < 0 %}down{% else %}neutral{% endif %}">
+                        <i class="fas fa-{% if system_metrics.cpu_trend > 0 %}arrow-up{% elif system_metrics.cpu_trend < 0 %}arrow-down{% else %}minus{% endif %} mr-1"></i>
                         {{ system_metrics.cpu_trend|abs }}%
                     </div>
                 </div>
@@ -297,8 +297,8 @@
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">Memory Usage</p>
                     <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.memory_usage }}%</p>
-                    <div class="metric-trend {{ 'up' if system_metrics.memory_trend > 0 else 'down' if system_metrics.memory_trend < 0 else 'neutral' }}">
-                        <i class="fas fa-{{ 'arrow-up' if system_metrics.memory_trend > 0 else 'arrow-down' if system_metrics.memory_trend < 0 else 'minus' }} mr-1"></i>
+                    <div class="metric-trend {% if system_metrics.memory_trend > 0 %}up{% elif system_metrics.memory_trend < 0 %}down{% else %}neutral{% endif %}">
+                        <i class="fas fa-{% if system_metrics.memory_trend > 0 %}arrow-up{% elif system_metrics.memory_trend < 0 %}arrow-down{% else %}minus{% endif %} mr-1"></i>
                         {{ system_metrics.memory_trend|abs }}%
                     </div>
                 </div>
@@ -313,8 +313,8 @@
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">Active Tasks</p>
                     <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.active_tasks }}</p>
-                    <div class="metric-trend {{ 'up' if system_metrics.tasks_trend > 0 else 'down' if system_metrics.tasks_trend < 0 else 'neutral' }}">
-                        <i class="fas fa-{{ 'arrow-up' if system_metrics.tasks_trend > 0 else 'arrow-down' if system_metrics.tasks_trend < 0 else 'minus' }} mr-1"></i>
+                    <div class="metric-trend {% if system_metrics.tasks_trend > 0 %}up{% elif system_metrics.tasks_trend < 0 %}down{% else %}neutral{% endif %}">
+                        <i class="fas fa-{% if system_metrics.tasks_trend > 0 %}arrow-up{% elif system_metrics.tasks_trend < 0 %}arrow-down{% else %}minus{% endif %} mr-1"></i>
                         {{ system_metrics.tasks_trend|abs }}
                     </div>
                 </div>
@@ -329,8 +329,8 @@
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500">Failed Tasks</p>
                     <p class="text-3xl font-semibold text-gray-900">{{ system_metrics.failed_tasks }}</p>
-                    <div class="metric-trend {{ 'up' if system_metrics.failures_trend > 0 else 'down' if system_metrics.failures_trend < 0 else 'neutral' }}">
-                        <i class="fas fa-{{ 'arrow-up' if system_metrics.failures_trend > 0 else 'arrow-down' if system_metrics.failures_trend < 0 else 'minus' }} mr-1"></i>
+                    <div class="metric-trend {% if system_metrics.failures_trend > 0 %}up{% elif system_metrics.failures_trend < 0 %}down{% else %}neutral{% endif %}">
+                        <i class="fas fa-{% if system_metrics.failures_trend > 0 %}arrow-up{% elif system_metrics.failures_trend < 0 %}arrow-down{% else %}minus{% endif %} mr-1"></i>
                         {{ system_metrics.failures_trend|abs }}
                     </div>
                 </div>
@@ -632,14 +632,14 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeQueueChart();
     initializePerformanceChart();
     initializeStorageChart();
-    
+
     // Start auto-refresh
     startAutoRefresh();
 });
 
 function initializeQueueChart() {
     const ctx = document.getElementById('queueChart').getContext('2d');
-    
+
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -674,7 +674,7 @@ function initializeQueueChart() {
 
 function initializePerformanceChart() {
     const ctx = document.getElementById('performanceChart').getContext('2d');
-    
+
     new Chart(ctx, {
         type: 'line',
         data: {
@@ -708,7 +708,7 @@ function initializePerformanceChart() {
 
 function initializeStorageChart() {
     const ctx = document.getElementById('storageChart').getContext('2d');
-    
+
     new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -993,13 +993,13 @@ function updateSystemMetrics(metrics) {
     if (cpuElement) {
         cpuElement.textContent = metrics.cpu_usage + '%';
     }
-    
+
     // Update load indicator
     const loadIndicator = document.querySelector('.load-indicator');
     if (loadIndicator) {
         loadIndicator.style.left = metrics.cpu_usage + '%';
     }
-    
+
     // Update other metrics...
 }
 
@@ -1012,6 +1012,91 @@ function updateQueueStats(stats) {
         statElements[2].textContent = stats.completed;
         statElements[3].textContent = stats.failed;
     }
+}
+
+// Queue view update function
+function updateQueueView() {
+    const filter = document.getElementById('queue-filter').value;
+    showLoading();
+    fetch(`/admin/queue/filter?type=${filter}`)
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            // Update chart with filtered data
+            updateQueueChart(data);
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Error updating queue view', 'error');
+        });
+}
+
+// Update queue chart with new data
+function updateQueueChart(data) {
+    const chart = Chart.getChart('queueChart');
+    if (chart) {
+        chart.data.datasets[0].data = data.pending;
+        chart.data.datasets[1].data = data.processing;
+        chart.data.datasets[2].data = data.failed;
+        chart.update();
+    }
+}
+
+// Purge failed tasks
+function purgeFailedTasks() {
+    if (confirm('Are you sure you want to purge all failed tasks? This action cannot be undone.')) {
+        showLoading();
+        fetch('/admin/queue/purge-failed', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCSRFToken() }
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showNotification(`${data.count} failed tasks purged successfully`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification('Error purging failed tasks', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showNotification('Error purging failed tasks', 'error');
+        });
+    }
+}
+
+// Export users to CSV
+function exportUsers() {
+    showLoading();
+    fetch('/admin/users/export', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCSRFToken() }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        }
+        throw new Error('Export failed');
+    })
+    .then(blob => {
+        hideLoading();
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'users_export.csv';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showNotification('Users exported successfully', 'success');
+    })
+    .catch(error => {
+        hideLoading();
+        showNotification('Error exporting users', 'error');
+    });
 }
 </script>
 {% endblock %}

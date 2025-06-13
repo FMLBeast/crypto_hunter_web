@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Import Files - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<style>
+.upload-zone {
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.upload-zone.drag-over {
+    transform: scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.file-preview {
+    transition: all 0.2s ease;
+}
+
+.file-preview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.upload-progress {
+    transition: width 0.3s ease;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Bulk Import Files</h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    Import multiple files at once using a CSV file
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{{ url_for('files.file_list') }}"
+                   class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-list mr-2"></i>View Files
+                </a>
+                <a href="{{ url_for('files.upload_file') }}"
+                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
+                    <i class="fas fa-upload mr-2"></i>Single Upload
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Upload Section -->
+        <div class="lg:col-span-2">
+            <!-- CSV Upload Form -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-medium mb-4">Upload CSV File</h3>
+                <form action="{{ url_for('files.bulk_import') }}" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-6">
+                        <div id="upload-zone"
+                             class="upload-zone border-2 border-dashed border-white rounded-lg p-12 text-center text-white mb-6"
+                             ondrop="handleDrop(event)"
+                             ondragover="handleDragOver(event)"
+                             ondragleave="handleDragLeave(event)">
+                            <div class="space-y-4">
+                                <div class="text-6xl mb-4">📊</div>
+                                <div>
+                                    <h3 class="text-xl font-medium mb-2">Drop CSV file here to upload</h3>
+                                    <p class="text-blue-100">or click to browse files</p>
+                                </div>
+                                <div class="mt-6">
+                                    <label for="csv-file-input" class="cursor-pointer">
+                                        <span class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-6 py-3 rounded-md font-medium transition-all">
+                                            <i class="fas fa-file-csv mr-2"></i>Browse CSV Files
+                                        </span>
+                                        <input id="csv-file-input" name="csv_file" type="file" accept=".csv" class="hidden" onchange="handleFileSelect(event)">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="file-preview" class="hidden bg-gray-50 p-4 rounded-lg mb-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fas fa-file-csv text-green-600 text-xl"></i>
+                                    <div>
+                                        <p id="file-name" class="font-medium text-gray-900"></p>
+                                        <p id="file-size" class="text-sm text-gray-600"></p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="clearFile()" class="text-red-600 hover:text-red-800">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- CSV Preview Section -->
+                        <div id="csv-preview-container" class="hidden bg-white border border-gray-200 rounded-lg mb-4">
+                            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-md font-medium text-gray-900">CSV Preview</h4>
+                                    <div class="flex items-center space-x-2">
+                                        <div id="csv-preview-count" class="text-sm text-gray-600"></div>
+                                        <button type="button" onclick="togglePreviewExpand()" class="text-blue-600 hover:text-blue-800">
+                                            <i id="preview-expand-icon" class="fas fa-expand-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4">
+                                <div id="csv-preview-loading" class="text-center py-8">
+                                    <div class="spinner mx-auto mb-4"></div>
+                                    <p class="text-gray-600">Scanning CSV file...</p>
+                                </div>
+                                <div id="csv-preview-error" class="hidden text-center py-8">
+                                    <i class="fas fa-exclamation-circle text-red-500 text-3xl mb-2"></i>
+                                    <p id="csv-preview-error-message" class="text-red-600"></p>
+                                </div>
+                                <div id="csv-preview-content" class="hidden">
+                                    <div class="mb-4">
+                                        <div class="flex items-center space-x-2">
+                                            <i class="fas fa-info-circle text-blue-500"></i>
+                                            <p class="text-sm text-blue-600">Showing <span id="preview-sample-count">0</span> of <span id="preview-total-count">0</span> files found in the CSV.</p>
+                                        </div>
+                                    </div>
+                                    <div class="overflow-x-auto overflow-y-auto max-h-64" id="preview-table-container">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</th>
+                                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Type</th>
+                                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Path</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="preview-table-body" class="bg-white divide-y divide-gray-200">
+                                                <!-- Preview rows will be inserted here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <h4 class="text-md font-medium mb-3">Import Options</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                                <select name="priority" class="w-full border-gray-300 rounded-md shadow-sm">
+                                    <option value="1">Low (1)</option>
+                                    <option value="3">Below Normal (3)</option>
+                                    <option value="5" selected>Normal (5)</option>
+                                    <option value="7">Above Normal (7)</option>
+                                    <option value="10">High (10)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tags (comma separated)</label>
+                                <input type="text" name="tags" class="w-full border-gray-300 rounded-md shadow-sm" placeholder="e.g. bulk, import, csv">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                        <textarea name="notes" rows="3" class="w-full border-gray-300 rounded-md shadow-sm" placeholder="Add notes about this import..."></textarea>
+                    </div>
+
+                    <div class="mb-6">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="auto-analyze" name="auto_analyze" value="true" class="mr-2">
+                            <label for="auto-analyze" class="text-sm text-gray-700">Auto-start analysis after import</label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" id="submit-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-md disabled:opacity-50" disabled>
+                            <i class="fas fa-upload mr-2"></i>Start Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- CSV Format Information -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-medium mb-4">CSV Format Information</h3>
+                <div class="prose max-w-none">
+                    <p>The CSV file should contain the following columns:</p>
+                    <ol class="list-decimal pl-5 mb-4">
+                        <li>File path (required) - Full path to the file</li>
+                        <li>File type (optional) - MIME type of the file</li>
+                        <li>File size (optional) - Size in bytes</li>
+                        <li>Created date (optional) - Date in YYYY-MM-DD HH:MM:SS format</li>
+                        <li>Modified date (optional) - Date in YYYY-MM-DD HH:MM:SS format</li>
+                    </ol>
+                    <p class="text-sm text-gray-600">Example:</p>
+                    <pre class="bg-gray-100 p-3 rounded text-xs overflow-x-auto">/path/to/file.jpg,image/jpeg,12345,2023-01-01 12:00:00,2023-01-01 12:00:00</pre>
+                    <p class="mt-4 text-sm text-gray-600">Note: Only the file path is required. Other columns are optional and will be auto-detected if not provided.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1">
+            <!-- Upload Statistics -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Upload Statistics</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Total Files:</span>
+                        <span class="font-medium">{{ upload_stats.total_files }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Total Size:</span>
+                        <span class="font-medium">{{ upload_stats.total_size|filesizeformat }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Max File Size:</span>
+                        <span class="font-medium">{{ upload_stats.max_file_size|filesizeformat }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Import Status -->
+            <div class="bg-white rounded-lg shadow mb-6" id="active-import-container" style="display: none;">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Active Import</h3>
+                </div>
+                <div class="p-4">
+                    <div id="active-import-details">
+                        <p class="text-sm font-medium text-gray-900 mb-2" id="active-import-filename"></p>
+                        <div class="mb-2">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="active-import-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500 mb-3">
+                            <span id="active-import-status">Initializing...</span>
+                            <span id="active-import-percentage">0%</span>
+                        </div>
+                        <div class="text-xs text-gray-600">
+                            <div class="flex justify-between mb-1">
+                                <span>Processed:</span>
+                                <span id="active-import-processed">0</span>
+                            </div>
+                            <div class="flex justify-between mb-1">
+                                <span>Successful:</span>
+                                <span id="active-import-successful">0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Failed:</span>
+                                <span id="active-import-failed">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Imports -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium">Recent Imports</h3>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    {% for import in recent_imports[:5] %}
+                    <div class="p-4 hover:bg-gray-50" data-import-id="{{ import.id }}" {% if import.task_id %}data-task-id="{{ import.task_id }}"{% endif %}>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-file-csv text-green-500"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-900 truncate">{{ import.source_file }}</p>
+                                    <p class="text-xs text-gray-500">{{ import.created_at.strftime('%m/%d %H:%M') }}</p>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
+                                    {% if import.status == 'completed' %}bg-green-100 text-green-800
+                                    {% elif import.status == 'processing' %}bg-blue-100 text-blue-800
+                                    {% elif import.status == 'failed' %}bg-red-100 text-red-800
+                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ import.status }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="mt-1 text-xs text-gray-500">
+                            {{ import.successful_items }} of {{ import.total_items }} files imported
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// File handling
+function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+        handleFile(files[0]);
+    }
+}
+
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+        handleFile(files[0]);
+    }
+}
+
+function handleFile(file) {
+    // Check if file is CSV
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+        alert('Please select a CSV file');
+        return;
+    }
+
+    // Update file preview
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = formatFileSize(file.size);
+    document.getElementById('file-preview').classList.remove('hidden');
+
+    // Show preview container and loading state
+    document.getElementById('csv-preview-container').classList.remove('hidden');
+    document.getElementById('csv-preview-loading').classList.remove('hidden');
+    document.getElementById('csv-preview-error').classList.add('hidden');
+    document.getElementById('csv-preview-content').classList.add('hidden');
+
+    // Create form data for preview request
+    const formData = new FormData();
+    formData.append('csv_file', file);
+
+    // Send preview request
+    fetch("{{ url_for('files.preview_csv') }}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCSRFToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading
+        document.getElementById('csv-preview-loading').classList.add('hidden');
+
+        if (data.success) {
+            // Show content
+            document.getElementById('csv-preview-content').classList.remove('hidden');
+
+            // Update counts
+            document.getElementById('preview-sample-count').textContent = data.sample_size;
+            document.getElementById('preview-total-count').textContent = data.total_files;
+            document.getElementById('csv-preview-count').textContent = `${data.total_files} files found`;
+
+            // Populate table
+            const tableBody = document.getElementById('preview-table-body');
+            tableBody.innerHTML = '';
+
+            data.sample_files.forEach(file => {
+                const row = document.createElement('tr');
+
+                // File name cell
+                const nameCell = document.createElement('td');
+                nameCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-900';
+                nameCell.textContent = file.file_name;
+                row.appendChild(nameCell);
+
+                // File type cell
+                const typeCell = document.createElement('td');
+                typeCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
+                typeCell.textContent = file.file_type;
+                row.appendChild(typeCell);
+
+                // File size cell
+                const sizeCell = document.createElement('td');
+                sizeCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
+                sizeCell.textContent = file.file_size;
+                row.appendChild(sizeCell);
+
+                // File path cell
+                const pathCell = document.createElement('td');
+                pathCell.className = 'px-3 py-2 text-sm text-gray-500 truncate max-w-xs';
+                pathCell.textContent = file.file_path;
+                pathCell.title = file.file_path;
+                row.appendChild(pathCell);
+
+                tableBody.appendChild(row);
+            });
+
+            // Enable submit button
+            document.getElementById('submit-btn').disabled = false;
+        } else {
+            // Show error
+            document.getElementById('csv-preview-error').classList.remove('hidden');
+            document.getElementById('csv-preview-error-message').textContent = data.error || 'Failed to preview CSV file';
+
+            // Disable submit button
+            document.getElementById('submit-btn').disabled = true;
+        }
+    })
+    .catch(error => {
+        // Hide loading and show error
+        document.getElementById('csv-preview-loading').classList.add('hidden');
+        document.getElementById('csv-preview-error').classList.remove('hidden');
+        document.getElementById('csv-preview-error-message').textContent = 'Network error while previewing CSV';
+        console.error('Preview error:', error);
+
+        // Disable submit button
+        document.getElementById('submit-btn').disabled = true;
+    });
+}
+
+function clearFile() {
+    document.getElementById('csv-file-input').value = '';
+    document.getElementById('file-preview').classList.add('hidden');
+    document.getElementById('csv-preview-container').classList.add('hidden');
+    document.getElementById('submit-btn').disabled = true;
+}
+
+function togglePreviewExpand() {
+    const previewContainer = document.getElementById('preview-table-container');
+    const expandIcon = document.getElementById('preview-expand-icon');
+
+    if (previewContainer.classList.contains('max-h-64')) {
+        // Expand
+        previewContainer.classList.remove('max-h-64');
+        previewContainer.style.maxHeight = '500px';
+        expandIcon.classList.remove('fa-expand-alt');
+        expandIcon.classList.add('fa-compress-alt');
+    } else {
+        // Collapse
+        previewContainer.classList.add('max-h-64');
+        previewContainer.style.maxHeight = '';
+        expandIcon.classList.remove('fa-compress-alt');
+        expandIcon.classList.add('fa-expand-alt');
+    }
+}
+
+// Utility functions
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Click upload zone to browse
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('upload-zone').addEventListener('click', function(e) {
+        // Check if the click target is the "Browse CSV Files" button or its children
+        // to prevent double file selection dialog
+        const browseButton = document.querySelector('label[for="csv-file-input"]');
+        if (browseButton && (e.target === browseButton || browseButton.contains(e.target))) {
+            // If the click is on the button or its children, do nothing
+            // as the label will handle the file input click
+            return;
+        }
+
+        // Otherwise, trigger the file input click
+        document.getElementById('csv-file-input').click();
+    });
+
+    // Check for active imports
+    checkActiveImports();
+
+    // Poll for updates every 3 seconds
+    setInterval(checkActiveImports, 3000);
+});
+
+// Check for active imports
+function checkActiveImports() {
+    // Look for imports with task_id
+    const importElements = document.querySelectorAll('[data-task-id]');
+
+    // Find the most recent processing import
+    let activeImport = null;
+    importElements.forEach(element => {
+        const status = element.querySelector('.inline-flex').textContent.trim();
+        if (status === 'processing' || status === 'pending') {
+            if (!activeImport) {
+                activeImport = {
+                    element: element,
+                    id: element.dataset.importId,
+                    taskId: element.dataset.taskId,
+                    filename: element.querySelector('.text-gray-900').textContent.trim()
+                };
+            }
+        }
+    });
+
+    // If we found an active import, check its status
+    if (activeImport) {
+        fetchTaskStatus(activeImport);
+    } else {
+        // Hide active import container if no active imports
+        document.getElementById('active-import-container').style.display = 'none';
+    }
+}
+
+// Fetch task status from server
+function fetchTaskStatus(activeImport) {
+    fetch(`/background_api/tasks/${activeImport.taskId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            // Extract status from response
+            if (data.success && data.status) {
+                updateImportStatus(activeImport, data.status);
+            } else {
+                console.error('Invalid task status response:', data);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching task status:', error);
+        });
+}
+
+// Update import status in UI
+function updateImportStatus(activeImport, data) {
+    // Show active import container
+    const container = document.getElementById('active-import-container');
+    container.style.display = 'block';
+
+    // Update filename
+    document.getElementById('active-import-filename').textContent = activeImport.filename;
+
+    // Update status
+    const statusElement = document.getElementById('active-import-status');
+    statusElement.textContent = data.state;
+
+    // If we have meta data with progress information
+    if (data.meta && typeof data.meta === 'object') {
+        // Update progress bar and percentage
+        const progress = data.meta.progress || 0;
+        document.getElementById('active-import-progress').style.width = `${progress}%`;
+        document.getElementById('active-import-percentage').textContent = `${progress}%`;
+
+        // Update counters
+        if (data.meta.processed !== undefined) {
+            document.getElementById('active-import-processed').textContent = data.meta.processed;
+        }
+        if (data.meta.successful !== undefined) {
+            document.getElementById('active-import-successful').textContent = data.meta.successful;
+        }
+        if (data.meta.failed !== undefined) {
+            document.getElementById('active-import-failed').textContent = data.meta.failed;
+        }
+    }
+
+    // If task is complete, refresh the page after a delay
+    if (data.state === 'SUCCESS' || data.state === 'FAILURE') {
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    }
+}
+</script>
+{% endblock %}

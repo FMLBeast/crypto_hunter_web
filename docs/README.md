@@ -107,14 +107,16 @@ python run_local.py
 
 ```bash
 # Start all services
-docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
+./docker-compose-wrapper.sh up -d
 
 # Initialize database
-docker-compose exec web flask db upgrade
+./docker-compose-wrapper.sh exec web flask db upgrade
 
 # Create admin user
-docker-compose exec web flask user create --username admin --email admin@example.com --admin
+./docker-compose-wrapper.sh exec web flask user create --username admin --email admin@example.com --admin
 ```
+
+> **Note**: We use the `docker-compose-wrapper.sh` script to ensure environment variables from the `.env` file are properly loaded before running Docker Compose commands. This prevents issues with variables like `DB_PASSWORD` not being set.
 
 ### 4. Access Application
 
@@ -322,13 +324,29 @@ ENABLE_FILE_UPLOAD = True     # File uploads
 
 ```bash
 # Production with monitoring
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+./docker-compose-wrapper.sh -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # With monitoring stack
-docker-compose --profile monitoring up -d
+./docker-compose-wrapper.sh --profile monitoring up -d
 
 # With logging stack
-docker-compose --profile logging up -d
+./docker-compose-wrapper.sh --profile logging up -d
+```
+
+> **Note**: We use the `docker-compose-wrapper.sh` script to ensure environment variables from the `.env` file are properly loaded before running Docker Compose commands.
+
+### Docker Compose Wrapper Script
+
+The project includes a `docker-compose-wrapper.sh` script that ensures environment variables from the `.env` file are properly loaded before running Docker Compose commands. This prevents issues with variables like `DB_PASSWORD` not being set.
+
+```bash
+# Usage
+./docker-compose-wrapper.sh [docker-compose-commands]
+
+# Examples
+./docker-compose-wrapper.sh up -d
+./docker-compose-wrapper.sh ps
+./docker-compose-wrapper.sh logs -f
 ```
 
 ### Docker Services
@@ -347,10 +365,10 @@ docker-compose --profile logging up -d
 
 ```bash
 # Scale workers
-docker-compose up -d --scale worker=4
+./docker-compose-wrapper.sh up -d --scale worker=4
 
 # Scale web instances
-docker-compose up -d --scale web=3
+./docker-compose-wrapper.sh up -d --scale web=3
 ```
 
 ## 📊 Monitoring
@@ -379,13 +397,13 @@ curl http://localhost:8000/metrics
 
 ```bash
 # View application logs
-docker-compose logs -f web
+./docker-compose-wrapper.sh logs -f web
 
 # View worker logs
-docker-compose logs -f worker
+./docker-compose-wrapper.sh logs -f worker
 
 # View all logs
-docker-compose logs -f
+./docker-compose-wrapper.sh logs -f
 ```
 
 ## 🧪 Testing
@@ -646,19 +664,19 @@ For more details, see [REORGANIZATION.md](REORGANIZATION.md).
 4. **Deploy Application**
    ```bash
    # Deploy with production config
-   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+   ./docker-compose-wrapper.sh -f docker-compose.yml -f docker-compose.prod.yml up -d
 
    # Initialize database
-   docker-compose exec web flask db upgrade
+   ./docker-compose-wrapper.sh exec web flask db upgrade
 
    # Create admin user
-   docker-compose exec web flask user create --admin
+   ./docker-compose-wrapper.sh exec web flask user create --admin
    ```
 
 5. **Setup Monitoring**
    ```bash
    # Enable monitoring stack
-   docker-compose --profile monitoring up -d
+   ./docker-compose-wrapper.sh --profile monitoring up -d
    ```
 
 ### Production Checklist

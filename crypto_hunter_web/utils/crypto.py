@@ -5,7 +5,7 @@ Cryptographic utilities
 import hashlib
 import hmac
 import secrets
-from pathlib import Path
+
 
 def calculate_sha256(file_path):
     """Calculate SHA256 hash of file"""

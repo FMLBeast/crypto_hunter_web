@@ -2,16 +2,16 @@
 Comprehensive file analyzer with crypto intelligence and metadata generation
 """
 
-import os
 import json
 import logging
 import mimetypes
-import hashlib
+import magic
+import os
 import re
-from typing import Dict, List, Optional, Any, Tuple
-from pathlib import Path
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Any
 
 from crypto_hunter_web.models import db, AnalysisFile, FileContent
 

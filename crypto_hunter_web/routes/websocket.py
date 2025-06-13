@@ -3,15 +3,13 @@
 WebSocket Events - Real-time updates for background services and analysis progress
 """
 
-from flask import session, current_app
-from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
-from datetime import datetime
-import json
 import logging
+from datetime import datetime
 
-from crypto_hunter_web.services.auth_service import AuthService
+from flask import session
+from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
+
 from crypto_hunter_web.services.background_service import BackgroundService
-from crypto_hunter_web.models import AnalysisFile, Finding
 
 logger = logging.getLogger(__name__)
 

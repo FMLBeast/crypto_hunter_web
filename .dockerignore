@@ -52,7 +52,7 @@ backups/
 # Documentation
 docs/
 *.md
-README*
+docs/README.md
 LICENSE*
 
 # Development files

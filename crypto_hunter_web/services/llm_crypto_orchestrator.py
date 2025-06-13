@@ -6,7 +6,9 @@ import openai
 import anthropic
 import json
 import time
+import os
 import hashlib
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
@@ -571,13 +573,13 @@ Provide quick actionable steps and confidence scores.
         try:
             # Get LLM response
             start_time = time.time()
-            response = self._get_llm_response(provider, extraction_prompt)
+            response_data = self._call_openai(provider, extraction_prompt)
+            response = response_data['content']
             processing_time = time.time() - start_time
 
             # Track cost
-            tokens_used = self._count_tokens(extraction_prompt) + self._count_tokens(response)
-            actual_cost = self.cost_manager.calculate_cost(provider, tokens_used)
-            self.cost_manager.record_cost(provider, actual_cost)
+            actual_cost = response_data['cost']
+            # Cost already recorded in _call_openai
 
             # Parse extraction guidance
             extraction_guidance = self._parse_extraction_guidance(response, extraction_method)

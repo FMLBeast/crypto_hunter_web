@@ -1,17 +1,18 @@
 # crypto_hunter_web/routes/health.py - COMPLETE HEALTH ROUTES IMPLEMENTATION
 
-from flask import Blueprint, render_template, request, jsonify, current_app
-from flask_login import login_required, current_user
-from datetime import datetime, timedelta
-import subprocess
-import psutil
 import os
+import subprocess
+from datetime import datetime, timedelta
+
+import psutil
+from flask import Blueprint, render_template, jsonify, current_app
+from flask_login import login_required
 
 from crypto_hunter_web.models import db, AnalysisFile, FileContent, Finding, User, FileStatus
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.background_crypto import BackgroundCryptoManager
-from crypto_hunter_web.utils.redis_client_util import redis_client
 from crypto_hunter_web.utils.decorators import rate_limit, api_endpoint
+from crypto_hunter_web.utils.redis_client_util import redis_client
 
 health_bp = Blueprint('health', __name__, url_prefix='/health')
 

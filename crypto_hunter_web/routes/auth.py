@@ -1,19 +1,18 @@
 # crypto_hunter_web/routes/auth.py - COMPLETE AUTHENTICATION SYSTEM
 
-from flask import Blueprint, render_template, request, flash, redirect, url_for, session, jsonify, current_app
-from flask_login import login_user, logout_user, current_user, login_required
-from flask_limiter import Limiter
-from werkzeug.security import check_password_hash
-from datetime import datetime, timedelta
-import secrets
-import re
 import hashlib
+import re
+import secrets
+from datetime import datetime, timedelta
+
+from flask import Blueprint, render_template, request, flash, redirect, url_for, session, current_app
+from flask_login import login_user, logout_user, current_user, login_required
 
 from crypto_hunter_web.models import db, User, AuditLog, ApiKey
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.security_service import SecurityService
-from crypto_hunter_web.utils.validators import validate_email, validate_password_strength
 from crypto_hunter_web.utils.decorators import rate_limit
+from crypto_hunter_web.utils.validators import validate_email, validate_password_strength
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 

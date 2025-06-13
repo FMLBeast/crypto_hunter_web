@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <!-- Profile header -->
+        <div class="px-4 py-5 sm:px-6 bg-gradient-crypto text-white">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    {% if current_user.avatar_url %}
+                        <img class="h-16 w-16 rounded-full mr-4" src="{{ current_user.avatar_url }}" alt="Profile">
+                    {% else %}
+                        <div class="h-16 w-16 rounded-full bg-indigo-800 flex items-center justify-center mr-4">
+                            <span class="text-white text-2xl font-medium">
+                                {{ current_user.username[0].upper() }}
+                            </span>
+                        </div>
+                    {% endif %}
+                    <div>
+                        <h3 class="text-2xl font-bold">{{ current_user.display_name or current_user.username }}</h3>
+                        <p class="text-indigo-100">{{ current_user.email }}</p>
+                        <div class="mt-1 flex items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-800 text-white">
+                                {{ current_user.level.value }}
+                            </span>
+                            <span class="ml-2 text-sm text-indigo-100">{{ user_stats.total_points }} points</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <a href="{{ url_for('auth.edit_profile') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-800 hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-edit mr-2"></i> Edit Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile stats -->
+        <div class="border-t border-gray-200">
+            <dl>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Username</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ current_user.username }}</dd>
+                </div>
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Account created</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{ current_user.created_at.strftime('%Y-%m-%d %H:%M') }} ({{ user_stats.account_age_days }} days ago)
+                    </dd>
+                </div>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Last login</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{ current_user.last_login.strftime('%Y-%m-%d %H:%M') if current_user.last_login else 'Never' }}
+                    </dd>
+                </div>
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Login streak</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{ user_stats.login_streak }} days
+                    </dd>
+                </div>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Bio</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{ current_user.bio or 'No bio provided' }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Activity stats -->
+    <div class="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+                        <i class="fas fa-file-upload text-white text-xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Files Uploaded</dt>
+                            <dd>
+                                <div class="text-lg font-medium text-gray-900">{{ user_stats.files_uploaded }}</div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
+                        <i class="fas fa-lightbulb text-white text-xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Findings Created</dt>
+                            <dd>
+                                <div class="text-lg font-medium text-gray-900">{{ user_stats.findings_created }}</div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-purple-500 rounded-md p-3">
+                        <i class="fas fa-trophy text-white text-xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Experience Level</dt>
+                            <dd>
+                                <div class="text-lg font-medium text-gray-900">{{ current_user.level.value }}</div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="mt-8">
+        <h2 class="text-lg leading-6 font-medium text-gray-900">Recent Activity</h2>
+        <div class="mt-2 bg-white shadow overflow-hidden sm:rounded-md">
+            <ul role="list" class="divide-y divide-gray-200">
+                {% if recent_activity %}
+                    {% for activity in recent_activity %}
+                        <li>
+                            <div class="px-4 py-4 sm:px-6">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <p class="text-sm font-medium text-indigo-600 truncate">
+                                            {{ activity.action }}
+                                        </p>
+                                        <div class="ml-2 flex-shrink-0 flex">
+                                            <p class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ 'bg-green-100 text-green-800' if activity.success else 'bg-red-100 text-red-800' }}">
+                                                {{ 'Success' if activity.success else 'Failed' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="ml-2 flex-shrink-0 flex">
+                                        <p class="text-sm text-gray-500">
+                                            {{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="mt-2 sm:flex sm:justify-between">
+                                    <div class="sm:flex">
+                                        <p class="flex items-center text-sm text-gray-500">
+                                            {% if activity.resource_type %}
+                                                <i class="fas fa-tag flex-shrink-0 mr-1.5 text-gray-400"></i>
+                                                {{ activity.resource_type }}
+                                            {% endif %}
+                                        </p>
+                                        <p class="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                                            <i class="fas fa-globe flex-shrink-0 mr-1.5 text-gray-400"></i>
+                                            {{ activity.ip_address or 'Unknown IP' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                {% if activity.description %}
+                                    <div class="mt-2">
+                                        <p class="text-sm text-gray-500">{{ activity.description }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                {% else %}
+                    <li>
+                        <div class="px-4 py-4 sm:px-6 text-center text-gray-500">
+                            No recent activity found
+                        </div>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

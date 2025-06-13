@@ -1,16 +1,16 @@
 # crypto_hunter_web/cli.py - COMPLETE CLI COMMANDS FOR ADMINISTRATION
 
+import hashlib
 import os
-import click
 import secrets
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
+
+import click
 from flask import current_app
 from flask.cli import with_appcontext
-from werkzeug.security import generate_password_hash
 
-from crypto_hunter_web.models import db, User, AnalysisFile, FileContent, Finding, AuditLog, ApiKey, FileStatus
+from crypto_hunter_web.models import db, User, AnalysisFile, Finding, ApiKey, FileStatus
 from crypto_hunter_web.services.file_service import FileService
 from crypto_hunter_web.utils.validators import validate_email, validate_password_strength
 
@@ -87,7 +87,7 @@ def migrate_db():
 @db_commands.command('backup')
 @click.option('--output', '-o', default=None, help='Backup file path')
 @with_appcontext
-def backup_db():
+def backup_db(output):
     """Create database backup"""
     try:
         if not current_app.config.get('SQLALCHEMY_DATABASE_URI').startswith('postgresql'):
