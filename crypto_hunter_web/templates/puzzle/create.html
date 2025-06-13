@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Create Puzzle Session{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Create New Puzzle Session</h1>
+        <p class="mt-2 text-sm text-gray-600">
+            Create a new puzzle solving session to track your progress and collaborate with others.
+        </p>
+    </div>
+
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <form method="POST" action="{{ url_for('puzzle.create_session') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="space-y-6">
+                    <!-- Session Name -->
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Session Name</label>
+                        <div class="mt-1">
+                            <input type="text" name="name" id="name" required
+                                   class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                   placeholder="e.g., Arweave Puzzle #11 Analysis">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Choose a descriptive name for your puzzle session.
+                        </p>
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                        <div class="mt-1">
+                            <textarea id="description" name="description" rows="4"
+                                      class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                      placeholder="Describe the puzzle and your approach..."></textarea>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Provide context about the puzzle and your solving approach.
+                        </p>
+                    </div>
+
+                    <!-- Privacy Settings -->
+                    <div>
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input id="is_public" name="is_public" type="checkbox"
+                                       class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="is_public" class="font-medium text-gray-700">Make this session public</label>
+                                <p class="text-gray-500">
+                                    Public sessions are visible to all users. Private sessions are only visible to you and your collaborators.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Tags -->
+                    <div>
+                        <label for="tags" class="block text-sm font-medium text-gray-700">Tags (optional)</label>
+                        <div class="mt-1">
+                            <input type="text" name="tags" id="tags"
+                                   class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                   placeholder="crypto, steganography, binary">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Add comma-separated tags to categorize your session.
+                        </p>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="flex justify-end">
+                        <a href="{{ url_for('puzzle.index') }}" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3">
+                            Cancel
+                        </a>
+                        <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Create Session
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tips Section -->
+    <div class="mt-8 bg-blue-50 rounded-lg p-4 border border-blue-200">
+        <h3 class="text-lg font-medium text-blue-800 mb-2">
+            <i class="fas fa-lightbulb mr-2"></i>Tips for Effective Puzzle Sessions
+        </h3>
+        <ul class="list-disc pl-5 text-sm text-blue-700 space-y-1">
+            <li>Break down complex puzzles into smaller steps</li>
+            <li>Document your findings and observations at each step</li>
+            <li>Tag regions of interest in files to highlight important data</li>
+            <li>Invite collaborators with different expertise to help solve the puzzle</li>
+            <li>Use the timeline view to track your progress and revisit previous steps</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

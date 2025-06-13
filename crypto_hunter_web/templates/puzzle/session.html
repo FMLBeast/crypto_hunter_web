@@ -1,0 +1,723 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.name }} - Puzzle Session{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Custom styles for puzzle session */
+    .step-timeline {
+        position: relative;
+    }
+    
+    .step-timeline::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 18px;
+        width: 2px;
+        background-color: #e5e7eb;
+        z-index: 0;
+    }
+    
+    .step-item {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .step-marker {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step-marker.active {
+        background-color: #4f46e5;
+        border-color: #4f46e5;
+        color: white;
+    }
+    
+    .region-highlight {
+        position: relative;
+        display: inline;
+        cursor: pointer;
+    }
+    
+    .region-highlight.yellow {
+        background-color: rgba(250, 204, 21, 0.3);
+    }
+    
+    .region-highlight.green {
+        background-color: rgba(34, 197, 94, 0.3);
+    }
+    
+    .region-highlight.blue {
+        background-color: rgba(59, 130, 246, 0.3);
+    }
+    
+    .region-highlight.red {
+        background-color: rgba(239, 68, 68, 0.3);
+    }
+    
+    .region-highlight.purple {
+        background-color: rgba(168, 85, 247, 0.3);
+    }
+    
+    .region-highlight:hover::after {
+        content: attr(data-title);
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        background-color: #1f2937;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 10;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Session Header -->
+    <div class="bg-white shadow-sm rounded-lg p-6 mb-6">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ session.name }}</h1>
+                <p class="mt-1 text-sm text-gray-600">{{ session.description }}</p>
+                <div class="mt-3 flex items-center text-xs text-gray-500">
+                    <span class="mr-3">
+                        <i class="far fa-user mr-1"></i>
+                        Owner: {{ session.owner }}
+                    </span>
+                    <span class="mr-3">
+                        <i class="far fa-calendar-alt mr-1"></i>
+                        Created: {{ session.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </span>
+                    <span class="mr-3">
+                        <i class="fas fa-lock{{ '-open' if session.is_public else '' }} mr-1"></i>
+                        {{ 'Public' if session.is_public else 'Private' }}
+                    </span>
+                    <span class="px-2 py-0.5 rounded-full text-xs {% if session.status == 'active' %}bg-green-100 text-green-800{% elif session.status == 'paused' %}bg-yellow-100 text-yellow-800{% elif session.status == 'completed' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ session.status.capitalize() }}
+                    </span>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button id="add-step-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm">
+                    <i class="fas fa-plus mr-1"></i>Add Step
+                </button>
+                <button id="add-collaborator-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">
+                    <i class="fas fa-user-plus mr-1"></i>Add Collaborator
+                </button>
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                        <div class="py-1">
+                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-edit mr-2"></i>Edit Session
+                            </button>
+                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-download mr-2"></i>Export Session
+                            </button>
+                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-share mr-2"></i>Share Session
+                            </button>
+                            <div class="border-t border-gray-100"></div>
+                            <button class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                <i class="fas fa-trash-alt mr-2"></i>Delete Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Collaborators -->
+        {% if session.collaborators %}
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <h3 class="text-sm font-medium text-gray-700">Collaborators</h3>
+            <div class="mt-2 flex flex-wrap gap-2">
+                {% for collaborator in session.collaborators %}
+                <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100">
+                    <span class="w-2 h-2 rounded-full {% if collaborator.online %}bg-green-500{% else %}bg-gray-400{% endif %} mr-1"></span>
+                    {{ collaborator.username }}
+                    <span class="ml-1 text-gray-500">({{ collaborator.role }})</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Sidebar - Steps Timeline -->
+        <div class="lg:col-span-1">
+            <div class="bg-white shadow-sm rounded-lg p-4">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">Steps Timeline</h2>
+                
+                <div class="step-timeline space-y-4">
+                    {% for step in steps %}
+                    <div class="step-item flex" data-step-id="{{ step.id }}">
+                        <div class="step-marker w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 {% if step.is_active %}active{% endif %}">
+                            <span class="text-xs">{{ loop.index }}</span>
+                        </div>
+                        <div class="flex-1 bg-gray-50 rounded-lg p-3 {% if step.is_active %}border-2 border-indigo-200{% endif %}">
+                            <div class="flex justify-between items-start">
+                                <h3 class="font-medium text-gray-900">{{ step.title }}</h3>
+                                <span class="text-xs text-gray-500">{{ step.timestamp }}</span>
+                            </div>
+                            {% if step.description %}
+                            <p class="mt-1 text-sm text-gray-600">{{ step.description }}</p>
+                            {% endif %}
+                            
+                            <!-- Step Resources -->
+                            <div class="mt-2 space-y-2">
+                                {% if step.files %}
+                                <div>
+                                    <span class="text-xs font-medium text-gray-500">Files:</span>
+                                    <div class="mt-1 space-y-1">
+                                        {% for file in step.files %}
+                                        <a href="{{ url_for('puzzle.view_session', session_id=session.id, file_id=file.id) }}" class="block text-xs text-indigo-600 hover:text-indigo-800">
+                                            <i class="fas fa-file mr-1"></i>{{ file.filename }}
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if step.findings %}
+                                <div>
+                                    <span class="text-xs font-medium text-gray-500">Findings:</span>
+                                    <div class="mt-1 space-y-1">
+                                        {% for finding in step.findings %}
+                                        <div class="text-xs text-green-600">
+                                            <i class="fas fa-search mr-1"></i>{{ finding.title }}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if step.regions %}
+                                <div>
+                                    <span class="text-xs font-medium text-gray-500">Regions:</span>
+                                    <div class="mt-1 space-y-1">
+                                        {% for region in step.regions %}
+                                        <div class="text-xs text-purple-600">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>{{ region.title }}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Step Actions -->
+                            <div class="mt-3 flex justify-end space-x-2">
+                                {% if not step.is_active %}
+                                <button class="activate-step-btn text-xs text-indigo-600 hover:text-indigo-800" data-step-id="{{ step.id }}">
+                                    <i class="fas fa-arrow-right mr-1"></i>Activate
+                                </button>
+                                {% endif %}
+                                <button class="text-xs text-gray-600 hover:text-gray-800">
+                                    <i class="fas fa-edit mr-1"></i>Edit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Add Step Form (Hidden by default) -->
+                <div id="add-step-form" class="mt-6 border-t border-gray-200 pt-4 hidden">
+                    <h3 class="text-sm font-medium text-gray-900 mb-3">Add New Step</h3>
+                    <form method="POST" action="{{ url_for('puzzle.add_step', session_id=session.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="space-y-3">
+                            <div>
+                                <label for="title" class="block text-xs font-medium text-gray-700">Title</label>
+                                <input type="text" name="title" id="title" required
+                                       class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="description" class="block text-xs font-medium text-gray-700">Description</label>
+                                <textarea name="description" id="description" rows="3"
+                                          class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                            <div class="flex justify-end space-x-2">
+                                <button type="button" id="cancel-add-step" class="text-xs text-gray-600 hover:text-gray-800">
+                                    Cancel
+                                </button>
+                                <button type="submit" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded">
+                                    Add Step
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Add Collaborator Form (Hidden by default) -->
+            <div id="add-collaborator-form" class="mt-4 bg-white shadow-sm rounded-lg p-4 hidden">
+                <h3 class="text-sm font-medium text-gray-900 mb-3">Add Collaborator</h3>
+                <form method="POST" action="{{ url_for('puzzle.add_collaborator', session_id=session.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="space-y-3">
+                        <div>
+                            <label for="username" class="block text-xs font-medium text-gray-700">Username</label>
+                            <input type="text" name="username" id="username" required
+                                   class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="role" class="block text-xs font-medium text-gray-700">Role</label>
+                            <select name="role" id="role"
+                                    class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="viewer">Viewer</option>
+                                <option value="editor">Editor</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" id="cancel-add-collaborator" class="text-xs text-gray-600 hover:text-gray-800">
+                                Cancel
+                            </button>
+                            <button type="submit" class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded">
+                                Add Collaborator
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Main Content Area - File Viewer and Tools -->
+        <div class="lg:col-span-2 space-y-6">
+            {% if active_file %}
+            <!-- File Viewer -->
+            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+                <div class="bg-gray-100 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <div class="flex items-center">
+                        <span class="font-medium text-gray-900">{{ active_file.filename }}</span>
+                        <span class="ml-2 text-xs text-gray-500">{{ active_file.file_size_human }}</span>
+                        <span class="ml-2 text-xs text-gray-500">{{ active_file.file_type }}</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="tag-region-btn" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded">
+                            <i class="fas fa-highlighter mr-1"></i>Tag Region
+                        </button>
+                        <button class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded">
+                            <i class="fas fa-tools mr-1"></i>Tools
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-4">
+                    {% if active_file.content_type == 'text' %}
+                    <!-- Text Content -->
+                    <div id="file-content" class="font-mono text-sm whitespace-pre-wrap bg-gray-50 p-4 rounded overflow-auto max-h-[600px]">
+                        {{ active_file.content }}
+                    </div>
+                    {% elif active_file.content_type == 'image' %}
+                    <!-- Image Content -->
+                    <div class="text-center">
+                        <img src="{{ active_file.content_url }}" alt="{{ active_file.filename }}" class="max-w-full max-h-[600px] mx-auto">
+                    </div>
+                    {% else %}
+                    <!-- Binary Content -->
+                    <div class="text-center p-8">
+                        <i class="fas fa-file-binary text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-600">Binary file content cannot be displayed directly.</p>
+                        <a href="{{ url_for('files.download_file', file_id=active_file.id) }}" class="mt-2 inline-block text-indigo-600 hover:text-indigo-800">
+                            <i class="fas fa-download mr-1"></i>Download File
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Findings for Active File -->
+            {% if active_file.findings %}
+            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+                <div class="bg-gray-100 px-4 py-3 border-b border-gray-200">
+                    <h3 class="font-medium text-gray-900">Findings</h3>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    {% for finding in active_file.findings %}
+                    <div class="p-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-medium text-gray-900">{{ finding.title }}</h4>
+                                <p class="mt-1 text-sm text-gray-600">{{ finding.description }}</p>
+                                {% if finding.raw_data %}
+                                <div class="mt-2 bg-gray-50 p-2 rounded font-mono text-xs overflow-auto">
+                                    {{ finding.raw_data }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <button class="add-finding-btn text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded" data-finding-id="{{ finding.id }}">
+                                <i class="fas fa-plus mr-1"></i>Add to Step
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <!-- No Active File -->
+            <div class="bg-white shadow-sm rounded-lg p-8 text-center">
+                <i class="fas fa-file-search text-6xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No File Selected</h3>
+                <p class="text-gray-600 mb-4">
+                    Select a file from the steps timeline or upload a new file to begin analysis.
+                </p>
+                <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm">
+                    <i class="fas fa-upload mr-2"></i>Upload File
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Tag Region Modal (Hidden by default) -->
+<div id="tag-region-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="font-medium text-gray-900">Tag Region of Interest</h3>
+            <button id="close-tag-modal" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4">
+            <form id="tag-region-form">
+                <input type="hidden" id="file_content_id" name="file_content_id">
+                <input type="hidden" id="start_offset" name="start_offset">
+                <input type="hidden" id="end_offset" name="end_offset">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="region_title" class="block text-sm font-medium text-gray-700">Title</label>
+                        <input type="text" id="region_title" name="title" required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    
+                    <div>
+                        <label for="region_description" class="block text-sm font-medium text-gray-700">Description</label>
+                        <textarea id="region_description" name="description" rows="3"
+                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label for="region_type" class="block text-sm font-medium text-gray-700">Type</label>
+                        <select id="region_type" name="region_type"
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="text">Text</option>
+                            <option value="crypto">Cryptographic</option>
+                            <option value="binary">Binary Data</option>
+                            <option value="steganography">Steganography</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Color</label>
+                        <div class="mt-1 flex space-x-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="color" value="#yellow" class="form-radio text-yellow-500" checked>
+                                <span class="ml-2 w-4 h-4 bg-yellow-200 rounded"></span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="color" value="#green" class="form-radio text-green-500">
+                                <span class="ml-2 w-4 h-4 bg-green-200 rounded"></span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="color" value="#blue" class="form-radio text-blue-500">
+                                <span class="ml-2 w-4 h-4 bg-blue-200 rounded"></span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="color" value="#red" class="form-radio text-red-500">
+                                <span class="ml-2 w-4 h-4 bg-red-200 rounded"></span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="color" value="#purple" class="form-radio text-purple-500">
+                                <span class="ml-2 w-4 h-4 bg-purple-200 rounded"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" id="cancel-tag-region" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Tag Region
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Puzzle Session -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add Step Form Toggle
+    const addStepBtn = document.getElementById('add-step-btn');
+    const addStepForm = document.getElementById('add-step-form');
+    const cancelAddStep = document.getElementById('cancel-add-step');
+    
+    if (addStepBtn && addStepForm && cancelAddStep) {
+        addStepBtn.addEventListener('click', function() {
+            addStepForm.classList.remove('hidden');
+            addCollaboratorForm.classList.add('hidden');
+        });
+        
+        cancelAddStep.addEventListener('click', function() {
+            addStepForm.classList.add('hidden');
+        });
+    }
+    
+    // Add Collaborator Form Toggle
+    const addCollaboratorBtn = document.getElementById('add-collaborator-btn');
+    const addCollaboratorForm = document.getElementById('add-collaborator-form');
+    const cancelAddCollaborator = document.getElementById('cancel-add-collaborator');
+    
+    if (addCollaboratorBtn && addCollaboratorForm && cancelAddCollaborator) {
+        addCollaboratorBtn.addEventListener('click', function() {
+            addCollaboratorForm.classList.remove('hidden');
+            addStepForm.classList.add('hidden');
+        });
+        
+        cancelAddCollaborator.addEventListener('click', function() {
+            addCollaboratorForm.classList.add('hidden');
+        });
+    }
+    
+    // Activate Step
+    const activateStepBtns = document.querySelectorAll('.activate-step-btn');
+    
+    activateStepBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const stepId = this.getAttribute('data-step-id');
+            
+            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/step/${stepId}/activate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to activate step: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error activating step:', error);
+                alert('An error occurred while activating the step.');
+            });
+        });
+    });
+    
+    // Tag Region
+    const tagRegionBtn = document.getElementById('tag-region-btn');
+    const tagRegionModal = document.getElementById('tag-region-modal');
+    const closeTagModal = document.getElementById('close-tag-modal');
+    const cancelTagRegion = document.getElementById('cancel-tag-region');
+    const tagRegionForm = document.getElementById('tag-region-form');
+    
+    if (tagRegionBtn && tagRegionModal && closeTagModal && cancelTagRegion && tagRegionForm) {
+        tagRegionBtn.addEventListener('click', function() {
+            // Check if text is selected
+            const selection = window.getSelection();
+            if (selection.toString().length === 0) {
+                alert('Please select text to tag as a region of interest.');
+                return;
+            }
+            
+            // Get the selected text range
+            const range = selection.getRangeAt(0);
+            const startOffset = range.startOffset;
+            const endOffset = range.endOffset;
+            
+            // Set form values
+            document.getElementById('file_content_id').value = '{{ active_file.content_entries[0].id if active_file and active_file.content_entries else "" }}';
+            document.getElementById('start_offset').value = startOffset;
+            document.getElementById('end_offset').value = endOffset;
+            document.getElementById('region_title').value = selection.toString().substring(0, 30) + (selection.toString().length > 30 ? '...' : '');
+            
+            // Show modal
+            tagRegionModal.classList.remove('hidden');
+        });
+        
+        closeTagModal.addEventListener('click', function() {
+            tagRegionModal.classList.add('hidden');
+        });
+        
+        cancelTagRegion.addEventListener('click', function() {
+            tagRegionModal.classList.add('hidden');
+        });
+        
+        tagRegionForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                file_content_id: document.getElementById('file_content_id').value,
+                start_offset: parseInt(document.getElementById('start_offset').value),
+                end_offset: parseInt(document.getElementById('end_offset').value),
+                title: document.getElementById('region_title').value,
+                description: document.getElementById('region_description').value,
+                region_type: document.getElementById('region_type').value,
+                color: document.querySelector('input[name="color"]:checked').value
+            };
+            
+            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/region`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    tagRegionModal.classList.add('hidden');
+                    // Highlight the region
+                    highlightRegion(formData.start_offset, formData.end_offset, formData.color, formData.title);
+                    // Reload after a short delay
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    alert('Failed to tag region: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error tagging region:', error);
+                alert('An error occurred while tagging the region.');
+            });
+        });
+    }
+    
+    // Add Finding to Step
+    const addFindingBtns = document.querySelectorAll('.add-finding-btn');
+    
+    addFindingBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const findingId = this.getAttribute('data-finding-id');
+            const activeStep = document.querySelector('.step-item .step-marker.active');
+            
+            if (!activeStep) {
+                alert('Please activate a step first.');
+                return;
+            }
+            
+            const stepId = activeStep.closest('.step-item').getAttribute('data-step-id');
+            
+            const formData = new FormData();
+            formData.append('finding_id', findingId);
+            
+            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/step/${stepId}/finding`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Finding added to step successfully!');
+                    // Reload after a short delay
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    alert('Failed to add finding: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error adding finding:', error);
+                alert('An error occurred while adding the finding.');
+            });
+        });
+    });
+    
+    // Helper function to highlight a region
+    function highlightRegion(startOffset, endOffset, color, title) {
+        const fileContent = document.getElementById('file-content');
+        if (!fileContent) return;
+        
+        const text = fileContent.textContent;
+        const colorClass = color.substring(1); // Remove # from color
+        
+        // Create a new range
+        const range = document.createRange();
+        const textNodes = getTextNodes(fileContent);
+        
+        // Find the text node and offset
+        let currentOffset = 0;
+        let startNode = null;
+        let endNode = null;
+        let startNodeOffset = 0;
+        let endNodeOffset = 0;
+        
+        for (const node of textNodes) {
+            const nodeLength = node.textContent.length;
+            
+            if (currentOffset + nodeLength >= startOffset && !startNode) {
+                startNode = node;
+                startNodeOffset = startOffset - currentOffset;
+            }
+            
+            if (currentOffset + nodeLength >= endOffset && !endNode) {
+                endNode = node;
+                endNodeOffset = endOffset - currentOffset;
+                break;
+            }
+            
+            currentOffset += nodeLength;
+        }
+        
+        if (startNode && endNode) {
+            range.setStart(startNode, startNodeOffset);
+            range.setEnd(endNode, endNodeOffset);
+            
+            const span = document.createElement('span');
+            span.className = `region-highlight ${colorClass}`;
+            span.setAttribute('data-title', title);
+            
+            range.surroundContents(span);
+        }
+    }
+    
+    // Helper function to get all text nodes
+    function getTextNodes(node) {
+        const textNodes = [];
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+        
+        let currentNode;
+        while (currentNode = walker.nextNode()) {
+            textNodes.push(currentNode);
+        }
+        
+        return textNodes;
+    }
+    
+    // Highlight existing regions
+    {% if active_file and active_file.regions %}
+    {% for region in active_file.regions %}
+    highlightRegion({{ region.start_offset }}, {{ region.end_offset }}, '{{ region.color }}', '{{ region.title }}');
+    {% endfor %}
+    {% endif %}
+});
+</script>
+{% endblock %}
