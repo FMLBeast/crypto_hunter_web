@@ -1,297 +1,326 @@
 """
-File analysis tasks for background processing
+Background tasks for file analysis
 """
-import csv
-import io
 import logging
-import mimetypes
-import os
 import time
 from typing import Dict, Any
 
-from werkzeug.datastructures import FileStorage
+from celery import shared_task, Task
+from celery.utils.log import get_task_logger
 
-from crypto_hunter_web.models import db, BulkImport
+from crypto_hunter_web import db
+from crypto_hunter_web.models import AnalysisFile, FileStatus
+from crypto_hunter_web.services.analysis_service import AnalysisService
 from crypto_hunter_web.services.background_service import BackgroundService
-from crypto_hunter_web.services.celery_app import celery_app
-from crypto_hunter_web.services.file_service import FileService
 
-logger = logging.getLogger(__name__)
+logger = get_task_logger(__name__)
 
 
-@celery_app.task(bind=True)
-def analyze_file_comprehensive(self, file_id: int) -> Dict[str, Any]:
-    """Comprehensive file analysis"""
-    try:
-        logger.info(f"Starting comprehensive analysis for file {file_id}")
+class AnalysisTask(Task):
+    """Base task class for analysis tasks with progress tracking"""
+    
+    def on_success(self, retval, task_id, args, kwargs):
+        """Handle successful task completion"""
+        BackgroundService.update_task_status(
+            task_id=task_id,
+            status={
+                'state': 'SUCCESS',
+                'result': retval,
+                'progress': 100,
+                'meta': {'stage': 'completed'}
+            }
+        )
+        return super().on_success(retval, task_id, args, kwargs)
+    
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Handle task failure"""
+        BackgroundService.update_task_status(
+            task_id=task_id,
+            status={
+                'state': 'FAILURE',
+                'error': str(exc),
+                'meta': {'stage': 'failed', 'error_details': str(einfo)}
+            }
+        )
+        return super().on_failure(exc, task_id, args, kwargs, einfo)
 
-        # Simulate comprehensive analysis
-        time.sleep(3)
 
-        results = {
-            'file_id': file_id,
-            'status': 'completed',
-            'analysis_types': [
-                'hash_verification',
-                'file_type_detection',
-                'metadata_extraction',
-                'entropy_analysis',
-                'string_extraction'
-            ],
-            'findings': {
-                'suspicious_strings': 12,
-                'embedded_files': 0,
-                'crypto_signatures': 3,
-                'network_indicators': 1
-            },
-            'risk_score': 0.45,
-            'analysis_duration': 3.1,
-            'timestamp': time.time()
+@shared_task(bind=True, base=AnalysisTask)
+def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
+    """
+    Background task to analyze a file
+    
+    Args:
+        file_id: ID of the file to analyze
+        user_id: ID of the user requesting analysis
+        
+    Returns:
+        Dictionary with analysis results
+    """
+    # Update task status
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'stage': 'initializing',
+            'progress': 0,
+            'file_id': file_id
         }
-
-        logger.info(f"Comprehensive analysis completed for file {file_id}")
-        return results
-
-    except Exception as exc:
-        logger.error(f"Comprehensive analysis failed for file {file_id}: {exc}")
-        self.retry(countdown=120, exc=exc)
-
-
-@celery_app.task
-def extract_metadata(file_id: int) -> Dict[str, Any]:
-    """Extract file metadata"""
+    )
+    
+    # Get file
+    file = AnalysisFile.query.get(file_id)
+    if not file:
+        return {'success': False, 'error': 'File not found'}
+    
     try:
-        logger.info(f"Extracting metadata for file {file_id}")
-
-        # Mock metadata extraction
-        results = {
-            'file_id': file_id,
-            'status': 'completed',
-            'metadata': {
-                'exif_data': {},
-                'creation_date': '2024-01-01T00:00:00Z',
-                'file_format': 'unknown',
-                'compression': 'none',
-                'embedded_files': [],
-                'digital_signatures': []
-            },
-            'extraction_duration': 0.5,
-            'timestamp': time.time()
-        }
-
-        logger.info(f"Metadata extraction completed for file {file_id}")
+        # Update task status
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'stage': 'analyzing_file',
+                'progress': 10,
+                'file_id': file_id,
+                'filename': file.filename
+            }
+        )
+        
+        # Perform basic file analysis
+        results = AnalysisService._perform_analysis(file, user_id)
+        
+        # Update task status
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'stage': 'analysis_complete',
+                'progress': 100,
+                'file_id': file_id,
+                'findings_count': len(results.get('findings', []))
+            }
+        )
+        
         return results
-
-    except Exception as exc:
-        logger.error(f"Metadata extraction failed for file {file_id}: {exc}")
+    
+    except Exception as e:
+        logger.error(f"Error in analyze_file_task for file {file_id}: {str(e)}")
+        # Update file status to error
+        file.status = FileStatus.ERROR
+        db.session.commit()
+        
+        # Re-raise exception to trigger on_failure
         raise
 
 
-@celery_app.task
-def calculate_entropy(file_id: int) -> Dict[str, Any]:
-    """Calculate file entropy for randomness analysis"""
-    try:
-        logger.info(f"Calculating entropy for file {file_id}")
-
-        # Mock entropy calculation
-        results = {
-            'file_id': file_id,
-            'status': 'completed',
-            'entropy_analysis': {
-                'overall_entropy': 7.23,
-                'block_entropies': [7.1, 7.4, 6.9, 7.5],
-                'suspicious_blocks': [1, 3],  # High entropy blocks
-                'compression_ratio': 0.85,
-                'randomness_score': 0.72
-            },
-            'calculation_duration': 1.1,
-            'timestamp': time.time()
+@shared_task(bind=True, base=AnalysisTask)
+def analyze_crypto_pattern_task(self, text: str, pattern_type: str = None) -> Dict[str, Any]:
+    """
+    Background task to analyze text for cryptographic patterns
+    
+    Args:
+        text: Text to analyze
+        pattern_type: Specific pattern type to analyze for
+        
+    Returns:
+        Dictionary with analysis results
+    """
+    # Update task status
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'stage': 'initializing',
+            'progress': 0,
+            'text_length': len(text),
+            'pattern_type': pattern_type
         }
-
-        logger.info(f"Entropy calculation completed for file {file_id}")
+    )
+    
+    try:
+        # Update task status
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'stage': 'analyzing_patterns',
+                'progress': 50,
+                'text_length': len(text),
+                'pattern_type': pattern_type
+            }
+        )
+        
+        # Perform crypto pattern analysis
+        results = AnalysisService.analyze_crypto_pattern(text, pattern_type)
+        
+        # Update task status
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'stage': 'analysis_complete',
+                'progress': 100,
+                'patterns_found': len(results.get('patterns', []))
+            }
+        )
+        
         return results
-
-    except Exception as exc:
-        logger.error(f"Entropy calculation failed for file {file_id}: {exc}")
+    
+    except Exception as e:
+        logger.error(f"Error in analyze_crypto_pattern_task: {str(e)}")
+        # Re-raise exception to trigger on_failure
         raise
 
 
-@celery_app.task
-def scan_for_malware_patterns(file_id: int) -> Dict[str, Any]:
-    """Scan for malware patterns and signatures"""
-    try:
-        logger.info(f"Scanning for malware patterns in file {file_id}")
-
-        # Mock malware scanning
-        results = {
-            'file_id': file_id,
-            'status': 'completed',
-            'malware_analysis': {
-                'yara_matches': [],
-                'suspicious_apis': ['CreateProcess', 'RegSetValue'],
-                'network_indicators': ['192.168.1.100:8080'],
-                'file_modifications': [],
-                'threat_score': 0.23,
-                'threat_level': 'low'
-            },
-            'scan_duration': 2.8,
-            'timestamp': time.time()
+@shared_task(bind=True, base=AnalysisTask)
+def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: int, 
+                   title: str, description: str = None, region_type: str = 'text',
+                   user_id: int = None, color: str = '#yellow', 
+                   highlight_style: str = 'background') -> Dict[str, Any]:
+    """
+    Background task to tag a region of interest
+    
+    Args:
+        file_content_id: ID of the file content
+        start_offset: Start offset of the region
+        end_offset: End offset of the region
+        title: Title of the region
+        description: Description of the region
+        region_type: Type of the region (text, crypto, binary, etc.)
+        user_id: ID of the user creating the region
+        color: Color for highlighting the region
+        highlight_style: Style for highlighting the region
+        
+    Returns:
+        Dictionary with region information
+    """
+    # Update task status
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'stage': 'creating_region',
+            'progress': 50,
+            'file_content_id': file_content_id,
+            'title': title
         }
-
-        logger.info(f"Malware scanning completed for file {file_id}")
-        return results
-
-    except Exception as exc:
-        logger.error(f"Malware scanning failed for file {file_id}: {exc}")
-        raise
-
-
-@celery_app.task(bind=True)
-def process_csv_bulk_import(self, bulk_import_id: int, csv_content: str, options: Dict[str, Any]) -> Dict[str, Any]:
-    """Process CSV file for bulk import in the background"""
+    )
+    
     try:
-        logger.info(f"Starting bulk import processing for import ID {bulk_import_id}")
-
-        # Get the bulk import record
-        bulk_import = BulkImport.query.get(bulk_import_id)
-        if not bulk_import:
-            raise ValueError(f"Bulk import {bulk_import_id} not found")
-
-        # Update status to processing
-        bulk_import.status = 'processing'
-        db.session.commit()
-
-        # Parse CSV
-        csv_reader = csv.reader(io.StringIO(csv_content))
-
-        # Count total items (skip header row)
-        total_items = sum(1 for _ in csv_reader) - 1
-        io.StringIO(csv_content).seek(0)  # Reset the StringIO object
-        csv_reader = csv.reader(io.StringIO(csv_content))
-
-        # Skip header row
-        next(csv_reader, None)
-
-        # Update total items count
-        bulk_import.total_items = total_items
-        db.session.commit()
-
-        # Process each row
-        processed_items = 0
-        successful_items = 0
-        failed_items = 0
-        errors = []
-
-        # Get options
-        priority = options.get('priority', 5)
-        auto_analyze = options.get('auto_analyze', False)
-        notes = options.get('notes', '')
-        tags = options.get('tags', [])
-
-        for row in csv_reader:
-            processed_items += 1
-
-            # Update progress every 10 items or at 10% intervals
-            if processed_items % 10 == 0 or processed_items / total_items * 100 % 10 == 0:
-                self.update_state(state='PROGRESS', meta={
-                    'processed': processed_items,
-                    'total': total_items,
-                    'successful': successful_items,
-                    'failed': failed_items,
-                    'progress': int(processed_items / total_items * 100)
-                })
-
-                # Update bulk import record
-                bulk_import.processed_items = processed_items
-                bulk_import.successful_items = successful_items
-                bulk_import.failed_items = failed_items
-                db.session.commit()
-
-            try:
-                if len(row) < 1:
-                    continue
-
-                file_path = row[0]
-
-                # Skip if file path is empty
-                if not file_path:
-                    continue
-
-                # Validate file path
-                if not os.path.exists(file_path):
-                    failed_items += 1
-                    errors.append(f"File not found: {file_path}")
-                    continue
-
-                # Create a FileStorage object
-                with open(file_path, 'rb') as f:
-                    file_content = f.read()
-
-                file_name = os.path.basename(file_path)
-                file_storage = FileStorage(
-                    stream=io.BytesIO(file_content),
-                    filename=file_name,
-                    content_type=mimetypes.guess_type(file_name)[0]
-                )
-
-                # Validate file
-                if not FileService.validate_upload(file_storage):
-                    failed_items += 1
-                    errors.append(f"{file_name}: Invalid file type or size")
-                    continue
-
-                # Process upload
-                result = FileService.process_upload(
-                    file=file_storage,
-                    user_id=bulk_import.created_by,
-                    priority=priority,
-                    is_root_file=True,
-                    notes=notes,
-                    tags=tags
-                )
-
-                if result['success']:
-                    successful_items += 1
-
-                    # Queue for analysis if requested
-                    if auto_analyze:
-                        BackgroundService.queue_analysis(result['file'].id)
-                else:
-                    failed_items += 1
-                    errors.append(f"{file_name}: {result['error']}")
-
-            except Exception as e:
-                logger.error(f"Bulk import error for row {processed_items}: {e}")
-                failed_items += 1
-                errors.append(f"Row {processed_items}: {str(e)}")
-
-        # Update final status
-        bulk_import.status = 'completed'
-        bulk_import.completed_at = time.time()
-        bulk_import.processed_items = processed_items
-        bulk_import.successful_items = successful_items
-        bulk_import.failed_items = failed_items
-        bulk_import.error_details = {'errors': errors} if errors else {}
-        db.session.commit()
-
-        logger.info(f"Bulk import completed: {successful_items} successful, {failed_items} failed")
-
+        # Create region of interest
+        region = AnalysisService.tag_region_of_interest(
+            file_content_id=file_content_id,
+            start_offset=start_offset,
+            end_offset=end_offset,
+            title=title,
+            description=description,
+            region_type=region_type,
+            user_id=user_id,
+            color=color,
+            highlight_style=highlight_style
+        )
+        
+        if not region:
+            return {'success': False, 'error': 'Failed to create region'}
+        
+        # Update task status
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'stage': 'region_created',
+                'progress': 100,
+                'region_id': region.id,
+                'title': region.title
+            }
+        )
+        
         return {
-            'bulk_import_id': bulk_import_id,
-            'total_items': total_items,
-            'processed_items': processed_items,
-            'successful_items': successful_items,
-            'failed_items': failed_items,
-            'errors': errors[:10]  # Return only first 10 errors
+            'success': True,
+            'region_id': region.id,
+            'title': region.title,
+            'description': region.description,
+            'start_offset': region.start_offset,
+            'end_offset': region.end_offset,
+            'region_type': region.region_type,
+            'color': region.color,
+            'highlight_style': region.highlight_style
         }
-
-    except Exception as exc:
-        logger.error(f"Bulk import processing failed: {exc}")
-
-        # Update bulk import status to error
-        if 'bulk_import' in locals() and bulk_import:
-            bulk_import.status = 'error'
-            bulk_import.error_details = {'error': str(exc)}
-            db.session.commit()
-
+    
+    except Exception as e:
+        logger.error(f"Error in tag_region_task: {str(e)}")
+        # Re-raise exception to trigger on_failure
         raise
+
+
+@shared_task(bind=True, base=AnalysisTask)
+def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, Any]:
+    """
+    Background task to analyze multiple files in batch
+    
+    Args:
+        file_ids: List of file IDs to analyze
+        user_id: ID of the user requesting analysis
+        
+    Returns:
+        Dictionary with batch analysis results
+    """
+    total_files = len(file_ids)
+    results = {
+        'success': True,
+        'total_files': total_files,
+        'completed': 0,
+        'failed': 0,
+        'file_results': {}
+    }
+    
+    # Update task status
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'stage': 'initializing_batch',
+            'progress': 0,
+            'total_files': total_files,
+            'completed': 0
+        }
+    )
+    
+    for i, file_id in enumerate(file_ids):
+        try:
+            # Update task status
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'stage': f'analyzing_file_{i+1}_of_{total_files}',
+                    'progress': int((i / total_files) * 100),
+                    'total_files': total_files,
+                    'completed': i,
+                    'current_file_id': file_id
+                }
+            )
+            
+            # Analyze file
+            file_result = AnalysisService.analyze_file(file_id, user_id, async_mode=False)
+            
+            # Store result
+            results['file_results'][file_id] = file_result
+            
+            if file_result.get('success', False):
+                results['completed'] += 1
+            else:
+                results['failed'] += 1
+                
+        except Exception as e:
+            logger.error(f"Error analyzing file {file_id} in batch: {str(e)}")
+            results['failed'] += 1
+            results['file_results'][file_id] = {
+                'success': False,
+                'error': str(e),
+                'file_id': file_id
+            }
+    
+    # Update task status
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'stage': 'batch_complete',
+            'progress': 100,
+            'total_files': total_files,
+            'completed': results['completed'],
+            'failed': results['failed']
+        }
+    )
+    
+    return results

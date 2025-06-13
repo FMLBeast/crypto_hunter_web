@@ -173,6 +173,11 @@
                            class="{% if request.endpoint and 'graph' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             <i class="fas fa-project-diagram mr-2"></i>Graph
                         </a>
+
+                        <a href="{{ url_for('puzzle.index') }}"
+                           class="{% if request.endpoint and 'puzzle' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-puzzle-piece mr-2"></i>Puzzles
+                        </a>
                     </div>
                 </div>
 
@@ -291,6 +296,10 @@
                 <a href="{{ url_for('graph.visual_graph') }}"
                    class="{% if request.endpoint and 'graph' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Graph
+                </a>
+                <a href="{{ url_for('puzzle.index') }}"
+                   class="{% if request.endpoint and 'puzzle' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Puzzles
                 </a>
             </div>
         </div>

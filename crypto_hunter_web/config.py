@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import Dict, List, Any
 from urllib.parse import quote_plus
 
-from sqlalchemy.sql.coercions import cls
+# Import removed to avoid name conflict with class methods
 
 
 class ConfigurationError(Exception):
@@ -392,8 +392,9 @@ class ProductionConfig(BaseConfig):
     TESTING = False
 
     # PostgreSQL for production
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL') or \
-                              cls._build_postgres_url()
+    # Use environment variable or build URL from components
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+
 
     # Full security enabled
     WTF_CSRF_ENABLED = True
@@ -431,6 +432,10 @@ class ProductionConfig(BaseConfig):
 
     @classmethod
     def init_app(cls, app):
+        # If DATABASE_URL is not set, build it from components
+        if not cls.SQLALCHEMY_DATABASE_URI:
+            cls.SQLALCHEMY_DATABASE_URI = cls._build_postgres_url()
+
         super().init_app(app)
 
         # Production-specific initialization
