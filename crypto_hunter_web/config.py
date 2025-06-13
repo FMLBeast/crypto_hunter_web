@@ -8,6 +8,8 @@ from datetime import timedelta
 from typing import Dict, List, Any
 from urllib.parse import quote_plus
 
+from sqlalchemy.sql.coercions import cls
+
 
 class ConfigurationError(Exception):
     """Configuration related errors"""

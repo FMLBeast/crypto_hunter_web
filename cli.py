@@ -5,7 +5,7 @@ import os
 import secrets
 from datetime import datetime
 from pathlib import Path
-
+import subprocess
 import click
 from flask import current_app
 from flask.cli import with_appcontext
@@ -526,7 +526,6 @@ def show_logs(lines, follow):
 
     try:
         if follow:
-            import subprocess
             subprocess.run(['tail', '-f', log_file])
         else:
             subprocess.run(['tail', '-n', str(lines), log_file])

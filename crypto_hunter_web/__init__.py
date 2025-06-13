@@ -17,6 +17,14 @@ load_dotenv()
 __version__ = '1.0.0'
 __author__ = 'Crypto Hunter Team'
 
+# Import services for global access
+from crypto_hunter_web.services.ai_service import AIService
+from crypto_hunter_web.services.crypto_analyzer import CryptoAnalyzer
+
+# Initialize service instances
+ai_service = AIService()
+crypto_analyzer = CryptoAnalyzer()
+
 
 def create_app(config_name=None):
     """Application factory pattern"""

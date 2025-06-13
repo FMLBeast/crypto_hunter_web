@@ -6,7 +6,6 @@ import logging
 import time
 from datetime import datetime
 from typing import List, Callable
-
 import redis
 from flask import request, jsonify, current_app, g, make_response, redirect
 from flask_login import current_user

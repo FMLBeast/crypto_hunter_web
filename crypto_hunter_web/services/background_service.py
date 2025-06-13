@@ -6,13 +6,14 @@ Background Service - Real implementation for task monitoring and management
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
+
 from celery import current_app as celery_app
 from celery.result import AsyncResult
 from sqlalchemy import desc
 
 from crypto_hunter_web.extensions import redis_client
-from crypto_hunter_web.models import db, AnalysisFile, Finding, FileContent, User, FileStatus
+from crypto_hunter_web.models import db, AnalysisFile, Finding, FileStatus
 from crypto_hunter_web.services.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -336,6 +337,103 @@ class BackgroundService:
         except Exception as e:
             logger.error(f"Failed to get recent findings: {e}")
             return []
+
+    @classmethod
+    def queue_comprehensive_analysis(cls, file_id: int, analysis_types: List[str], user_id: int, priority: int = 5) -> str:
+        """Queue a comprehensive analysis task for a file
+
+        Args:
+            file_id: ID of the file to analyze
+            analysis_types: List of analysis types to perform (e.g. ['basic', 'strings', 'crypto'])
+            user_id: ID of the user requesting the analysis
+            priority: Task priority (1-10, higher is more important)
+
+        Returns:
+            task_id: ID of the queued task
+        """
+        try:
+            from crypto_hunter_web.services.celery_app import celery_app
+
+            # Create task
+            task = analyze_file_comprehensive.apply_async(
+                args=[file_id, analysis_types, user_id],
+                kwargs={'priority': priority},
+                priority=priority
+            )
+
+            # Track the task
+            cls.track_task(
+                task_id=task.id,
+                task_type='comprehensive_analysis',
+                file_id=file_id,
+                user_id=user_id,
+                metadata={
+                    'analysis_types': analysis_types,
+                    'priority': priority
+                }
+            )
+
+            # Update file status
+            file_obj = AnalysisFile.query.get(file_id)
+            if file_obj:
+                file_obj.status = FileStatus.PENDING
+                db.session.commit()
+
+            logger.info(f"Queued comprehensive analysis for file {file_id}, task {task.id}")
+            return task.id
+
+        except Exception as e:
+            logger.error(f"Failed to queue comprehensive analysis for file {file_id}: {e}")
+            raise
+
+    @classmethod
+    def queue_crypto_analysis(cls, file_id: int, analysis_options: Dict, user_id: int, priority: int = 7) -> str:
+        """Queue a cryptocurrency analysis task for a file
+
+        Args:
+            file_id: ID of the file to analyze
+            analysis_options: Dictionary of analysis options
+            user_id: ID of the user requesting the analysis
+            priority: Task priority (1-10, higher is more important)
+
+        Returns:
+            task_id: ID of the queued task
+        """
+        try:
+            from crypto_hunter_web.services.celery_app import celery_app
+            from crypto_hunter_web.tasks.crypto_tasks import analyze_file_crypto
+
+            # Create task
+            task = analyze_file_crypto.apply_async(
+                args=[file_id, analysis_options, user_id],
+                kwargs={'priority': priority},
+                priority=priority
+            )
+
+            # Track the task
+            cls.track_task(
+                task_id=task.id,
+                task_type='crypto_analysis',
+                file_id=file_id,
+                user_id=user_id,
+                metadata={
+                    'analysis_options': analysis_options,
+                    'priority': priority
+                }
+            )
+
+            # Update file status
+            file_obj = AnalysisFile.query.get(file_id)
+            if file_obj:
+                file_obj.status = FileStatus.PENDING
+                db.session.commit()
+
+            logger.info(f"Queued crypto analysis for file {file_id}, task {task.id}")
+            return task.id
+
+        except Exception as e:
+            logger.error(f"Failed to queue crypto analysis for file {file_id}: {e}")
+            raise
 
     @classmethod
     def get_analysis_stats(cls, user_id: int = None) -> Dict[str, Any]:
