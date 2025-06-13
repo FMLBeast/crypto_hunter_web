@@ -302,12 +302,106 @@ def extract_from_png(file_path: str, output_dir: str, depth: int, file_record: A
         bitplane_spiral_params['bitplane'] = i
         extract_with_tool(file_path, output_dir, 'zsteg', file_record, bitplane_spiral_params)
 
+    # Run advanced extraction techniques
+    logger.info("Running advanced extraction techniques")
+
+    # XOR bitplanes extraction
+    for bp1 in range(1, 5):
+        for bp2 in range(bp1 + 1, 6):
+            for channel in ['r', 'g', 'b']:
+                xor_params = {
+                    'bitplane1': bp1,
+                    'bitplane2': bp2,
+                    'channel': channel
+                }
+                extract_with_tool(file_path, output_dir, 'xor_bitplanes', file_record, xor_params)
+
+    # Combined bitplanes extraction
+    for combine_method in ['concat', 'interleave', 'or']:
+        # Try different combinations of bitplanes
+        bitplane_combinations = [
+            [1, 2, 3],  # Lower bitplanes
+            [6, 7, 8],  # Higher bitplanes
+            [1, 4, 8],  # Spread bitplanes
+            [1, 2, 3, 4]  # More bitplanes
+        ]
+
+        for bitplanes in bitplane_combinations:
+            for channel in ['r', 'g', 'b']:
+                combined_params = {
+                    'bitplanes': bitplanes,
+                    'channel': channel,
+                    'combine_method': combine_method
+                }
+                extract_with_tool(file_path, output_dir, 'combined_bitplanes', file_record, combined_params)
+
+    # DCT extraction
+    for block_size in [8, 16]:
+        for coefficient in ['lsb', 'msb', 'mid', 'ac']:
+            dct_params = {
+                'block_size': block_size,
+                'coefficient': coefficient
+            }
+            extract_with_tool(file_path, output_dir, 'dct_extract', file_record, dct_params)
+
+    # Run advanced extraction techniques
+    logger.info("Running advanced extraction techniques")
+
+    # XOR bitplanes extraction
+    for bp1 in range(1, 5):
+        for bp2 in range(bp1 + 1, 6):
+            for channel in ['r', 'g', 'b']:
+                xor_params = {
+                    'bitplane1': bp1,
+                    'bitplane2': bp2,
+                    'channel': channel
+                }
+                extract_with_tool(file_path, output_dir, 'xor_bitplanes', file_record, xor_params)
+
+    # Combined bitplanes extraction
+    for combine_method in ['concat', 'interleave', 'or']:
+        # Try different combinations of bitplanes
+        bitplane_combinations = [
+            [1, 2, 3],  # Lower bitplanes
+            [6, 7, 8],  # Higher bitplanes
+            [1, 4, 8],  # Spread bitplanes
+            [1, 2, 3, 4]  # More bitplanes
+        ]
+
+        for bitplanes in bitplane_combinations:
+            for channel in ['r', 'g', 'b']:
+                combined_params = {
+                    'bitplanes': bitplanes,
+                    'channel': channel,
+                    'combine_method': combine_method
+                }
+                extract_with_tool(file_path, output_dir, 'combined_bitplanes', file_record, combined_params)
+
+    # DCT extraction
+    for block_size in [8, 16]:
+        for coefficient in ['lsb', 'msb', 'mid', 'ac']:
+            dct_params = {
+                'block_size': block_size,
+                'coefficient': coefficient
+            }
+            extract_with_tool(file_path, output_dir, 'dct_extract', file_record, dct_params)
+
 def extract_from_jpeg(file_path: str, output_dir: str, depth: int, file_record: AnalysisFile = None) -> None:
     """Extract data from JPEG files"""
     logger.info(f"Extracting data from JPEG file: {file_path}")
 
     # Run steghide
     extract_with_tool(file_path, output_dir, 'steghide', file_record)
+
+    # Run DCT extraction (especially relevant for JPEG files)
+    logger.info("Running DCT extraction on JPEG file")
+    for block_size in [8, 16]:
+        for coefficient in ['lsb', 'msb', 'mid', 'ac']:
+            dct_params = {
+                'block_size': block_size,
+                'coefficient': coefficient
+            }
+            extract_with_tool(file_path, output_dir, 'dct_extract', file_record, dct_params)
 
     # Run outguess if available
     try:

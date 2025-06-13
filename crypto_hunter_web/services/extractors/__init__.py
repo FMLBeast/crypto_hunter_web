@@ -12,6 +12,7 @@ from .forensics_extractor import ForensicsExtractor
 from .pnganalyzer import analyze_png_file, extract_png_metadata
 from .steghide import SteghideExtractor
 from .zsteg import ZStegExtractor
+from .advanced_extractors import XORBitplanesExtractor, CombinedBitplanesExtractor, DCTExtractor
 
 # Registry of available extractors
 EXTRACTORS = {
@@ -27,6 +28,11 @@ EXTRACTORS = {
     'steghide': SteghideExtractor,
     'stegseek': ForensicsExtractor,  # Use forensics extractor for advanced tools
     'outguess': ForensicsExtractor,
+
+    # Advanced steganography extractors
+    'xor_bitplanes': XORBitplanesExtractor,
+    'combined_bitplanes': CombinedBitplanesExtractor,
+    'dct_extract': DCTExtractor,
 
     # Binary analysis extractors
     'binwalk': BinwalkExtractor,
@@ -67,6 +73,7 @@ def get_extractors_by_category():
     categories = {
         'steganography': ['zsteg', 'zsteg_bitplane_1', 'zsteg_bitplane_2', 'zsteg_bitplane_3',
                          'zsteg_bitplane_4', 'steghide', 'stegseek', 'outguess'],
+        'advanced_steganography': ['xor_bitplanes', 'combined_bitplanes', 'dct_extract'],
         'binary_analysis': ['binwalk', 'foremost', 'bulk_extractor', 'radare2'],
         'string_analysis': ['strings', 'hexdump'],
         'metadata': ['exiftool'],
@@ -80,9 +87,9 @@ def get_extractors_by_category():
 def get_recommended_extractors(file_type: str):
     """Get recommended extractors for a file type"""
     recommendations = {
-        'image/jpeg': ['steghide', 'stegseek', 'exiftool', 'binwalk', 'strings'],
-        'image/png': ['zsteg', 'zsteg_bitplane_1', 'binwalk', 'strings'],
-        'image/bmp': ['zsteg', 'binwalk', 'strings'],
+        'image/jpeg': ['steghide', 'stegseek', 'exiftool', 'binwalk', 'strings', 'dct_extract'],
+        'image/png': ['zsteg', 'zsteg_bitplane_1', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes'],
+        'image/bmp': ['zsteg', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes'],
         'image/gif': ['binwalk', 'strings', 'exiftool'],
         'audio/wav': ['steghide', 'sox', 'binwalk', 'strings'],
         'audio/mp3': ['binwalk', 'strings', 'exiftool'],
@@ -109,6 +116,9 @@ __all__ = [
     'SteghideExtractor',
     'BinwalkExtractor',
     'CustomExtractor',
+    'XORBitplanesExtractor',
+    'CombinedBitplanesExtractor',
+    'DCTExtractor',
     'get_extractor',
     'list_extractors',
     'analyze_png_file',

@@ -90,4 +90,5 @@ tiktoken==0.5.1
 # bitcoinlib==0.12.0
 
 Flask-SocketIO~=5.5.1
-binwalk~=2.3.3
+# binwalk is installed via apt-get in the Dockerfile
+# binwalk~=2.3.3

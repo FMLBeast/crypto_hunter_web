@@ -23,6 +23,7 @@ DEFAULT_IMAGE_PATH = "uploads/image.png"
 OUTPUT_DIR = "production"
 REQUIRED_TOOLS = ['zsteg', 'binwalk', 'foremost', 'steghide', 'exiftool']
 EXTRACTORS = ['zsteg', 'binwalk', 'foremost', 'steghide']
+USE_AI_ORCHESTRATOR = os.environ.get('USE_LLM_ORCHESTRATOR', 'true').lower() in ('true', '1', 'yes')
 
 # Parse command line arguments
 def parse_args():
@@ -31,6 +32,10 @@ def parse_args():
                         help='Path to the file to extract from (default: uploads/image.png)')
     parser.add_argument('--output-dir', '-o', default=OUTPUT_DIR,
                         help='Directory to save extraction results (default: production)')
+    parser.add_argument('--use-ai', '-a', action='store_true', default=USE_AI_ORCHESTRATOR,
+                        help='Use AI orchestrator for extraction (default: True)')
+    parser.add_argument('--no-ai', '-n', action='store_false', dest='use_ai',
+                        help='Disable AI orchestrator for extraction')
     return parser.parse_args()
 
 def check_tools_installed():
@@ -111,8 +116,120 @@ def prepare_directories():
         shutil.copy2(IMAGE_PATH, root_file_path)
         logger.info(f"Copied {IMAGE_PATH} to {root_file_path} (marked as root)")
 
-def run_extraction():
-    """Run extraction using all available extractors"""
+def run_extraction_with_ai_orchestrator():
+    """Run extraction using the AI orchestrator"""
+    logger.info("Using AI orchestrator for extraction")
+
+    try:
+        # Import here to avoid circular imports
+        from crypto_hunter_web.services.llm_crypto_orchestrator import LLMCryptoOrchestrator
+        from crypto_hunter_web.models import AnalysisFile
+
+        # Get or create file record
+        file_obj = None
+        try:
+            from crypto_hunter_web.models import db
+            file_obj = AnalysisFile.query.filter_by(filepath=IMAGE_PATH).first()
+
+            if not file_obj:
+                # Create a new file record
+                logger.info(f"Creating file record for {IMAGE_PATH}")
+
+                # Get file info
+                file_size = os.path.getsize(IMAGE_PATH)
+                file_name = os.path.basename(IMAGE_PATH)
+
+                # Determine file type
+                import magic
+                file_type = magic.from_file(IMAGE_PATH, mime=True)
+
+                # Create file record
+                file_obj = AnalysisFile(
+                    filepath=IMAGE_PATH,
+                    filename=file_name,
+                    file_size=file_size,
+                    file_type=file_type,
+                    status='pending'
+                )
+
+                db.session.add(file_obj)
+                db.session.commit()
+        except Exception as e:
+            logger.warning(f"Error creating file record: {e}")
+            logger.info("Continuing without file record")
+
+        # Initialize the orchestrator
+        orchestrator = LLMCryptoOrchestrator()
+
+        # Run orchestrated analysis for each extractor
+        results = {}
+        for extractor_name in EXTRACTORS:
+            try:
+                logger.info(f"Running AI-orchestrated extraction with {extractor_name}")
+
+                # Create extractor-specific output directory
+                extractor_output_dir = os.path.join(OUTPUT_DIR, f"{extractor_name}_extracted")
+
+                # Parameters for extraction
+                parameters = {
+                    'output_dir': extractor_output_dir
+                }
+
+                # Run orchestrated extraction
+                if file_obj:
+                    # Use file_id if we have a file record
+                    result = orchestrator.llm_orchestrated_analysis(
+                        file_obj.id,
+                        extraction_method=extractor_name,
+                        parameters=parameters,
+                        force_reanalysis=True
+                    )
+                else:
+                    # Use direct content extraction if no file record
+                    with open(IMAGE_PATH, 'rb') as f:
+                        content = f.read()
+
+                    # Get a preview of the content
+                    content_preview = content[:4096].hex()
+
+                    result = orchestrator.extract_with_llm(
+                        None,  # No file_id
+                        content_preview,
+                        extractor_name,
+                        parameters
+                    )
+
+                # Process result
+                if isinstance(result, dict) and result.get('success', False):
+                    logger.info(f"AI-orchestrated extraction with {extractor_name} succeeded")
+                    results[extractor_name] = {
+                        'success': True,
+                        'details': result.get('details', 'AI-orchestrated extraction succeeded'),
+                        'confidence': result.get('confidence', 0.8),
+                        'data': result.get('data', b'')
+                    }
+                else:
+                    logger.warning(f"AI-orchestrated extraction with {extractor_name} failed")
+                    results[extractor_name] = {
+                        'success': False,
+                        'error': 'AI-orchestrated extraction failed',
+                        'details': str(result)
+                    }
+            except Exception as e:
+                logger.error(f"Error running AI-orchestrated extraction with {extractor_name}: {e}")
+                results[extractor_name] = {
+                    'success': False,
+                    'error': str(e)
+                }
+
+        return results
+    except Exception as e:
+        logger.error(f"Error in AI-orchestrated extraction: {e}")
+        logger.info("Falling back to manual extraction")
+        return run_extraction_manual()
+
+def run_extraction_manual():
+    """Run extraction using all available extractors manually"""
     from crypto_hunter_web.services.extractors import get_extractor
 
     results = {}
@@ -220,9 +337,11 @@ def main():
     args = parse_args()
     image_path = args.file_path
     output_dir = args.output_dir
+    use_ai = args.use_ai
 
     logger.info(f"Starting extraction orchestration on {image_path}")
     logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Using AI orchestrator: {use_ai}")
 
     # Check if image exists
     if not os.path.exists(image_path):
@@ -258,8 +377,13 @@ def main():
         logger.warning(f"Failed to initialize Flask app context: {e}")
         logger.info("Continuing without Flask app context")
 
-    # Run extraction
-    results = run_extraction()
+    # Run extraction with AI orchestrator if enabled
+    if use_ai:
+        logger.info("Using AI orchestrator for extraction")
+        results = run_extraction_with_ai_orchestrator()
+    else:
+        logger.info("Using manual extraction")
+        results = run_extraction_manual()
 
     # Verify extraction
     success = verify_extraction(results)
@@ -269,5 +393,72 @@ def main():
 
     return success
 
+def test_ai_orchestrator():
+    """Test the AI orchestrator"""
+    logger.info("Testing AI orchestrator")
+
+    # Set environment variable to enable AI orchestrator
+    os.environ['USE_LLM_ORCHESTRATOR'] = 'true'
+
+    # Create a test file
+    test_file = os.path.join(os.getcwd(), 'test_image.png')
+    if not os.path.exists(test_file):
+        # Create a simple PNG file
+        try:
+            from PIL import Image
+            img = Image.new('RGB', (100, 100), color = 'red')
+            img.save(test_file)
+            logger.info(f"Created test file: {test_file}")
+        except ImportError:
+            logger.warning("PIL not installed, using a sample file instead")
+            # Copy a sample file if available
+            sample_files = [
+                os.path.join(os.getcwd(), 'uploads', 'image.png'),
+                '/tmp/image.png'
+            ]
+            for sample in sample_files:
+                if os.path.exists(sample):
+                    import shutil
+                    shutil.copy2(sample, test_file)
+                    logger.info(f"Copied sample file to: {test_file}")
+                    break
+            else:
+                logger.error("No sample file available for testing")
+                return False
+
+    # Set up test parameters
+    global IMAGE_PATH, OUTPUT_DIR
+    IMAGE_PATH = test_file
+    OUTPUT_DIR = os.path.join(os.getcwd(), 'test_output')
+
+    # Prepare directories
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    # Initialize Flask app context if needed
+    try:
+        from crypto_hunter_web import create_app
+        app = create_app()
+        app.app_context().push()
+        logger.info("Flask app context initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Flask app context: {e}")
+        logger.info("Continuing without Flask app context")
+
+    # Run extraction with AI orchestrator
+    results = run_extraction_with_ai_orchestrator()
+
+    # Verify extraction
+    success = verify_extraction(results)
+
+    # Print summary
+    print_summary(results)
+
+    logger.info(f"AI orchestrator test {'succeeded' if success else 'failed'}")
+    return success
+
 if __name__ == "__main__":
-    sys.exit(0 if main() else 1)
+    # Check if we're running a test
+    if len(sys.argv) > 1 and sys.argv[1] == '--test-ai':
+        sys.exit(0 if test_ai_orchestrator() else 1)
+    else:
+        sys.exit(0 if main() else 1)
