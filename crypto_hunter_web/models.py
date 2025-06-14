@@ -27,11 +27,11 @@ class UserLevel(Enum):
     MASTER = "MASTER"
 
 
-class FileStatus(Enum):
-    """File analysis status"""
+class FileStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETE = "complete"
+    FAILED = "failed"
     ERROR = "error"
     ARCHIVED = "archived"
 
@@ -237,10 +237,9 @@ class AnalysisFile(db.Model):
     crc32 = db.Column(db.String(8))
 
     # Analysis status and metadata
-    status = db.Column(db.Enum(FileStatus), default=FileStatus.PENDING, nullable=False, index=True)
+    status = db.Column(db.String(20), default=FileStatus.PENDING.value, nullable=False, index=True)
     priority = db.Column(db.Integer, default=5, nullable=False, index=True)  # 1-10 scale
     confidence_score = db.Column(DOUBLE_PRECISION, default=0.0)  # AI confidence in analysis
-
     # File classification
     is_root_file = db.Column(db.Boolean, default=False, nullable=False, index=True)
     is_encrypted = db.Column(db.Boolean, default=False, nullable=False)
@@ -443,9 +442,12 @@ class FileContent(db.Model):
             'crypto_analysis', 'llm_analysis', 'metadata', 'exif_data',
             'archive_listing', 'disassembly', 'network_data', 'registry_data'
         ]
-        if content_type not in valid_types:
-            raise ValueError(f"Invalid content type: {content_type}")
-        return content_type
+        # Allow advanced steganography and binwalk content types
+        if (content_type.startswith('advanced_zsteg_') or 
+            content_type.startswith('binwalk_') or 
+            content_type in valid_types):
+            return content_type
+        raise ValueError(f"Invalid content type: {content_type}")
 
     def get_content(self) -> Union[str, bytes, dict]:
         """Get content in appropriate format"""

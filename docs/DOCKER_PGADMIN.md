@@ -21,7 +21,7 @@ Add the following service to your `docker-compose.yml` file:
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     volumes:
       - pgadmin_data:/var/lib/pgadmin
@@ -82,7 +82,7 @@ db:5432:crypto_hunter:crypto_hunter:secure_password_123
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     volumes:
       - pgadmin_data:/var/lib/pgadmin
@@ -109,9 +109,18 @@ docker compose up -d
 1. Open your web browser and navigate to: http://localhost:5050
 2. Log in with:
    - Email: admin@example.com
-   - Password: admin123
+   - Password: admin
 3. You should see the "Crypto Hunter DB" server in the left sidebar
 4. Click on it to connect to the database
+
+> **Note:** The actual configuration in the project's docker-compose.yml file may differ from this documentation. The docker-compose.yml file configures pgAdmin to run on port 5051 and is only enabled in the "dev" and "tools" profiles. If you're running pgAdmin through docker-compose, you may need to:
+> ```bash
+> # Start pgAdmin with the appropriate profile
+> docker compose --profile tools up -d
+> # Then access it at http://localhost:5051
+> ```
+> 
+> If you're running pgAdmin directly with Docker (not through docker-compose), make sure to use the credentials shown above.
 
 ## Security Considerations
 

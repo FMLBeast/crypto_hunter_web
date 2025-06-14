@@ -45,50 +45,43 @@ def main():
         return 1
 
     try:
-        # Ensure instance directory exists
-        instance_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'instance')
-        os.makedirs(instance_path, exist_ok=True)
-
         # Import Flask app and create application context
         from crypto_hunter_web import create_app
-
-        # Create app with explicit instance path
         app = create_app()
         app.app_context().push()
 
         # Import necessary modules
+        from crypto_hunter_web.models import AnalysisFile, db
+        from crypto_hunter_web.services.file_service import FileService
         from crypto_hunter_web.services.extraction import ExtractionService
-        import magic
 
-        # Create a simple file record in memory instead of using the database
-        logger.info(f"Processing file {args.file_path}")
+        # Get or create file record
+        file_obj = AnalysisFile.query.filter_by(filepath=args.file_path).first()
 
-        # Get file info
-        file_size = os.path.getsize(args.file_path)
-        file_name = os.path.basename(args.file_path)
+        if not file_obj:
+            # Create a new file record
+            logger.info(f"Creating file record for {args.file_path}")
 
-        # Determine file type
-        file_type = magic.from_file(args.file_path, mime=True)
+            # Get file info
+            file_size = os.path.getsize(args.file_path)
+            file_name = os.path.basename(args.file_path)
 
-        # Create a simple file object with the necessary attributes
-        class SimpleFileObject:
-            def __init__(self, id, filepath, filename, file_size, file_type):
-                self.id = id
-                self.filepath = filepath
-                self.filename = filename
-                self.file_size = file_size
-                self.file_type = file_type
+            # Determine file type
+            import magic
+            file_type = magic.from_file(args.file_path, mime=True)
 
-        # Create file record in memory
-        file_obj = SimpleFileObject(
-            id=1,  # Use a dummy ID
-            filepath=args.file_path,
-            filename=file_name,
-            file_size=file_size,
-            file_type=file_type
-        )
+            # Create file record
+            file_obj = FileService.create_file_record(
+                filepath=args.file_path,
+                filename=file_name,
+                file_size=file_size,
+                file_type=file_type,
+                user_id=args.user_id
+            )
 
-        logger.info(f"Created in-memory file record for {file_name} ({file_type}, {file_size} bytes)")
+            if not file_obj:
+                logger.error("Failed to create file record")
+                return 1
 
         # Parse parameters if provided
         import json
@@ -97,32 +90,30 @@ def main():
         # Run extraction
         logger.info(f"Running extraction: {args.method} (async: {args.background})")
 
-        # Create a mock extraction result
-        # In a real scenario, we would call the actual extraction methods
-        # but for this script, we'll just create a mock result
-
-        # Create output directory if it doesn't exist
-        output_dir = args.output_dir
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Create a sample output file to demonstrate extraction
-        output_file = os.path.join(output_dir, f"extracted_{file_name}")
-        with open(output_file, 'w') as f:
-            f.write(f"Mock extraction result for {file_name}\n")
-            f.write(f"File type: {file_type}\n")
-            f.write(f"File size: {file_size} bytes\n")
-            f.write(f"Extraction method: {args.method}\n")
-            f.write(f"Extraction time: {datetime.utcnow().isoformat()}\n")
-
-        logger.info(f"Created mock extraction result at {output_file}")
-
-        # Return a success result
-        result = {
-            'success': True,
-            'message': f"Mock extraction completed for {file_name}",
-            'output_file': output_file,
-            'is_async': False
-        }
+        if args.method == 'all':
+            # Run all methods
+            result = ExtractionService.extract_all_methods(
+                file_id=file_obj.id,
+                user_id=args.user_id,
+                async_mode=args.background
+            )
+        elif args.method == 'production':
+            # Run production extraction
+            result = ExtractionService.extract_to_production(
+                file_id=file_obj.id,
+                output_dir=args.output_dir,
+                user_id=args.user_id,
+                async_mode=args.background
+            )
+        else:
+            # Run specific method
+            result = ExtractionService.extract_from_file(
+                file_id=file_obj.id,
+                extraction_method=args.method,
+                parameters=parameters,
+                user_id=args.user_id,
+                async_mode=args.background
+            )
 
         # Log result
         if result.get('is_async', False):

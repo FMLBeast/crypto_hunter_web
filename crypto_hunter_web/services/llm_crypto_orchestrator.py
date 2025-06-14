@@ -807,14 +807,27 @@ def llm_orchestrated_analysis(self, file_id: int, extraction_method=None, parame
         self.update_state(state='PROGRESS', meta={'stage': 'processing_results', 'progress': 80})
 
         # Create findings for high-confidence discoveries
+        findings_created = 0
         for result in llm_results.get('analysis_results', []):
             if result.get('confidence_score', 0) >= 8:
                 create_llm_finding.delay(file_id, result)
+                findings_created += 1
+
+        print(f"Queued {findings_created} high-confidence findings for creation")
 
         # Store LLM analysis results
-        store_llm_results(file_id, llm_results)
+        storage_success = store_llm_results(file_id, llm_results)
 
-        self.update_state(state='PROGRESS', meta={'stage': 'completed', 'progress': 100})
+        if not storage_success:
+            # Retry storing results if it failed
+            print(f"Retrying to store LLM results for file_id: {file_id}")
+            storage_success = store_llm_results(file_id, llm_results)
+
+        self.update_state(state='PROGRESS', meta={
+            'stage': 'completed', 
+            'progress': 100,
+            'storage_success': storage_success
+        })
 
         return llm_results
 
@@ -822,8 +835,8 @@ def llm_orchestrated_analysis(self, file_id: int, extraction_method=None, parame
         self.retry(countdown=300, exc=exc)  # Retry after 5 minutes
 
 
-@celery_app.task
-def create_llm_finding(file_id: int, llm_result: Dict):
+@celery_app.task(bind=True, max_retries=3)
+def create_llm_finding(self, file_id: int, llm_result: Dict):
     """Create finding from LLM analysis result"""
 
     try:
@@ -857,9 +870,19 @@ def create_llm_finding(file_id: int, llm_result: Dict):
 
         db.session.add(finding)
         db.session.commit()
+        print(f"Successfully created LLM finding for file_id: {file_id}")
+        return True
 
     except Exception as e:
         print(f"Failed to create LLM finding: {e}")
+        db.session.rollback()  # Rollback the session on error
+
+        # Retry the task with exponential backoff
+        retry_count = self.request.retries
+        backoff = 60 * (2 ** retry_count)  # 60s, 120s, 240s
+        self.retry(countdown=backoff, exc=e)
+
+        return False
 
 
 def store_llm_results(file_id: int, results: Dict):
@@ -875,6 +898,10 @@ def store_llm_results(file_id: int, results: Dict):
         )
         db.session.add(content)
         db.session.commit()
+        print(f"Successfully stored LLM results for file_id: {file_id}")
+        return True
 
     except Exception as e:
         print(f"Failed to store LLM results: {e}")
+        db.session.rollback()  # Rollback the session on error
+        return False

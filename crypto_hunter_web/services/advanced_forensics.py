@@ -11,11 +11,20 @@ import subprocess
 import tempfile
 import re
 import time
+import hashlib
+import base64
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union, Tuple
 
 import magic
+
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+except ImportError:
+    # Fallback if pycryptodome not available
+    AES = None
 
 logger = logging.getLogger(__name__)
 
@@ -915,6 +924,97 @@ class CryptographicTools:
         results['hash_analysis'] = self._analyze_hashes(content)
 
         return results
+
+    def xor_decrypt(self, data: bytes, key: bytes) -> bytes:
+        """
+        Decrypt data using XOR with the provided key.
+        The key will be repeated to match the length of the data.
+
+        Args:
+            data: The data to decrypt
+            key: The key to use for decryption
+
+        Returns:
+            The decrypted data
+        """
+        if not data or not key:
+            return b''
+
+        # Convert key to bytes if it's a string
+        if isinstance(key, str):
+            key = key.encode('utf-8')
+
+        # Convert data to bytes if it's a string
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+
+        # Create a key of the same length as the data by repeating the key
+        key_repeated = key * (len(data) // len(key) + 1)
+        key_repeated = key_repeated[:len(data)]
+
+        # XOR each byte of the data with the corresponding byte of the key
+        result = bytearray(len(data))
+        for i in range(len(data)):
+            result[i] = data[i] ^ key_repeated[i]
+
+        return bytes(result)
+
+    def aes_decrypt(self, data: Union[bytes, str], passphrase: str = 'Bodhi tree blossom', 
+                   mode: str = 'CBC', iv: Optional[bytes] = None) -> Tuple[bytes, bool]:
+        """
+        Decrypt data using AES with the provided passphrase.
+        Default passphrase is 'Bodhi tree blossom' as specified.
+
+        Args:
+            data: The data to decrypt
+            passphrase: The passphrase to use for decryption (default: 'Bodhi tree blossom')
+            mode: AES mode to use ('CBC', 'ECB', 'CTR')
+            iv: Initialization vector for CBC mode (optional)
+
+        Returns:
+            Tuple of (decrypted_data, success_flag)
+        """
+        if AES is None:
+            logging.error("AES decryption failed: pycryptodome library not available")
+            return b'', False
+
+        if not data:
+            return b'', False
+
+        try:
+            # Convert data to bytes if it's a string (could be base64)
+            if isinstance(data, str):
+                try:
+                    # Try to decode as base64 first
+                    data = base64.b64decode(data)
+                except:
+                    # If not base64, treat as regular string
+                    data = data.encode('utf-8')
+
+            # Derive key from passphrase using SHA-256
+            key = hashlib.sha256(passphrase.encode('utf-8')).digest()
+
+            # Handle different AES modes
+            if mode.upper() == 'CBC':
+                # For CBC mode, we need an IV
+                if iv is None:
+                    # If no IV provided, use first 16 bytes of key as IV
+                    iv = key[:16]
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                decrypted = unpad(cipher.decrypt(data), AES.block_size)
+            elif mode.upper() == 'ECB':
+                cipher = AES.new(key, AES.MODE_ECB)
+                decrypted = unpad(cipher.decrypt(data), AES.block_size)
+            else:
+                logging.error(f"AES decryption failed: Unsupported mode {mode}")
+                return b'', False
+
+            logging.info(f"AES decryption successful using passphrase: '{passphrase}'")
+            return decrypted, True
+
+        except Exception as e:
+            logging.error(f"AES decryption failed: {str(e)}")
+            return b'', False
 
     def _analyze_cryptographic_keys(self, content: bytes) -> Dict[str, Any]:
         """Analyze content for cryptographic keys"""

@@ -156,8 +156,8 @@ services:
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-      - ./pgadmin_servers.json:/pgadmin4/servers.json
-      - ./pgpassfile:/var/lib/pgadmin/.pgpass:ro
+      - ./pgadmin/servers.json:/pgadmin4/servers.json
+      - ./pgadmin/pgpass:/var/lib/pgadmin/.pgpass:ro
     command: >
       sh -c "
         chmod 600 /var/lib/pgadmin/.pgpass &&

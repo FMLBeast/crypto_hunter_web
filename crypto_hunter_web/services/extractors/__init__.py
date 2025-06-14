@@ -13,6 +13,7 @@ from .pnganalyzer import analyze_png_file, extract_png_metadata
 from .steghide import SteghideExtractor
 from .zsteg import ZStegExtractor
 from .advanced_extractors import XORBitplanesExtractor, CombinedBitplanesExtractor, DCTExtractor
+from .crypto_extractors import XORDecryptExtractor, AESDecryptExtractor
 
 # Registry of available extractors
 EXTRACTORS = {
@@ -33,6 +34,10 @@ EXTRACTORS = {
     'xor_bitplanes': XORBitplanesExtractor,
     'combined_bitplanes': CombinedBitplanesExtractor,
     'dct_extract': DCTExtractor,
+
+    # Cryptographic extractors
+    'xor_decrypt': XORDecryptExtractor,
+    'aes_decrypt': AESDecryptExtractor,
 
     # Binary analysis extractors
     'binwalk': BinwalkExtractor,
@@ -74,6 +79,7 @@ def get_extractors_by_category():
         'steganography': ['zsteg', 'zsteg_bitplane_1', 'zsteg_bitplane_2', 'zsteg_bitplane_3',
                          'zsteg_bitplane_4', 'steghide', 'stegseek', 'outguess'],
         'advanced_steganography': ['xor_bitplanes', 'combined_bitplanes', 'dct_extract'],
+        'cryptography': ['xor_decrypt', 'aes_decrypt'],
         'binary_analysis': ['binwalk', 'foremost', 'bulk_extractor', 'radare2'],
         'string_analysis': ['strings', 'hexdump'],
         'metadata': ['exiftool'],
@@ -87,25 +93,25 @@ def get_extractors_by_category():
 def get_recommended_extractors(file_type: str):
     """Get recommended extractors for a file type"""
     recommendations = {
-        'image/jpeg': ['steghide', 'stegseek', 'exiftool', 'binwalk', 'strings', 'dct_extract'],
-        'image/png': ['zsteg', 'zsteg_bitplane_1', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes'],
-        'image/bmp': ['zsteg', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes'],
-        'image/gif': ['binwalk', 'strings', 'exiftool'],
-        'audio/wav': ['steghide', 'sox', 'binwalk', 'strings'],
-        'audio/mp3': ['binwalk', 'strings', 'exiftool'],
-        'audio/ogg': ['binwalk', 'strings'],
+        'image/jpeg': ['steghide', 'stegseek', 'exiftool', 'binwalk', 'strings', 'dct_extract', 'xor_decrypt', 'aes_decrypt'],
+        'image/png': ['zsteg', 'zsteg_bitplane_1', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes', 'xor_decrypt', 'aes_decrypt'],
+        'image/bmp': ['zsteg', 'binwalk', 'strings', 'xor_bitplanes', 'combined_bitplanes', 'xor_decrypt'],
+        'image/gif': ['binwalk', 'strings', 'exiftool', 'xor_decrypt'],
+        'audio/wav': ['steghide', 'sox', 'binwalk', 'strings', 'xor_decrypt', 'aes_decrypt'],
+        'audio/mp3': ['binwalk', 'strings', 'exiftool', 'xor_decrypt'],
+        'audio/ogg': ['binwalk', 'strings', 'xor_decrypt'],
         'video/mp4': ['ffmpeg', 'binwalk', 'strings', 'exiftool'],
         'video/avi': ['ffmpeg', 'binwalk', 'strings'],
-        'application/pdf': ['binwalk', 'strings', 'exiftool'],
+        'application/pdf': ['binwalk', 'strings', 'exiftool', 'xor_decrypt', 'aes_decrypt'],
         'application/zip': ['binwalk', 'foremost', 'strings'],
-        'application/x-executable': ['binwalk', 'radare2', 'strings'],
-        'application/octet-stream': ['binwalk', 'strings', 'hexdump'],
-        'text/plain': ['strings', 'manual'],
+        'application/x-executable': ['binwalk', 'radare2', 'strings', 'xor_decrypt'],
+        'application/octet-stream': ['binwalk', 'strings', 'hexdump', 'xor_decrypt', 'aes_decrypt'],
+        'text/plain': ['strings', 'manual', 'xor_decrypt', 'aes_decrypt'],
         'application/vnd.tcpdump.pcap': ['wireshark', 'tcpdump']
     }
 
     # Default recommendations for unknown types
-    default = ['forensics', 'binwalk', 'strings']
+    default = ['forensics', 'binwalk', 'strings', 'xor_decrypt', 'aes_decrypt']
 
     return recommendations.get(file_type, default)
 
@@ -119,6 +125,8 @@ __all__ = [
     'XORBitplanesExtractor',
     'CombinedBitplanesExtractor',
     'DCTExtractor',
+    'XORDecryptExtractor',
+    'AESDecryptExtractor',
     'get_extractor',
     'list_extractors',
     'analyze_png_file',
