@@ -1,16 +1,18 @@
 from flask import session, current_app, request
 from werkzeug.security import check_password_hash
 from crypto_hunter_web.models import db, User, AuditLog
-from flask_login import current_user
+from flask_login import current_user, login_user, logout_user
 
 class AuthService:
     @staticmethod
-    def login_user(username, password):
+    def login_user(username, password, remember=False, duration=None):
         user = User.query.filter_by(username=username).first()
         if not user or not check_password_hash(user.password_hash, password):
             return False
-        session['user_id'] = user.id
-        # optionally session['role'] = user.role
+
+        # Use Flask-Login's login_user instead of directly manipulating session
+        login_user(user, remember=remember, duration=duration)
+
         # record audit
         db.session.add(AuditLog(
             user_id=user.id,
@@ -22,8 +24,11 @@ class AuthService:
 
     @staticmethod
     def logout_user():
-        user_id = session.pop('user_id', None)
-        if user_id:
+        if current_user.is_authenticated:
+            user_id = current_user.id
+            # Use Flask-Login's logout_user
+            logout_user()
+
             db.session.add(AuditLog(
                 user_id=user_id,
                 action='logout',
@@ -34,10 +39,12 @@ class AuthService:
     @staticmethod
     def login_required(fn):
         from functools import wraps
-        from flask import redirect, url_for, session
+        from flask import redirect, url_for
+        from flask_login import current_user
+
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            if 'user_id' not in session:
+            if not current_user.is_authenticated:
                 return redirect(url_for('auth.login'))
             return fn(*args, **kwargs)
         return wrapper
@@ -45,16 +52,15 @@ class AuthService:
     @staticmethod
     def admin_required(fn):
         from functools import wraps
-        from flask import redirect, url_for, session, flash
-        from crypto_hunter_web.models import User
+        from flask import redirect, url_for, flash
+        from flask_login import current_user
 
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            if 'user_id' not in session:
+            if not current_user.is_authenticated:
                 return redirect(url_for('auth.login'))
 
-            user = User.query.get(session['user_id'])
-            if not user or not user.is_admin:
+            if not current_user.is_admin:
                 flash('Admin privileges required for this action', 'error')
                 return redirect(url_for('main.index'))
 
@@ -98,4 +104,6 @@ class AuthService:
             # Log error but don't raise exception to prevent disrupting main flow
             if current_app:
                 current_app.logger.error(f"Error logging action {action}: {str(e)}")
+            # Rollback the transaction to prevent database inconsistency
+            db.session.rollback()
             return None

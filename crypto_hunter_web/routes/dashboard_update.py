@@ -5,12 +5,14 @@ import logging
 from datetime import datetime, timedelta
 
 from flask import Blueprint, render_template, jsonify, session
+from flask_login import login_required
 from sqlalchemy import func, desc, and_
 
 dashboard_bp = Blueprint('dashboard', __name__)
 logger = logging.getLogger(__name__)
 
 @dashboard_bp.route('/')
+@login_required
 def index():
     """Main dashboard page with real data"""
     try:

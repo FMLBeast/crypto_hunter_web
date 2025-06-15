@@ -4,6 +4,7 @@
 import logging
 
 from flask import Blueprint, render_template, jsonify
+from flask_login import login_required
 from sqlalchemy import func, desc
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @dashboard_bp.route('/')
+@login_required
 def index():
     """Main dashboard page"""
     try:
