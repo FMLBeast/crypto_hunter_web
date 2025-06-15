@@ -2,6 +2,11 @@
 Recursive steganography and file carving script for image.png
 This script extracts all hidden data from image.png, saves it to the filesystem,
 and recursively analyzes any extracted files for further hidden data.
+
+DEPRECATED: This script is deprecated and will be removed in a future version.
+Please use the new LLM Orchestrated Recursive Extraction system instead:
+    python run_llm_extraction.py
+The new system combines LLM orchestration with recursive extraction for better results.
 """
 
 import os
@@ -19,7 +24,8 @@ from typing import Dict, Any, List, Set, Tuple
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import Flask app and database models
-from crypto_hunter_web import create_app, db
+from crypto_hunter_web import create_app
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import (
     AnalysisFile, FileContent, Finding, ExtractionRelationship,
     FileNode, GraphEdge, FileStatus

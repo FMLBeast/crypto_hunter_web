@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any
 
 import chardet
 
-from crypto_hunter_web.models import db, AnalysisFile, BulkImport
+from crypto_hunter_web.models import db, AnalysisFile, BulkImport, FileStatus
 from crypto_hunter_web.services.auth_service import AuthService
 from crypto_hunter_web.services.file_analyzer import FileAnalyzer
 
@@ -364,15 +364,15 @@ class ImportService:
                 analysis_success = FileAnalyzer.analyze_file_content(file_data['filepath'], analysis_file.id)
 
                 if analysis_success:
-                    analysis_file.status = 'basic_analysis_complete'
+                    analysis_file.status = FileStatus.BASIC_ANALYSIS_COMPLETE
                     # Queue for comprehensive background analysis
                     ImportService._queue_background_analysis(analysis_file.id, priority)
                 else:
-                    analysis_file.status = 'analysis_partial'
+                    analysis_file.status = FileStatus.ANALYSIS_PARTIAL
 
             except Exception as e:
                 logger.warning(f"Content analysis failed for {file_data['filename']}: {e}")
-                analysis_file.status = 'analysis_failed'
+                analysis_file.status = FileStatus.ANALYSIS_FAILED
 
         return 'imported'
 

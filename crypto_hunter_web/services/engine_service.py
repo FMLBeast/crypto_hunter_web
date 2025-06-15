@@ -539,7 +539,7 @@ class AnalysisEngine(BaseEngine):
 
         return {
             'file_id': file_id,
-            'status': 'analyzed',
+            'status': FileStatus.ANALYZED,
             'analysis_types': analysis_types,
             'analysis_results': analysis_results
         }

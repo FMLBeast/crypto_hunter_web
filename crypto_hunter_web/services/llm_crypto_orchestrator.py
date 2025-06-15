@@ -135,8 +135,36 @@ class LLMCryptoOrchestrator:
 
     def __init__(self):
         self.cost_manager = CostManager()
-        self.openai_client = openai.OpenAI()
-        self.anthropic_client = anthropic.Anthropic()
+
+        # Initialize OpenAI client - handle both new and old API versions
+        try:
+            # Try to use the new OpenAI client (v1.0.0+)
+            self.openai_client = openai.OpenAI()
+            self.using_openai_v1 = True
+        except (AttributeError, TypeError):
+            # Fall back to the old API (pre-v1.0.0)
+            # Make sure API key is set
+            if not openai.api_key and os.environ.get("OPENAI_API_KEY"):
+                openai.api_key = os.environ.get("OPENAI_API_KEY")
+            self.openai_client = openai
+            self.using_openai_v1 = False
+
+        # Initialize Anthropic client
+        try:
+            # Check if proxies are configured in the environment
+            proxies = {}
+            if os.environ.get('HTTP_PROXY'):
+                proxies['http'] = os.environ.get('HTTP_PROXY')
+            if os.environ.get('HTTPS_PROXY'):
+                proxies['https'] = os.environ.get('HTTPS_PROXY')
+
+            # Initialize without proxies to avoid errors
+            self.anthropic_client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+            self.anthropic_available = True
+        except Exception as e:
+            print(f"Warning: Anthropic client initialization failed: {e}")
+            self.anthropic_client = None  # Set to None to avoid __del__ errors
+            self.anthropic_available = False
 
         # Cache for LLM responses to avoid repeated calls
         self.response_cache = {}
@@ -213,6 +241,9 @@ class LLMCryptoOrchestrator:
         )
         content_length = len(content_preview)
 
+        # Check if Anthropic is available
+        anthropic_available = hasattr(self, 'anthropic_available') and self.anthropic_available
+
         # Strategy 1: GPT-4 for complex crypto pattern analysis (high cost, high value)
         if has_crypto_patterns and content_length > 200:
             strategies.append(AnalysisStrategy(
@@ -224,8 +255,8 @@ class LLMCryptoOrchestrator:
                 prompt_template="crypto_pattern_expert"
             ))
 
-        # Strategy 2: Claude for steganography and hidden message analysis
-        if content_length > 100:
+        # Strategy 2: Claude for steganography and hidden message analysis (if Anthropic is available)
+        if content_length > 100 and anthropic_available:
             strategies.append(AnalysisStrategy(
                 priority=8,
                 estimated_cost=self.cost_manager.estimate_cost(LLMProvider.ANTHROPIC_SONNET, content_preview, 600),
@@ -245,8 +276,8 @@ class LLMCryptoOrchestrator:
             prompt_template="quick_crypto_scan"
         ))
 
-        # Strategy 4: Claude Opus for Ethereum-specific analysis (if Ethereum patterns found)
-        if has_ethereum:
+        # Strategy 4: Claude Opus for Ethereum-specific analysis (if Ethereum patterns found and Anthropic is available)
+        if has_ethereum and anthropic_available:
             strategies.append(AnalysisStrategy(
                 priority=10,
                 estimated_cost=self.cost_manager.estimate_cost(LLMProvider.ANTHROPIC_CLAUDE, content_preview, 700),
@@ -303,34 +334,57 @@ class LLMCryptoOrchestrator:
         """Call OpenAI API with cost tracking"""
 
         try:
-            response = self.openai_client.chat.completions.create(
-                model=provider.value,
-                messages=[
-                    {"role": "system",
-                     "content": "You are an expert cryptographic analyst and puzzle solver specializing in CTF challenges, steganography, and blockchain analysis."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1000,
-                temperature=0.1
-            )
+            if self.using_openai_v1:
+                # New OpenAI API (v1.0.0+)
+                response = self.openai_client.chat.completions.create(
+                    model=provider.value,
+                    messages=[
+                        {"role": "system",
+                         "content": "You are an expert cryptographic analyst and puzzle solver specializing in CTF challenges, steganography, and blockchain analysis."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.1
+                )
 
-            usage = response.usage
-            cost = self._calculate_openai_cost(provider, usage.prompt_tokens, usage.completion_tokens)
+                usage = response.usage
+                content = response.choices[0].message.content
+            else:
+                # Old OpenAI API (pre-v1.0.0)
+                response = self.openai_client.ChatCompletion.create(
+                    model=provider.value,
+                    messages=[
+                        {"role": "system",
+                         "content": "You are an expert cryptographic analyst and puzzle solver specializing in CTF challenges, steganography, and blockchain analysis."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.1
+                )
+
+                usage = response['usage']
+                content = response['choices'][0]['message']['content']
+
+            cost = self._calculate_openai_cost(
+                provider, 
+                usage.prompt_tokens if self.using_openai_v1 else usage['prompt_tokens'],
+                usage.completion_tokens if self.using_openai_v1 else usage['completion_tokens']
+            )
 
             self.cost_manager.record_cost(
                 provider="openai",
                 model=provider.value,
-                input_tokens=usage.prompt_tokens,
-                output_tokens=usage.completion_tokens,
+                input_tokens=usage.prompt_tokens if self.using_openai_v1 else usage['prompt_tokens'],
+                output_tokens=usage.completion_tokens if self.using_openai_v1 else usage['completion_tokens'],
                 cost=cost
             )
 
             return {
-                'content': response.choices[0].message.content,
+                'content': content,
                 'cost': cost,
                 'tokens': {
-                    'input': usage.prompt_tokens,
-                    'output': usage.completion_tokens
+                    'input': usage.prompt_tokens if self.using_openai_v1 else usage['prompt_tokens'],
+                    'output': usage.completion_tokens if self.using_openai_v1 else usage['completion_tokens']
                 }
             }
 
@@ -339,6 +393,10 @@ class LLMCryptoOrchestrator:
 
     def _call_anthropic(self, provider: LLMProvider, prompt: str) -> Dict[str, Any]:
         """Call Anthropic API with cost tracking"""
+
+        # Check if Anthropic client is available
+        if not hasattr(self, 'anthropic_available') or not self.anthropic_available:
+            raise Exception("Anthropic client is not available")
 
         try:
             response = self.anthropic_client.messages.create(
@@ -891,7 +949,7 @@ def store_llm_results(file_id: int, results: Dict):
     try:
         content = FileContent(
             file_id=file_id,
-            content_type='llm_analysis_complete',
+            content_type='llm_analysis',  # Changed from 'llm_analysis_complete' to match valid types
             content_text=json.dumps(results, indent=2),
             content_size=len(json.dumps(results)),
             created_at=datetime.utcnow()

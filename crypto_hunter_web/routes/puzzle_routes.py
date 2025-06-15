@@ -10,7 +10,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import (
     PuzzleSession, PuzzleStep, PuzzleCollaborator,
     PuzzleStepFile, PuzzleStepFinding, PuzzleStepRegion
@@ -34,14 +34,14 @@ def index():
     """List all puzzle sessions for the current user"""
     # Get sessions owned by the user
     owned_sessions = PuzzleSession.query.filter_by(owner_id=current_user.id).all()
-    
+
     # Get sessions where user is a collaborator
     collaborations = PuzzleCollaborator.query.filter_by(user_id=current_user.id).all()
     collab_sessions = [c.session for c in collaborations]
-    
+
     # Get public sessions
     public_sessions = PuzzleSession.query.filter_by(is_public=True).all()
-    
+
     return render_template(
         'puzzle/index.html',
         owned_sessions=owned_sessions,
@@ -58,11 +58,11 @@ def create_session():
         name = request.form.get('name')
         description = request.form.get('description')
         is_public = request.form.get('is_public') == 'on'
-        
+
         if not name:
             flash('Session name is required', 'error')
             return redirect(url_for('puzzle.create_session'))
-        
+
         try:
             session = PuzzleSession(
                 name=name,
@@ -72,7 +72,7 @@ def create_session():
             )
             db.session.add(session)
             db.session.commit()
-            
+
             # Create initial step
             initial_step = PuzzleStep(
                 session_id=session.id,
@@ -83,7 +83,7 @@ def create_session():
             )
             db.session.add(initial_step)
             db.session.commit()
-            
+
             flash('Puzzle session created successfully', 'success')
             return redirect(url_for('puzzle.view_session', session_id=session.public_id.hex))
         except SQLAlchemyError as e:
@@ -91,7 +91,7 @@ def create_session():
             logger.error(f"Error creating puzzle session: {e}")
             flash('Error creating puzzle session', 'error')
             return redirect(url_for('puzzle.create_session'))
-    
+
     return render_template('puzzle/create.html')
 
 
@@ -102,14 +102,14 @@ def view_session(session_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has access
     if not _user_has_access(session):
         abort(403)
-    
+
     # Get active step
     active_step = session.get_active_step()
-    
+
     # Get active file if any
     active_file = None
     if active_step and request.args.get('file_id'):
@@ -118,13 +118,13 @@ def view_session(session_id):
             step_id=active_step.id, file_id=file_id).first()
         if step_file:
             active_file = _prepare_file_for_display(step_file.file)
-    
+
     # Get all steps
     steps = PuzzleStep.query.filter_by(session_id=session.id).order_by(PuzzleStep.created_at).all()
-    
+
     # Get collaborators
     collaborators = PuzzleCollaborator.query.filter_by(session_id=session.id).all()
-    
+
     # Prepare data for template
     session_data = {
         'id': session.public_id.hex,
@@ -137,7 +137,7 @@ def view_session(session_id):
         'updated_at': session.updated_at,
         'collaborators': [_prepare_collaborator(c) for c in collaborators]
     }
-    
+
     steps_data = []
     for step in steps:
         step_data = {
@@ -154,14 +154,14 @@ def view_session(session_id):
             'tags': step.tags
         }
         steps_data.append(step_data)
-    
+
     # Cache session data for real-time updates
     cache_session_data(session.public_id.hex, {
         'session': session_data,
         'steps': steps_data,
         'active_file': active_file.to_dict() if active_file else None
     })
-    
+
     return render_template(
         'puzzle/session.html',
         session=session_data,
@@ -178,25 +178,25 @@ def add_step(session_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has edit access
     if not _user_has_edit_access(session):
         abort(403)
-    
+
     title = request.form.get('title')
     description = request.form.get('description')
-    
+
     if not title:
         flash('Step title is required', 'error')
         return redirect(url_for('puzzle.view_session', session_id=session_id))
-    
+
     try:
         # Deactivate current active step
         active_step = session.get_active_step()
         if active_step:
             active_step.is_active = False
             db.session.commit()
-        
+
         # Create new step
         step = PuzzleStep(
             session_id=session.id,
@@ -207,10 +207,10 @@ def add_step(session_id):
         )
         db.session.add(step)
         db.session.commit()
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         flash('Step added successfully', 'success')
         return redirect(url_for('puzzle.view_session', session_id=session_id))
     except SQLAlchemyError as e:
@@ -227,26 +227,26 @@ def activate_step(session_id, step_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has access
     if not _user_has_access(session):
         abort(403)
-    
+
     step = PuzzleStep.query.filter_by(public_id=step_id, session_id=session.id).first()
     if not step:
         abort(404)
-    
+
     try:
         # Deactivate all steps
         PuzzleStep.query.filter_by(session_id=session.id).update({'is_active': False})
-        
+
         # Activate selected step
         step.is_active = True
         db.session.commit()
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         return jsonify({'success': True})
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -261,31 +261,31 @@ def add_file_to_step(session_id, step_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has edit access
     if not _user_has_edit_access(session):
         abort(403)
-    
+
     step = PuzzleStep.query.filter_by(public_id=step_id, session_id=session.id).first()
     if not step:
         abort(404)
-    
+
     file_id = request.form.get('file_id')
     note = request.form.get('note')
-    
+
     if not file_id:
         return jsonify({'success': False, 'error': 'File ID is required'})
-    
+
     try:
         file = AnalysisFile.query.get(file_id)
         if not file:
             return jsonify({'success': False, 'error': 'File not found'})
-        
+
         step_file = step.add_file(file.id, note)
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         return jsonify({
             'success': True, 
             'file': _prepare_file_reference(file)
@@ -303,31 +303,31 @@ def add_finding_to_step(session_id, step_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has edit access
     if not _user_has_edit_access(session):
         abort(403)
-    
+
     step = PuzzleStep.query.filter_by(public_id=step_id, session_id=session.id).first()
     if not step:
         abort(404)
-    
+
     finding_id = request.form.get('finding_id')
     note = request.form.get('note')
-    
+
     if not finding_id:
         return jsonify({'success': False, 'error': 'Finding ID is required'})
-    
+
     try:
         finding = Finding.query.get(finding_id)
         if not finding:
             return jsonify({'success': False, 'error': 'Finding not found'})
-        
+
         step_finding = step.add_finding(finding.id, note)
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         return jsonify({
             'success': True, 
             'finding': _prepare_finding_reference(finding)
@@ -345,21 +345,21 @@ def add_region(session_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user has edit access
     if not _user_has_edit_access(session):
         abort(403)
-    
+
     # Get active step
     active_step = session.get_active_step()
     if not active_step:
         return jsonify({'success': False, 'error': 'No active step'})
-    
+
     # Get request data
     data = request.json
     if not data:
         return jsonify({'success': False, 'error': 'No data provided'})
-    
+
     file_content_id = data.get('file_content_id')
     start_offset = data.get('start_offset')
     end_offset = data.get('end_offset')
@@ -368,10 +368,10 @@ def add_region(session_id):
     region_type = data.get('region_type', 'text')
     color = data.get('color', '#yellow')
     highlight_style = data.get('highlight_style', 'background')
-    
+
     if not file_content_id or start_offset is None or end_offset is None:
         return jsonify({'success': False, 'error': 'Missing required fields'})
-    
+
     try:
         # Create region of interest
         region = AnalysisService.tag_region_of_interest(
@@ -385,16 +385,16 @@ def add_region(session_id):
             color=color,
             highlight_style=highlight_style
         )
-        
+
         if not region:
             return jsonify({'success': False, 'error': 'Failed to create region'})
-        
+
         # Add region to step
         step_region = active_step.add_region(region.id)
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         return jsonify({
             'success': True,
             'region': {
@@ -420,31 +420,31 @@ def add_collaborator(session_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user is owner or admin
     if session.owner_id != current_user.id and not current_user.is_admin:
         abort(403)
-    
+
     username = request.form.get('username')
     role = request.form.get('role', 'viewer')
-    
+
     if not username:
         flash('Username is required', 'error')
         return redirect(url_for('puzzle.view_session', session_id=session_id))
-    
+
     try:
         from crypto_hunter_web.models import User
         user = User.query.filter_by(username=username).first()
         if not user:
             flash(f'User {username} not found', 'error')
             return redirect(url_for('puzzle.view_session', session_id=session_id))
-        
+
         # Add collaborator
         collaborator = session.add_collaborator(user.id, role)
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         flash(f'Added {username} as {role}', 'success')
         return redirect(url_for('puzzle.view_session', session_id=session_id))
     except SQLAlchemyError as e:
@@ -461,22 +461,22 @@ def remove_collaborator(session_id, collaborator_id):
     session = _get_session_by_id(session_id)
     if not session:
         abort(404)
-    
+
     # Check if user is owner or admin
     if session.owner_id != current_user.id and not current_user.is_admin:
         abort(403)
-    
+
     try:
         collaborator = PuzzleCollaborator.query.get(collaborator_id)
         if not collaborator or collaborator.session_id != session.id:
             return jsonify({'success': False, 'error': 'Collaborator not found'})
-        
+
         db.session.delete(collaborator)
         db.session.commit()
-        
+
         # Invalidate cache
         invalidate_session_cache(session_id)
-        
+
         return jsonify({'success': True})
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -498,15 +498,15 @@ def _user_has_access(session: PuzzleSession) -> bool:
     # Owner always has access
     if session.owner_id == current_user.id:
         return True
-    
+
     # Admin always has access
     if current_user.is_admin:
         return True
-    
+
     # Public sessions are accessible to all
     if session.is_public:
         return True
-    
+
     # Check if user is a collaborator
     collaborator = PuzzleCollaborator.query.filter_by(
         session_id=session.id, user_id=current_user.id).first()
@@ -518,11 +518,11 @@ def _user_has_edit_access(session: PuzzleSession) -> bool:
     # Owner always has edit access
     if session.owner_id == current_user.id:
         return True
-    
+
     # Admin always has edit access
     if current_user.is_admin:
         return True
-    
+
     # Check if user is a collaborator with edit or admin role
     collaborator = PuzzleCollaborator.query.filter_by(
         session_id=session.id, user_id=current_user.id).first()
@@ -574,7 +574,7 @@ def _prepare_file_for_display(file: AnalysisFile) -> AnalysisFile:
     """Prepare file for display in template"""
     # Get file content
     content_entry = FileContent.query.filter_by(file_id=file.id).first()
-    
+
     if content_entry:
         # Determine content type for display
         if content_entry.content_format == 'text':
@@ -590,13 +590,13 @@ def _prepare_file_for_display(file: AnalysisFile) -> AnalysisFile:
             file.content_type = 'unknown'
     else:
         file.content_type = 'unknown'
-    
+
     # Get findings
     file.findings = Finding.query.filter_by(file_id=file.id).all()
-    
+
     # Add human readable size
     file.file_size_human = _human_readable_size(file.file_size)
-    
+
     return file
 
 
@@ -604,11 +604,11 @@ def _human_readable_size(size_bytes: int) -> str:
     """Convert bytes to human readable format"""
     if size_bytes == 0:
         return "0B"
-    
+
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
     i = 0
     while size_bytes >= 1024 and i < len(size_name) - 1:
         size_bytes /= 1024
         i += 1
-    
+
     return f"{size_bytes:.2f} {size_name[i]}"

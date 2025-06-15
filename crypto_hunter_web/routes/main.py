@@ -8,18 +8,14 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    """Main landing page"""
-    return jsonify({
-        'message': 'Crypto Hunter Beta',
-        'version': '2.0.0-beta',
-        'status': 'running',
-        'features': {
-            'file_upload': True,
-            'crypto_analysis': True,
-            'user_auth': True,
-            'api_access': True
-        }
-    })
+    """Main landing page - redirects to dashboard or login"""
+    from flask import redirect, url_for
+    from flask_login import current_user
+
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+    else:
+        return redirect(url_for('auth.login'))
 
 
 @main_bp.route('/health')

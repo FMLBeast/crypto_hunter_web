@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import FileContent
 from crypto_hunter_web.services.celery_app import celery_app
 

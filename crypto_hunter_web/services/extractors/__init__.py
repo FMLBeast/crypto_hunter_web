@@ -14,6 +14,7 @@ from .steghide import SteghideExtractor
 from .zsteg import ZStegExtractor
 from .advanced_extractors import XORBitplanesExtractor, CombinedBitplanesExtractor, DCTExtractor
 from .crypto_extractors import XORDecryptExtractor, AESDecryptExtractor
+from .encoding_extractors import Base64Extractor, HexExtractor
 
 # Registry of available extractors
 EXTRACTORS = {
@@ -59,7 +60,11 @@ EXTRACTORS = {
     'tcpdump': ForensicsExtractor,
 
     # Manual analysis
-    'manual': CustomExtractor
+    'manual': CustomExtractor,
+
+    # Encoding extractors
+    'base64': Base64Extractor,
+    'hex': HexExtractor
 }
 
 def get_extractor(method_name):
@@ -81,7 +86,7 @@ def get_extractors_by_category():
         'advanced_steganography': ['xor_bitplanes', 'combined_bitplanes', 'dct_extract'],
         'cryptography': ['xor_decrypt', 'aes_decrypt'],
         'binary_analysis': ['binwalk', 'foremost', 'bulk_extractor', 'radare2'],
-        'string_analysis': ['strings', 'hexdump'],
+        'string_analysis': ['strings', 'hexdump', 'base64', 'hex'],
         'metadata': ['exiftool'],
         'audio_video': ['sox', 'ffmpeg'],
         'network': ['wireshark', 'tcpdump'],
@@ -127,6 +132,8 @@ __all__ = [
     'DCTExtractor',
     'XORDecryptExtractor',
     'AESDecryptExtractor',
+    'Base64Extractor',
+    'HexExtractor',
     'get_extractor',
     'list_extractors',
     'analyze_png_file',

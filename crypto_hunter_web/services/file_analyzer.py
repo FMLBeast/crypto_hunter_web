@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from crypto_hunter_web.models import db, AnalysisFile, FileContent
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, FileStatus
 
 logger = logging.getLogger(__name__)
 
@@ -773,7 +773,7 @@ class FileAnalyzer:
                 # Update file status
                 analysis_file = AnalysisFile.query.get(file_id)
                 if analysis_file:
-                    analysis_file.status = 'analyzed'
+                    analysis_file.status = FileStatus.ANALYZED
                     analysis_file.analysis_completed_at = datetime.now()
 
                     # Update priority based on intelligence score

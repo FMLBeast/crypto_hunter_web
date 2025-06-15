@@ -173,9 +173,162 @@ Provides AI-powered analysis and insights for puzzle solving.
 - **FileDerivation**: File derivation relationships
 - **CombinationRelationship**: File combination relationships
 
-## 5. Potential Refactoring Opportunities
+## 5. Agent-Based Architecture
 
-### 5.1 Code Organization
+### 5.1 Overview
+
+The Crypto Hunter system is evolving toward a more specialized agent-based architecture for comprehensive file analysis, steganography extraction, and cryptographic intelligence. This approach employs dedicated task agents that each focus on a specific aspect of the analysis pipeline, passing results to the next agent in the chain.
+
+```
+┌──────────────────┐
+│                  │
+│   Import Agent   │
+│                  │
+└────────┬─────────┘
+         │
+         │ File metadata, initial classification
+         ▼
+┌──────────────────┐
+│                  │
+│ Steganography    │
+│     Agent        │◄───────────┐
+│                  │            │
+└────────┬─────────┘            │
+         │                      │
+         │ Extracted files      │ New files
+         ▼                      │ for analysis
+┌──────────────────┐            │
+│                  │            │
+│  File Analysis   │────────────┘
+│     Agent        │◄───────────┐
+│                  │            │
+└────────┬─────────┘            │
+         │                      │
+         │ Analysis results     │ New strings
+         ▼                      │ for analysis
+┌──────────────────┐            │
+│                  │            │
+│ String Detection │────────────┘
+│     Agent        │◄───────────┐
+│                  │            │
+└────────┬─────────┘            │
+         │                      │
+         │ Decoded strings      │ Crypto
+         ▼                      │ patterns
+┌──────────────────┐            │
+│                  │            │
+│  Cryptographic   │────────────┘
+│ Intelligence Agent│◄──────────┐
+│                  │            │
+└────────┬─────────┘            │
+         │                      │
+         │ Crypto findings      │ Analysis
+         ▼                      │ guidance
+┌──────────────────┐            │
+│                  │            │
+│  LLM Orchestration─────────────┘
+│     Agent        │
+│                  │
+└────────┬─────────┘
+         │
+         │ Comprehensive results
+         ▼
+┌──────────────────┐
+│                  │
+│  Summarization   │
+│     Agent        │
+│                  │
+└────────┬─────────┘
+         │
+         │ Final report
+         ▼
+┌──────────────────┐
+│                  │
+│  Visualization   │
+│     Layer        │
+│                  │
+└──────────────────┘
+```
+
+### 5.2 Agent Descriptions
+
+1. **Import Agent**
+   - Handles file ingestion, initial classification, and preparation
+   - Validates and sanitizes input files
+   - Calculates file hashes and checks for duplicates
+   - Performs initial file type detection
+   - Creates database records for tracking
+   - Queues files for analysis
+
+2. **Steganography Agent**
+   - Specializes in extracting hidden data using various steganography techniques
+   - Supports multiple extraction tools (zsteg, steghide, outguess, etc.)
+   - Handles different file formats (images, audio, video)
+   - Maintains extraction relationships and provenance
+   - Passes extracted files back into the pipeline
+
+3. **File Analysis Agent**
+   - Performs deep analysis on files to identify patterns, structures, and anomalies
+   - Identifies file structures and formats
+   - Detects anomalies and suspicious patterns
+   - Extracts metadata and embedded information
+   - Generates analysis reports
+   - Identifies regions of interest for further analysis
+
+4. **String Detection Agent**
+   - Extracts and analyzes strings, applying various decoding/decryption techniques
+   - Identifies encoded strings (base64, hex, etc.)
+   - Applies various decoders and converters
+   - Detects natural language patterns
+   - Identifies potential passwords, keys, or other sensitive information
+   - Passes decoded strings to other agents for further analysis
+
+5. **Cryptographic Intelligence Agent**
+   - Identifies and analyzes cryptographic artifacts and patterns
+   - Detects encryption algorithms and techniques
+   - Identifies key material and cryptographic artifacts
+   - Analyzes entropy and randomness patterns
+   - Suggests decryption approaches
+   - Provides cryptographic context for findings
+
+6. **LLM Orchestration Agent**
+   - Uses AI to guide the analysis process and make intelligent decisions
+   - Analyzes file content to determine optimal extraction strategies
+   - Identifies potential cryptographic patterns
+   - Suggests next steps in the analysis pipeline
+   - Provides natural language explanations of findings
+   - Coordinates the overall analysis strategy
+
+7. **Summarization Agent**
+   - Collects results from other agents and provides comprehensive summaries
+   - Aggregates findings from all agents
+   - Identifies relationships between findings
+   - Generates comprehensive reports
+   - Suggests next steps for human analysts
+   - Maintains the knowledge graph of all findings
+
+### 5.3 Agent Communication
+
+Agents communicate through a combination of:
+
+1. **Database Records**: Structured data stored in the PostgreSQL database
+2. **Task Queue**: Celery tasks for asynchronous processing
+3. **File System**: Shared access to extracted files and artifacts
+4. **Event System**: Publish-subscribe pattern for real-time notifications
+5. **Direct API Calls**: Synchronous communication between agents
+
+### 5.4 Integration with Existing Architecture
+
+The agent-based architecture integrates with the existing system as follows:
+
+1. **Core Services**: Each agent leverages the existing core services (File Service, Background Service, etc.)
+2. **Data Layer**: All agents share the same data layer (Database, Redis, File Storage)
+3. **User Interfaces**: Results from all agents are accessible through the existing interfaces
+4. **Task Processing**: Agents use the existing task processing infrastructure
+
+## 6. Potential Refactoring Opportunities
+
+### 6.1 Code Organization
 
 1. **Service Consolidation**: Some services have overlapping functionality that could be consolidated:
    - Background service and background crypto manager could be merged
@@ -185,7 +338,7 @@ Provides AI-powered analysis and insights for puzzle solving.
 
 3. **Configuration Management**: Centralize configuration management
 
-### 5.2 Performance Improvements
+### 6.2 Performance Improvements
 
 1. **Caching Strategy**: Implement more comprehensive caching for analysis results
 
@@ -193,7 +346,7 @@ Provides AI-powered analysis and insights for puzzle solving.
 
 3. **Batch Processing**: Implement batch processing for large file sets
 
-### 5.3 Architectural Improvements
+### 6.3 Architectural Improvements
 
 1. **Microservices Approach**: Consider splitting some services into microservices for better scalability
 
@@ -201,9 +354,9 @@ Provides AI-powered analysis and insights for puzzle solving.
 
 3. **API Versioning**: Implement API versioning for better backward compatibility
 
-## 6. End-to-End Testing Recommendations
+## 7. End-to-End Testing Recommendations
 
-### 6.1 Test Scenarios
+### 7.1 Test Scenarios
 
 1. **Puzzle File Upload and Analysis**:
    - Upload various file types (text, binary, images, audio, archives)
@@ -230,7 +383,7 @@ Provides AI-powered analysis and insights for puzzle solving.
    - Automated cross-referencing of findings
    - Task result retrieval and visualization
 
-### 6.2 Testing Approach
+### 7.2 Testing Approach
 
 1. **Manual Testing Checklist**:
    - Puzzle solver interface functionality
@@ -248,7 +401,7 @@ Provides AI-powered analysis and insights for puzzle solving.
    - Performance tests for large puzzle datasets
    - Regression tests for puzzle-solving workflows
 
-### 6.3 Testing Environment
+### 7.3 Testing Environment
 
 1. **Local Development Environment**:
    - SQLite database
@@ -261,6 +414,6 @@ Provides AI-powered analysis and insights for puzzle solving.
    - S3-compatible storage
    - Celery workers
 
-## 7. Conclusion
+## 8. Conclusion
 
 The Crypto Hunter system is a comprehensive platform for analyzing files for cryptographic puzzles and steganography challenges. It serves as a backbone tool for puzzle solvers to document findings, extract hidden content, and analyze complex patterns. The system has a well-structured architecture with clear separation of concerns between different components. There are some opportunities for refactoring to improve code organization, performance, and architecture. The recommended end-to-end testing approach will help ensure the system functions correctly and meets user requirements.

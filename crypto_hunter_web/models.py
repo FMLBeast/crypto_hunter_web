@@ -14,8 +14,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Import db from main app
-from crypto_hunter_web import db
+# Import db from extensions
+from crypto_hunter_web.extensions import db
 
 
 class UserLevel(Enum):
@@ -34,6 +34,12 @@ class FileStatus(str, Enum):
     FAILED = "failed"
     ERROR = "error"
     ARCHIVED = "archived"
+    ANALYZED = "analyzed"
+    CRYPTO_ANALYZED = "crypto_analyzed"
+    HIGH_VALUE_CRYPTO = "high_value_crypto"
+    BASIC_ANALYSIS_COMPLETE = "basic_analysis_complete"
+    ANALYSIS_PARTIAL = "analysis_partial"
+    ANALYSIS_FAILED = "analysis_failed"
 
 
 class FindingStatus(Enum):
@@ -1059,7 +1065,7 @@ class AuditLog(db.Model):
     # Result information
     success = db.Column(db.Boolean, nullable=False, index=True)
     error_message = db.Column(db.Text)
-    audit_metadata = db.Column(JSON, default=dict)
+    details = db.Column(JSON, default=dict)
 
     # Timestamp
     timestamp = db.Column(TIMESTAMP, default=datetime.utcnow, nullable=False, index=True)
@@ -1079,7 +1085,7 @@ class AuditLog(db.Model):
             success=success,
             error_message=error_message,
             ip_address=ip_address,
-            audit_metadata=metadata or {}
+            details=metadata or {}
         )
         db.session.add(log_entry)
         return log_entry
@@ -1299,7 +1305,10 @@ def finding_before_update(mapper, connection, target):
 @event.listens_for(PuzzleStep, 'before_insert')
 def puzzle_step_before_insert(mapper, connection, target):
     """Set is_active to True for the first step in a session"""
-    if target.session.steps.count() == 0:
+    if target.session is None:
+        # If session is None, set is_active to True by default
+        target.is_active = True
+    elif target.session.steps.count() == 0:
         target.is_active = True
     elif target.is_active:
         # If this step is active, deactivate all other steps
@@ -1310,7 +1319,7 @@ def puzzle_step_before_insert(mapper, connection, target):
 @event.listens_for(PuzzleStep, 'before_update')
 def puzzle_step_before_update(mapper, connection, target):
     """Ensure only one step is active in a session"""
-    if target.is_active:
+    if target.is_active and target.session is not None:
         # If this step is being activated, deactivate all other steps
         for step in target.session.steps.filter(PuzzleStep.id != target.id).all():
             step.is_active = False

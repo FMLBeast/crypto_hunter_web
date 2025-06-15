@@ -5,20 +5,13 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
-from flask_caching import Cache
 
-# Initialize extensions
-db = SQLAlchemy()
-migrate = Migrate()
-login_manager = LoginManager()
-csrf = CSRFProtect()
-cache = Cache()
+# Import extensions from extensions.py
+from crypto_hunter_web.extensions import (
+    db, migrate, login_manager, csrf, cache, init_all_extensions
+)
 
-def create_app(config_name=None):
+def create_app(config_name=None, database_url=None):
     """Create and configure the Flask application"""
     app = Flask(__name__)
 
@@ -36,16 +29,19 @@ def create_app(config_name=None):
     # Override config from environment variables
     app.config.from_envvar('CRYPTO_HUNTER_SETTINGS', silent=True)
 
-    # Initialize extensions
-    db.init_app(app)
-    migrate.init_app(app, db)
-    login_manager.init_app(app)
-    csrf.init_app(app)
-    cache.init_app(app)
+    # Override database URL if provided
+    if database_url:
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        app.logger.info(f"Using custom database URL: {database_url}")
 
-    # Configure login
-    login_manager.login_view = 'auth.login'
-    login_manager.login_message_category = 'info'
+    # Initialize all extensions
+    init_all_extensions(app)
+
+    # Add CSRF token to all templates
+    @app.context_processor
+    def inject_csrf_token():
+        from flask_wtf.csrf import generate_csrf
+        return dict(csrf_token=generate_csrf)
 
     # Register blueprints
     from crypto_hunter_web.routes.main import main_bp
@@ -125,3 +121,16 @@ def create_app(config_name=None):
         }
 
     return app
+
+# Add AI extraction routes
+def register_ai_routes(app):
+    """Register AI extraction routes"""
+    try:
+        from crypto_hunter_web.services.ai.ai_extraction_service import setup_ai_routes
+        setup_ai_routes(app)
+        app.logger.info("✅ AI extraction routes registered")
+    except ImportError as e:
+        app.logger.warning(f"⚠️  AI extraction routes not available: {e}")
+
+# Call this in your create_app function:
+# register_ai_routes(app)

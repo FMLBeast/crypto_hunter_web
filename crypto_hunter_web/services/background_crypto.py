@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from celery import chord
 from sqlalchemy.exc import SQLAlchemyError
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import AnalysisFile, FileContent
 from crypto_hunter_web.tasks.crypto_tasks import (
     crypto_pattern_deep_scan,

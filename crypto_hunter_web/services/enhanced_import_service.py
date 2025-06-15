@@ -7,7 +7,7 @@ import json
 import re
 from typing import Dict, Any, List
 from crypto_hunter_web.services.import_service import ImportService
-from crypto_hunter_web.models import db, AnalysisFile, FileContent
+from crypto_hunter_web.models import db, AnalysisFile, FileContent, FileStatus
 
 
 class EnhancedImportService(ImportService):
@@ -646,9 +646,9 @@ class EnhancedImportService(ImportService):
 
         # Update status based on findings
         if priority_boost >= 4:
-            file.status = 'high_value_crypto'
+            file.status = FileStatus.HIGH_VALUE_CRYPTO
         elif priority_boost > 0:
-            file.status = 'crypto_analyzed'
+            file.status = FileStatus.CRYPTO_ANALYZED
 
         # Update node color for visualization
         if ethereum_analysis.get('validated_keys'):

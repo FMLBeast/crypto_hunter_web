@@ -15,7 +15,8 @@ from typing import Dict, Any, List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import Flask app and db
-from crypto_hunter_web import create_app, db
+from crypto_hunter_web import create_app
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import (
     AnalysisFile, FileContent, Finding, ExtractionRelationship,
     FileNode, GraphEdge, RegionOfInterest, FileStatus

@@ -5,7 +5,7 @@ from typing import Dict
 
 import networkx as nx
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import FileNode, FileDerivation
 
 

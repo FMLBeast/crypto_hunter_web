@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple, Union
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import (
     AnalysisFile, FileContent, Finding, RegionOfInterest, FileStatus
 )

@@ -8,7 +8,7 @@ from typing import Dict, Any
 from celery import shared_task, Task
 from celery.utils.log import get_task_logger
 
-from crypto_hunter_web import db
+from crypto_hunter_web.extensions import db
 from crypto_hunter_web.models import AnalysisFile, FileStatus
 from crypto_hunter_web.services.analysis_service import AnalysisService
 from crypto_hunter_web.services.background_service import BackgroundService
@@ -18,7 +18,7 @@ logger = get_task_logger(__name__)
 
 class AnalysisTask(Task):
     """Base task class for analysis tasks with progress tracking"""
-    
+
     def on_success(self, retval, task_id, args, kwargs):
         """Handle successful task completion"""
         BackgroundService.update_task_status(
@@ -31,7 +31,7 @@ class AnalysisTask(Task):
             }
         )
         return super().on_success(retval, task_id, args, kwargs)
-    
+
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         """Handle task failure"""
         BackgroundService.update_task_status(
@@ -49,11 +49,11 @@ class AnalysisTask(Task):
 def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
     """
     Background task to analyze a file
-    
+
     Args:
         file_id: ID of the file to analyze
         user_id: ID of the user requesting analysis
-        
+
     Returns:
         Dictionary with analysis results
     """
@@ -66,12 +66,12 @@ def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
             'file_id': file_id
         }
     )
-    
+
     # Get file
     file = AnalysisFile.query.get(file_id)
     if not file:
         return {'success': False, 'error': 'File not found'}
-    
+
     try:
         # Update task status
         self.update_state(
@@ -83,10 +83,10 @@ def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
                 'filename': file.filename
             }
         )
-        
+
         # Perform basic file analysis
         results = AnalysisService._perform_analysis(file, user_id)
-        
+
         # Update task status
         self.update_state(
             state='PROGRESS',
@@ -97,15 +97,15 @@ def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
                 'findings_count': len(results.get('findings', []))
             }
         )
-        
+
         return results
-    
+
     except Exception as e:
         logger.error(f"Error in analyze_file_task for file {file_id}: {str(e)}")
         # Update file status to error
         file.status = FileStatus.ERROR
         db.session.commit()
-        
+
         # Re-raise exception to trigger on_failure
         raise
 
@@ -114,11 +114,11 @@ def analyze_file_task(self, file_id: int, user_id: int) -> Dict[str, Any]:
 def analyze_crypto_pattern_task(self, text: str, pattern_type: str = None) -> Dict[str, Any]:
     """
     Background task to analyze text for cryptographic patterns
-    
+
     Args:
         text: Text to analyze
         pattern_type: Specific pattern type to analyze for
-        
+
     Returns:
         Dictionary with analysis results
     """
@@ -132,7 +132,7 @@ def analyze_crypto_pattern_task(self, text: str, pattern_type: str = None) -> Di
             'pattern_type': pattern_type
         }
     )
-    
+
     try:
         # Update task status
         self.update_state(
@@ -144,10 +144,10 @@ def analyze_crypto_pattern_task(self, text: str, pattern_type: str = None) -> Di
                 'pattern_type': pattern_type
             }
         )
-        
+
         # Perform crypto pattern analysis
         results = AnalysisService.analyze_crypto_pattern(text, pattern_type)
-        
+
         # Update task status
         self.update_state(
             state='PROGRESS',
@@ -157,9 +157,9 @@ def analyze_crypto_pattern_task(self, text: str, pattern_type: str = None) -> Di
                 'patterns_found': len(results.get('patterns', []))
             }
         )
-        
+
         return results
-    
+
     except Exception as e:
         logger.error(f"Error in analyze_crypto_pattern_task: {str(e)}")
         # Re-raise exception to trigger on_failure
@@ -173,7 +173,7 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
                    highlight_style: str = 'background') -> Dict[str, Any]:
     """
     Background task to tag a region of interest
-    
+
     Args:
         file_content_id: ID of the file content
         start_offset: Start offset of the region
@@ -184,7 +184,7 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
         user_id: ID of the user creating the region
         color: Color for highlighting the region
         highlight_style: Style for highlighting the region
-        
+
     Returns:
         Dictionary with region information
     """
@@ -198,7 +198,7 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
             'title': title
         }
     )
-    
+
     try:
         # Create region of interest
         region = AnalysisService.tag_region_of_interest(
@@ -212,10 +212,10 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
             color=color,
             highlight_style=highlight_style
         )
-        
+
         if not region:
             return {'success': False, 'error': 'Failed to create region'}
-        
+
         # Update task status
         self.update_state(
             state='PROGRESS',
@@ -226,7 +226,7 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
                 'title': region.title
             }
         )
-        
+
         return {
             'success': True,
             'region_id': region.id,
@@ -238,7 +238,7 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
             'color': region.color,
             'highlight_style': region.highlight_style
         }
-    
+
     except Exception as e:
         logger.error(f"Error in tag_region_task: {str(e)}")
         # Re-raise exception to trigger on_failure
@@ -249,11 +249,11 @@ def tag_region_task(self, file_content_id: int, start_offset: int, end_offset: i
 def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, Any]:
     """
     Background task to analyze multiple files in batch
-    
+
     Args:
         file_ids: List of file IDs to analyze
         user_id: ID of the user requesting analysis
-        
+
     Returns:
         Dictionary with batch analysis results
     """
@@ -265,7 +265,7 @@ def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, An
         'failed': 0,
         'file_results': {}
     }
-    
+
     # Update task status
     self.update_state(
         state='PROGRESS',
@@ -276,7 +276,7 @@ def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, An
             'completed': 0
         }
     )
-    
+
     for i, file_id in enumerate(file_ids):
         try:
             # Update task status
@@ -290,18 +290,18 @@ def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, An
                     'current_file_id': file_id
                 }
             )
-            
+
             # Analyze file
             file_result = AnalysisService.analyze_file(file_id, user_id, async_mode=False)
-            
+
             # Store result
             results['file_results'][file_id] = file_result
-            
+
             if file_result.get('success', False):
                 results['completed'] += 1
             else:
                 results['failed'] += 1
-                
+
         except Exception as e:
             logger.error(f"Error analyzing file {file_id} in batch: {str(e)}")
             results['failed'] += 1
@@ -310,7 +310,7 @@ def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, An
                 'error': str(e),
                 'file_id': file_id
             }
-    
+
     # Update task status
     self.update_state(
         state='PROGRESS',
@@ -322,5 +322,5 @@ def batch_analyze_files_task(self, file_ids: list, user_id: int) -> Dict[str, An
             'failed': results['failed']
         }
     )
-    
+
     return results

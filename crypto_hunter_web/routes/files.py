@@ -275,11 +275,15 @@ def upload_file():
         try:
             # Check if files were uploaded
             if 'files' not in request.files:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'error': 'No files selected'})
                 flash('No files selected', 'error')
                 return redirect(request.url)
 
             files = request.files.getlist('files')
             if not files or all(f.filename == '' for f in files):
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'error': 'No files selected'})
                 flash('No files selected', 'error')
                 return redirect(request.url)
 
@@ -355,16 +359,31 @@ def upload_file():
                 )
 
             if errors:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': False,
+                        'error': '; '.join(errors)
+                    })
                 for error in errors:
                     flash(error, 'error')
 
             if uploaded_files:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': True,
+                        'message': f"Successfully uploaded {len(uploaded_files)} file(s)",
+                        'files': [{'id': f.id, 'filename': f.filename, 'sha256': f.sha256_hash} for f in uploaded_files]
+                    })
                 return redirect(url_for('files.file_list'))
 
         except RequestEntityTooLarge:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'File too large. Maximum size allowed is 1GB.'})
             flash('File too large. Maximum size allowed is 1GB.', 'error')
         except Exception as e:
             current_app.logger.error(f"Upload error: {e}", exc_info=True)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': f'Upload failed: {str(e)}'})
             flash('Upload failed. Please try again.', 'error')
 
     # Get upload statistics for display
