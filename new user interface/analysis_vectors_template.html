@@ -1,0 +1,755 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Vectors - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Analysis Vectors</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Configure and manage analysis methods for steganography detection
+                </p>
+            </div>
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                <button onclick="openVectorModal('create')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create Vector
+                </button>
+                <button onclick="runAllVectors()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-play mr-2"></i>
+                    Run All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="p-6">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Search -->
+                <div class="md:col-span-2">
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <input type="text" name="search" id="search" value="{{ search or '' }}"
+                               placeholder="Search vectors by name or description..."
+                               class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Category Filter -->
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select name="category" id="category" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Categories</option>
+                        {% if categories %}
+                            {% for category in categories %}
+                            <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>
+                                {{ category.replace('_', ' ').title() }}
+                            </option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label for="enabled" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select name="enabled" id="enabled" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All</option>
+                        <option value="true" {% if enabled_filter == 'true' %}selected{% endif %}>Enabled</option>
+                        <option value="false" {% if enabled_filter == 'false' %}selected{% endif %}>Disabled</option>
+                    </select>
+                </div>
+            </form>
+
+            <!-- Active Filters -->
+            {% if search or category_filter or enabled_filter %}
+            <div class="mt-4 flex flex-wrap gap-2">
+                {% if search %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Search: "{{ search }}"
+                    <a href="{{ url_for('analysis.vector_list', category=category_filter, enabled=enabled_filter) }}" class="ml-2 text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </span>
+                {% endif %}
+                {% if category_filter %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Category: {{ category_filter.replace('_', ' ').title() }}
+                    <a href="{{ url_for('analysis.vector_list', search=search, enabled=enabled_filter) }}" class="ml-2 text-green-600 hover:text-green-800">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </span>
+                {% endif %}
+                {% if enabled_filter %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Status: {{ 'Enabled' if enabled_filter == 'true' else 'Disabled' }}
+                    <a href="{{ url_for('analysis.vector_list', search=search, category=category_filter) }}" class="ml-2 text-purple-600 hover:text-purple-800">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Vector Statistics -->
+    {% if vector_stats %}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <i class="fas fa-crosshairs text-blue-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Total Vectors</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ vector_stats.total }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <i class="fas fa-check-circle text-green-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Enabled</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ vector_stats.enabled }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-red-100 rounded-lg">
+                    <i class="fas fa-times-circle text-red-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Disabled</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ vector_stats.disabled }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                    <i class="fas fa-layer-group text-purple-600"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Categories</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ vector_stats.by_category|length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Vectors List -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                Analysis Vectors
+                {% if vectors %}({{ vectors.total }} total, showing {{ vectors.items|length }}){% endif %}
+            </h2>
+        </div>
+
+        {% if vectors and vectors.items %}
+        <div class="divide-y divide-gray-200">
+            {% for vector in vectors.items %}
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex-shrink-0">
+                                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    {% if vector.category == 'steganography' %}
+                                        <i class="fas fa-eye-slash text-blue-500"></i>
+                                    {% elif vector.category == 'cryptography' %}
+                                        <i class="fas fa-lock text-green-500"></i>
+                                    {% elif vector.category == 'forensics' %}
+                                        <i class="fas fa-search text-purple-500"></i>
+                                    {% elif vector.category == 'pattern_analysis' %}
+                                        <i class="fas fa-chart-line text-orange-500"></i>
+                                    {% else %}
+                                        <i class="fas fa-cog text-gray-500"></i>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-lg font-medium text-gray-900">{{ vector.name }}</h3>
+                                <p class="text-sm text-gray-600">{{ vector.description or 'No description available' }}</p>
+                                <div class="flex items-center space-x-4 mt-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        {{ vector.category.replace('_', ' ').title() }}
+                                    </span>
+                                    {% if vector.enabled %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>
+                                            Enabled
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            <span class="w-1.5 h-1.5 bg-red-400 rounded-full mr-1"></span>
+                                            Disabled
+                                        </span>
+                                    {% endif %}
+                                    {% if vector.priority %}
+                                        <span class="text-xs text-gray-500">Priority: {{ vector.priority }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <!-- Toggle Switch -->
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" {{ 'checked' if vector.enabled else '' }} 
+                                   onchange="toggleVector({{ vector.id }}, this.checked)" 
+                                   class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+
+                        <!-- Actions -->
+                        <button onclick="runVector({{ vector.id }})" 
+                                class="text-green-600 hover:text-green-900 p-1" 
+                                title="Run Vector"
+                                {{ 'disabled' if not vector.enabled else '' }}>
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button onclick="openVectorModal('edit', {{ vector.id }})" 
+                                class="text-indigo-600 hover:text-indigo-900 p-1" 
+                                title="Edit Vector">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="duplicateVector({{ vector.id }})" 
+                                class="text-blue-600 hover:text-blue-900 p-1" 
+                                title="Duplicate Vector">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button onclick="deleteVector({{ vector.id }})" 
+                                class="text-red-600 hover:text-red-900 p-1" 
+                                title="Delete Vector">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vector Configuration Preview -->
+                {% if vector.config %}
+                <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Configuration</h4>
+                    <div class="text-xs text-gray-600 font-mono">
+                        {{ vector.config | truncate(200) }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Recent Results -->
+                {% if vector.last_run_at %}
+                <div class="mt-4 text-xs text-gray-500">
+                    Last run: {{ vector.last_run_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% if vector.last_run_status %}
+                        - Status: 
+                        {% if vector.last_run_status == 'success' %}
+                            <span class="text-green-600">Success</span>
+                        {% elif vector.last_run_status == 'error' %}
+                            <span class="text-red-600">Error</span>
+                        {% else %}
+                            <span class="text-yellow-600">{{ vector.last_run_status.title() }}</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if vectors.pages > 1 %}
+        <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if vectors.has_prev %}
+                        <a href="{{ url_for('analysis.vector_list', page=vectors.prev_num, **request.args) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Previous
+                        </a>
+                    {% endif %}
+                    {% if vectors.has_next %}
+                        <a href="{{ url_for('analysis.vector_list', page=vectors.next_num, **request.args) }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing
+                            <span class="font-medium">{{ vectors.per_page * (vectors.page - 1) + 1 }}</span>
+                            to
+                            <span class="font-medium">{{ vectors.per_page * (vectors.page - 1) + vectors.items|length }}</span>
+                            of
+                            <span class="font-medium">{{ vectors.total }}</span>
+                            results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if vectors.has_prev %}
+                                <a href="{{ url_for('analysis.vector_list', page=vectors.prev_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Previous</span>
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+
+                            {% for page_num in vectors.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != vectors.page %}
+                                        <a href="{{ url_for('analysis.vector_list', page=page_num, **request.args) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                            {{ page_num }}
+                                        </a>
+                                    {% else %}
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
+                                            {{ page_num }}
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                        ...
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if vectors.has_next %}
+                                <a href="{{ url_for('analysis.vector_list', page=vectors.next_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Next</span>
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-12">
+            <i class="fas fa-crosshairs text-gray-400 text-6xl mb-4"></i>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No analysis vectors found</h3>
+            <p class="mt-1 text-sm text-gray-500">
+                {% if search or category_filter or enabled_filter %}
+                    Try adjusting your filters to find what you're looking for.
+                {% else %}
+                    Get started by creating your first analysis vector.
+                {% endif %}
+            </p>
+            <div class="mt-6">
+                {% if search or category_filter or enabled_filter %}
+                    <a href="{{ url_for('analysis.vector_list') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-times mr-2"></i>
+                        Clear Filters
+                    </a>
+                {% else %}
+                    <button onclick="openVectorModal('create')" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Vector
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Vector Modal -->
+<div id="vectorModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+        <div id="vectorModalContent">
+            <!-- Modal content will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Vector management functions
+function toggleVector(vectorId, enabled) {
+    makeRequest(`/api/vectors/${vectorId}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled: enabled })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message || 'Failed to toggle vector', 'error');
+            // Revert the switch
+            event.target.checked = !enabled;
+        }
+    })
+    .catch(error => {
+        console.error('Toggle vector error:', error);
+        showNotification('Failed to toggle vector', 'error');
+        // Revert the switch
+        event.target.checked = !enabled;
+    });
+}
+
+function runVector(vectorId) {
+    showLoading(document.querySelector('main'));
+    
+    makeRequest(`/api/vectors/${vectorId}/run`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message || 'Failed to run vector', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Run vector error:', error);
+        showNotification('Failed to run vector', 'error');
+    })
+    .finally(() => {
+        hideLoading();
+    });
+}
+
+function runAllVectors() {
+    if (!confirm('Are you sure you want to run all enabled vectors? This may take some time.')) {
+        return;
+    }
+    
+    showLoading(document.querySelector('main'));
+    
+    makeRequest('/api/vectors/run-all', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message || 'Failed to run vectors', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Run all vectors error:', error);
+        showNotification('Failed to run vectors', 'error');
+    })
+    .finally(() => {
+        hideLoading();
+    });
+}
+
+function duplicateVector(vectorId) {
+    makeRequest(`/api/vectors/${vectorId}/duplicate`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Vector duplicated', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message || 'Failed to duplicate vector', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Duplicate vector error:', error);
+        showNotification('Failed to duplicate vector', 'error');
+    });
+}
+
+function deleteVector(vectorId) {
+    if (!confirm('Are you sure you want to delete this vector? This action cannot be undone.')) {
+        return;
+    }
+    
+    makeRequest(`/api/vectors/${vectorId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Vector deleted', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message || 'Failed to delete vector', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Delete vector error:', error);
+        showNotification('Failed to delete vector', 'error');
+    });
+}
+
+// Modal functions
+function openVectorModal(action, vectorId = null) {
+    const modal = document.getElementById('vectorModal');
+    const content = document.getElementById('vectorModalContent');
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Load modal content
+    if (action === 'create') {
+        content.innerHTML = createVectorForm();
+    } else if (action === 'edit' && vectorId) {
+        loadVectorForEdit(vectorId, content);
+    }
+}
+
+function closeVectorModal() {
+    const modal = document.getElementById('vectorModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function createVectorForm() {
+    return `
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-medium text-gray-900">Create Analysis Vector</h3>
+            <button onclick="closeVectorModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <form id="vectorForm" onsubmit="saveVector(event)">
+            <div class="space-y-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="name" name="name" required
+                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="description" name="description" rows="3"
+                              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                    <select id="category" name="category" required
+                            class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select Category</option>
+                        <option value="steganography">Steganography</option>
+                        <option value="cryptography">Cryptography</option>
+                        <option value="forensics">Forensics</option>
+                        <option value="pattern_analysis">Pattern Analysis</option>
+                        <option value="metadata">Metadata</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                    <input type="number" id="priority" name="priority" min="1" max="10" value="5"
+                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="config" class="block text-sm font-medium text-gray-700">Configuration (JSON)</label>
+                    <textarea id="config" name="config" rows="6"
+                              placeholder='{"parameter": "value"}'
+                              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"></textarea>
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" id="enabled" name="enabled" checked
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="enabled" class="ml-2 text-sm text-gray-700">Enabled</label>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeVectorModal()"
+                        class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Create Vector
+                </button>
+            </div>
+        </form>
+    `;
+}
+
+function loadVectorForEdit(vectorId, content) {
+    makeRequest(`/api/vectors/${vectorId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                content.innerHTML = createEditVectorForm(data.vector);
+            } else {
+                showNotification('Failed to load vector', 'error');
+                closeVectorModal();
+            }
+        })
+        .catch(error => {
+            console.error('Load vector error:', error);
+            showNotification('Failed to load vector', 'error');
+            closeVectorModal();
+        });
+}
+
+function createEditVectorForm(vector) {
+    return `
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-medium text-gray-900">Edit Analysis Vector</h3>
+            <button onclick="closeVectorModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <form id="vectorForm" onsubmit="saveVector(event, ${vector.id})">
+            <div class="space-y-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" id="name" name="name" value="${vector.name}" required
+                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="description" name="description" rows="3"
+                              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">${vector.description || ''}</textarea>
+                </div>
+                
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                    <select id="category" name="category" required
+                            class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select Category</option>
+                        <option value="steganography" ${vector.category === 'steganography' ? 'selected' : ''}>Steganography</option>
+                        <option value="cryptography" ${vector.category === 'cryptography' ? 'selected' : ''}>Cryptography</option>
+                        <option value="forensics" ${vector.category === 'forensics' ? 'selected' : ''}>Forensics</option>
+                        <option value="pattern_analysis" ${vector.category === 'pattern_analysis' ? 'selected' : ''}>Pattern Analysis</option>
+                        <option value="metadata" ${vector.category === 'metadata' ? 'selected' : ''}>Metadata</option>
+                        <option value="custom" ${vector.category === 'custom' ? 'selected' : ''}>Custom</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                    <input type="number" id="priority" name="priority" min="1" max="10" value="${vector.priority || 5}"
+                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="config" class="block text-sm font-medium text-gray-700">Configuration (JSON)</label>
+                    <textarea id="config" name="config" rows="6"
+                              placeholder='{"parameter": "value"}'
+                              class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm">${vector.config || ''}</textarea>
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" id="enabled" name="enabled" ${vector.enabled ? 'checked' : ''}
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="enabled" class="ml-2 text-sm text-gray-700">Enabled</label>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeVectorModal()"
+                        class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Update Vector
+                </button>
+            </div>
+        </form>
+    `;
+}
+
+function saveVector(event, vectorId = null) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    const data = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        category: formData.get('category'),
+        priority: parseInt(formData.get('priority')),
+        config: formData.get('config'),
+        enabled: formData.has('enabled')
+    };
+    
+    // Validate JSON config
+    if (data.config && data.config.trim()) {
+        try {
+            JSON.parse(data.config);
+        } catch (e) {
+            showNotification('Invalid JSON configuration', 'error');
+            return;
+        }
+    }
+    
+    const url = vectorId ? `/api/vectors/${vectorId}` : '/api/vectors';
+    const method = vectorId ? 'PUT' : 'POST';
+    
+    makeRequest(url, {
+        method: method,
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            closeVectorModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message || 'Failed to save vector', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Save vector error:', error);
+        showNotification('Failed to save vector', 'error');
+    });
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('vectorModal');
+    if (modal && event.target === modal) {
+        closeVectorModal();
+    }
+});
+
+// Auto-submit search form
+document.getElementById('search').addEventListener('input', function() {
+    clearTimeout(this.searchTimeout);
+    this.searchTimeout = setTimeout(() => {
+        this.form.submit();
+    }, 500);
+});
+
+document.getElementById('category').addEventListener('change', function() {
+    this.form.submit();
+});
+
+document.getElementById('enabled').addEventListener('change', function() {
+    this.form.submit();
+});
+</script>
+{% endblock %}

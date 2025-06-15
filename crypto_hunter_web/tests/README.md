@@ -32,23 +32,44 @@ python run_tests.py --coverage
 python run_tests.py --test-path crypto_hunter_web/tests/test_auth_service.py
 ```
 
-## Test Dependencies
+## Test Coverage
 
-The tests require the following dependencies:
-- pytest
-- pytest-cov (for coverage reports)
+The current test coverage is focused on the following areas:
 
-You can install these dependencies with:
+1. **Authentication Services**
+   - `AuthService` class in `auth_service.py`
+   - User login/logout functionality
+   - Audit logging
 
-```bash
-pip install pytest pytest-cov
-```
+2. **Utility Functions**
+   - Cryptographic utilities in `crypto.py`
+   - File utilities in `file_utils.py`
 
 ## Test Database
 
 The tests use an in-memory SQLite database by default. You can configure a different test database by setting the `TEST_DATABASE_URI` environment variable.
 
-## Writing New Tests
+### SQLite Compatibility Layer
+
+The production application uses PostgreSQL, which has features not natively supported by SQLite (like UUID and JSON types). To allow tests to run with SQLite, we've implemented a compatibility layer in `conftest.py` that:
+
+1. Defines custom type adapters for PostgreSQL-specific types:
+   - `SqliteUUID`: Stores UUID values as strings in SQLite
+   - `SqliteJSON`: Serializes/deserializes JSON data for SQLite
+   - `SqliteTimestamp`: Handles PostgreSQL TIMESTAMP type in SQLite
+
+2. Automatically replaces PostgreSQL types with SQLite-compatible versions at runtime
+
+This allows the tests to run with SQLite without modifying the application models, which use PostgreSQL-specific types.
+
+If you need to run tests with a real PostgreSQL database, set the `TEST_DATABASE_URI` environment variable:
+
+```bash
+# Run tests with PostgreSQL
+TEST_DATABASE_URI="postgresql://user:password@localhost:5432/test_db" python run_tests.py
+```
+
+## Adding New Tests
 
 ### Unit Tests
 
@@ -79,6 +100,14 @@ def test_component_interaction(app, client):
 ### Fixtures
 
 Common test fixtures are defined in `conftest.py`. You can add new fixtures there if they are needed by multiple test files.
+
+## Best Practices
+
+1. **Isolation**: Each test should be independent and not rely on the state from other tests.
+2. **Mocking**: Use mocks to isolate the component being tested from its dependencies.
+3. **Coverage**: Aim for high test coverage, especially for critical components.
+4. **Edge Cases**: Test both normal and edge cases, including error handling.
+5. **Readability**: Write clear test names and descriptions to make it easy to understand what's being tested.
 
 ## Continuous Integration
 

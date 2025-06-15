@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Dashboard Header -->
+    <div class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Monitor your steganography analysis progress and system status
+                </p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <button onclick="refreshDashboard()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Files -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-file text-blue-600"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Total Files</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_files | default(0) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyzed Files -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-green-600"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Analyzed</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ complete_files | default(0) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Files -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-clock text-yellow-600"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Processing</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ analyzing_files | default(0) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-chart-line text-purple-600"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Progress</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ "%.1f"|format(progress_percentage | default(0)) }}%</dd>
+                        </dl>
+                        <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-purple-600 h-2 rounded-full progress-bar" style="width: {{ progress_percentage | default(0) }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow mb-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">Quick Actions</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <a href="{{ url_for('files.upload_file') }}" class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                    <div class="text-center">
+                        <i class="fas fa-upload text-2xl text-gray-400 mb-2"></i>
+                        <p class="font-medium text-gray-900">Upload New Files</p>
+                        <p class="text-sm text-gray-600">Start analyzing new files</p>
+                    </div>
+                </a>
+                <a href="{{ url_for('files.bulk_import') }}" class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                    <div class="text-center">
+                        <i class="fas fa-database text-2xl text-gray-400 mb-2"></i>
+                        <p class="font-medium text-gray-900">Bulk Import</p>
+                        <p class="text-sm text-gray-600">Import multiple files at once</p>
+                    </div>
+                </a>
+                <a href="{{ url_for('graph.visual_graph') }}" class="block p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors">
+                    <div class="text-center">
+                        <i class="fas fa-project-diagram text-2xl text-gray-400 mb-2"></i>
+                        <p class="font-medium text-gray-900">View Graph</p>
+                        <p class="text-sm text-gray-600">Explore file relationships</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Files -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-medium text-gray-900">Recent Files</h2>
+                    <a href="{{ url_for('files.file_list') }}" class="text-sm text-indigo-600 hover:text-indigo-800">View all</a>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if recent_files %}
+                <div class="space-y-4">
+                    {% for file in recent_files %}
+                    <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="flex-shrink-0">
+                            {% if file.status.value == 'complete' %}
+                                <i class="fas fa-check-circle text-green-500"></i>
+                            {% elif file.status.value == 'processing' %}
+                                <i class="fas fa-spinner fa-spin text-yellow-500"></i>
+                            {% elif file.status.value == 'error' %}
+                                <i class="fas fa-exclamation-circle text-red-500"></i>
+                            {% else %}
+                                <i class="fas fa-clock text-gray-500"></i>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">{{ file.filename }}</p>
+                            <div class="flex items-center space-x-2 text-xs text-gray-500">
+                                <span>{{ file.file_size_human }}</span>
+                                <span>•</span>
+                                <span>{{ file.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <a href="{{ url_for('files.file_detail', file_id=file.id) }}" class="text-indigo-600 hover:text-indigo-800">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-6">
+                    <i class="fas fa-file text-gray-400 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No files uploaded yet</p>
+                    <a href="{{ url_for('files.upload_file') }}" class="text-indigo-600 hover:text-indigo-800 text-sm">Upload your first file</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Analysis Vectors -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-medium text-gray-900">Analysis Vectors</h2>
+                    <a href="{{ url_for('analysis.vector_list') }}" class="text-sm text-indigo-600 hover:text-indigo-800">Configure</a>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if analysis_vectors %}
+                <div class="space-y-4">
+                    {% for vector in analysis_vectors %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">{{ vector.icon }}</span>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ vector.name }}</p>
+                                <p class="text-sm text-gray-600">{{ vector.description if vector.description else 'Analysis vector' }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-medium text-gray-900">{{ vector.completed }}/{{ vector.total }}</div>
+                            <div class="text-xs text-gray-500">
+                                {% if vector.total > 0 %}
+                                    {{ "%.1f"|format((vector.completed / vector.total) * 100) }}%
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-6">
+                    <i class="fas fa-crosshairs text-gray-400 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No analysis vectors configured</p>
+                    <a href="{{ url_for('analysis.vector_list') }}" class="text-indigo-600 hover:text-indigo-800 text-sm">Configure analysis vectors</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Findings -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-medium text-gray-900">Recent Findings</h2>
+                    <a href="{{ url_for('analysis.findings_list') }}" class="text-sm text-indigo-600 hover:text-indigo-800">View all</a>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if recent_findings %}
+                <div class="space-y-4">
+                    {% for finding in recent_findings %}
+                    <div class="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div class="flex items-start space-x-3">
+                            <div class="flex-shrink-0 mt-1">
+                                {% if finding.confidence_score >= 0.8 %}
+                                    <i class="fas fa-exclamation-triangle text-red-500"></i>
+                                {% elif finding.confidence_score >= 0.6 %}
+                                    <i class="fas fa-exclamation-circle text-yellow-500"></i>
+                                {% else %}
+                                    <i class="fas fa-info-circle text-blue-500"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-900">{{ finding.finding_type }}</div>
+                                <div class="text-xs text-gray-600 mt-1">
+                                    {{ finding.description[:80] }}{% if finding.description|length > 80 %}...{% endif %}
+                                </div>
+                                <div class="flex items-center justify-between mt-2">
+                                    <span class="text-xs text-gray-500">
+                                        {{ finding.file.filename[:25] }}{% if finding.file.filename|length > 25 %}...{% endif %}
+                                    </span>
+                                    <span class="text-xs px-2 py-1 rounded
+                                        {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                        {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ (finding.confidence_score * 100)|round }}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-6">
+                    <i class="fas fa-search text-gray-400 text-3xl mb-2"></i>
+                    <p class="text-gray-500">No findings yet</p>
+                    <p class="text-sm text-gray-400">Upload and analyze files to see findings</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">System Status</h2>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <!-- Workers Status -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-cogs text-gray-400"></i>
+                            <span class="text-sm text-gray-700">Background Workers</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            {% if system_status and system_status.workers and system_status.workers.online > 0 %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <span class="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                                    {{ system_status.workers.online }} online
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <span class="w-2 h-2 bg-red-400 rounded-full mr-1"></span>
+                                    Offline
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Active Tasks -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-tasks text-gray-400"></i>
+                            <span class="text-sm text-gray-700">Active Tasks</span>
+                        </div>
+                        <div class="text-sm font-medium text-gray-900">
+                            {{ system_status.tasks.active_count if system_status and system_status.tasks else 0 }}
+                        </div>
+                    </div>
+
+                    <!-- Storage -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-hdd text-gray-400"></i>
+                            <span class="text-sm text-gray-700">Storage</span>
+                        </div>
+                        <div class="text-sm font-medium text-gray-900">
+                            {% if system_status and system_status.storage %}
+                                {{ system_status.storage.used_gb }}GB / {{ system_status.storage.total_gb }}GB
+                            {% else %}
+                                Available
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Database -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-database text-gray-400"></i>
+                            <span class="text-sm text-gray-700">Database</span>
+                        </div>
+                        <div>
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span class="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                                Connected
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {% if active_tasks %}
+                <div class="mt-6 pt-4 border-t border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-900 mb-3">Recent Tasks</h3>
+                    <div class="space-y-2">
+                        {% for task in active_tasks[:3] %}
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-600 truncate">{{ task.name }}</span>
+                            <span class="text-gray-500">{{ task.status }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function refreshDashboard() {
+    showLoading(document.querySelector('main'));
+    
+    makeRequest('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            // Update stats
+            document.querySelector('[data-stat="total_files"]').textContent = data.total_files || 0;
+            document.querySelector('[data-stat="complete_files"]').textContent = data.complete_files || 0;
+            document.querySelector('[data-stat="analyzing_files"]').textContent = data.analyzing_files || 0;
+            document.querySelector('[data-stat="progress"]').textContent = (data.progress_percentage || 0).toFixed(1) + '%';
+            
+            // Update progress bar
+            const progressBar = document.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = (data.progress_percentage || 0) + '%';
+            }
+            
+            showNotification('Dashboard refreshed', 'success');
+        })
+        .catch(error => {
+            console.error('Error refreshing dashboard:', error);
+            showNotification('Failed to refresh dashboard', 'error');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+}
+
+// Auto-refresh every 30 seconds
+setInterval(refreshDashboard, 30000);
+
+// Initialize any charts or interactive elements
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any dashboard-specific initialization here
+});
+</script>
+{% endblock %}

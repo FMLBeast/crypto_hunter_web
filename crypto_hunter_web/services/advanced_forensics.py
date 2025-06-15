@@ -24,7 +24,10 @@ try:
     from Crypto.Util.Padding import pad, unpad
 except ImportError:
     # Fallback if pycryptodome not available
+    logging.getLogger(__name__).warning("pycryptodome library not available. AES decryption will not work.")
     AES = None
+    pad = None
+    unpad = None
 
 logger = logging.getLogger(__name__)
 

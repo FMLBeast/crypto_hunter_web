@@ -154,7 +154,9 @@ class User(UserMixin, db.Model):
 
     def is_locked(self) -> bool:
         """Check if account is locked"""
-        return self.locked_until and self.locked_until > datetime.utcnow()
+        if self.locked_until is None:
+            return False
+        return self.locked_until > datetime.utcnow()
 
     def lock_account(self, duration_minutes: int = 30):
         """Lock account for specified duration"""
@@ -347,8 +349,11 @@ class AnalysisFile(db.Model):
 
     def remove_tag(self, tag: str):
         """Remove tag from file"""
-        if self.tags and tag in self.tags:
-            self.tags.remove(tag)
+        if self.tags:
+            # Convert tag to lowercase for consistency
+            tag = tag.strip().lower()
+            # Create a new list without the tag
+            self.tags = [t for t in self.tags if t != tag]
 
     @hybrid_property
     def file_size_human(self):
@@ -571,7 +576,10 @@ class Finding(db.Model):
         self.validated_by = user_id
         self.validated_at = datetime.utcnow()
         if notes:
-            self.description += f"\n\nValidation Notes: {notes}"
+            if self.description is None:
+                self.description = f"Validation Notes: {notes}"
+            else:
+                self.description += f"\n\nValidation Notes: {notes}"
 
     def mark_as_false_positive(self, user_id: int, reason: str):
         """Mark finding as false positive"""

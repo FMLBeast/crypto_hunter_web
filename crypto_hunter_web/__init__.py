@@ -4,8 +4,10 @@ Crypto Hunter Web Application
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, render_template
 
+import celery
+from flask import Flask, render_template
+# from crypto_hunter_web.services.agent_integration import #setup_agent_integration
 # Import extensions from extensions.py
 from crypto_hunter_web.extensions import (
     db, migrate, login_manager, csrf, cache, init_all_extensions
@@ -34,8 +36,11 @@ def create_app(config_name=None, database_url=None):
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
         app.logger.info(f"Using custom database URL: {database_url}")
 
-    # Initialize all extensions
-    init_all_extensions(app)
+
+    if app.config.get('AGENT_SYSTEM_ENABLED', True):
+        pass  # Do nothing for now
+
+    # setup_agent_integration(app, celery)  # commented out
 
     # Add CSRF token to all templates
     @app.context_processor

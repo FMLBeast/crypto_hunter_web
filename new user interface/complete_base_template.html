@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Crypto Hunter - Steganography Analysis Platform{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <style>
+        /* Custom animations and utilities */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-in-right {
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .pulse-slow {
+            animation: pulse 3s infinite;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Custom gradient backgrounds */
+        .bg-gradient-crypto {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .bg-gradient-analysis {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        /* Notification styles */
+        .notification-enter {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        .notification-enter-active {
+            transform: translateX(0);
+            opacity: 1;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+        }
+
+        /* File upload drag and drop */
+        .file-upload-area {
+            transition: all 0.3s ease;
+        }
+
+        .file-upload-area.drag-over {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+        }
+
+        /* Status indicators */
+        .status-indicator {
+            position: relative;
+            display: inline-block;
+        }
+
+        .status-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .status-indicator.online::before {
+            background-color: #10b981;
+        }
+
+        .status-indicator.busy::before {
+            background-color: #f59e0b;
+        }
+
+        .status-indicator.offline::before {
+            background-color: #ef4444;
+        }
+
+        /* Mobile menu transition */
+        #mobile-menu {
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% if current_user.is_authenticated %}
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo and main navigation -->
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <a href="{{ url_for('dashboard.index') }}" class="flex items-center">
+                            <div class="text-2xl mr-2">🔍</div>
+                            <span class="text-xl font-bold bg-gradient-crypto bg-clip-text text-transparent">
+                                Crypto Hunter
+                            </span>
+                        </a>
+                    </div>
+
+                    <!-- Desktop navigation -->
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        <a href="{{ url_for('dashboard.index') }}"
+                           class="{% if request.endpoint == 'dashboard.index' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        </a>
+
+                        <a href="{{ url_for('files.file_list') }}"
+                           class="{% if request.endpoint and 'files' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-folder mr-2"></i>Files
+                        </a>
+
+                        <a href="{{ url_for('analysis.vector_list') }}"
+                           class="{% if request.endpoint and 'analysis' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-crosshairs mr-2"></i>Analysis
+                        </a>
+
+                        <a href="{{ url_for('graph.visual_graph') }}"
+                           class="{% if request.endpoint and 'graph' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-project-diagram mr-2"></i>Graph
+                        </a>
+
+                        <a href="{{ url_for('puzzle.index') }}"
+                           class="{% if request.endpoint and 'puzzle' in request.endpoint %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <i class="fas fa-puzzle-piece mr-2"></i>Puzzles
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right side navigation -->
+                <div class="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
+                    <!-- Search -->
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <input type="text" id="global-search"
+                               placeholder="Search files, hashes..."
+                               class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <!-- User menu -->
+                    <div class="relative">
+                        <button type="button" class="flex items-center text-sm text-gray-700 hover:text-gray-900" id="user-menu" onclick="toggleUserMenu()">
+                            <span class="sr-only">Open user menu</span>
+                            <div class="status-indicator online">
+                                <i class="fas fa-user-circle text-2xl"></i>
+                            </div>
+                            <span class="ml-2 hidden lg:block">{{ current_user.username }}</span>
+                            <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        
+                        <!-- User dropdown -->
+                        <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="{{ url_for('auth.profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-user mr-2"></i>Profile
+                            </a>
+                            <a href="{{ url_for('auth.settings') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-cog mr-2"></i>Settings
+                            </a>
+                            <div class="border-t border-gray-100"></div>
+                            <a href="{{ url_for('auth.logout') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="sm:hidden flex items-center">
+                    <button type="button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" onclick="toggleMobileMenu()">
+                        <span class="sr-only">Open main menu</span>
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile menu -->
+        <div class="sm:hidden hidden" id="mobile-menu">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="{{ url_for('dashboard.index') }}"
+                   class="{% if request.endpoint == 'dashboard.index' %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                </a>
+                <a href="{{ url_for('files.file_list') }}"
+                   class="{% if request.endpoint and 'files' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <i class="fas fa-folder mr-2"></i>Files
+                </a>
+                <a href="{{ url_for('analysis.vector_list') }}"
+                   class="{% if request.endpoint and 'analysis' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <i class="fas fa-crosshairs mr-2"></i>Analysis
+                </a>
+                <a href="{{ url_for('graph.visual_graph') }}"
+                   class="{% if request.endpoint and 'graph' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <i class="fas fa-project-diagram mr-2"></i>Graph
+                </a>
+                <a href="{{ url_for('puzzle.index') }}"
+                   class="{% if request.endpoint and 'puzzle' in request.endpoint %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <i class="fas fa-puzzle-piece mr-2"></i>Puzzles
+                </a>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-messages" class="fixed top-20 right-4 z-50 space-y-2">
+                {% for category, message in messages %}
+                <div class="notification-enter max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            {% if category == 'error' %}
+                                <i class="fas fa-exclamation-circle text-red-400"></i>
+                            {% elif category == 'success' %}
+                                <i class="fas fa-check-circle text-green-400"></i>
+                            {% elif category == 'warning' %}
+                                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                            {% else %}
+                                <i class="fas fa-info-circle text-blue-400"></i>
+                            {% endif %}
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900">{{ message }}</p>
+                        </div>
+                        <div class="ml-auto pl-3">
+                            <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="{% if current_user.is_authenticated %}py-6{% else %}py-0{% endif %}">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    {% if current_user.is_authenticated %}
+    <footer class="bg-white border-t border-gray-200 mt-12">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center">
+                <p class="text-sm text-gray-500">
+                    © 2024 Crypto Hunter. Advanced Steganography Analysis Platform.
+                </p>
+                <div class="flex space-x-6">
+                    <a href="{{ url_for('main.about') }}" class="text-sm text-gray-500 hover:text-gray-900">About</a>
+                    <a href="{{ url_for('main.help_page') }}" class="text-sm text-gray-500 hover:text-gray-900">Help</a>
+                    <a href="{{ url_for('main.terms') }}" class="text-sm text-gray-500 hover:text-gray-900">Terms</a>
+                    <a href="{{ url_for('main.privacy') }}" class="text-sm text-gray-500 hover:text-gray-900">Privacy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    {% endif %}
+
+    <!-- JavaScript -->
+    <script>
+        // Global JavaScript functions
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('user-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(event) {
+            const userMenu = document.getElementById('user-menu');
+            const userDropdown = document.getElementById('user-dropdown');
+            
+            if (userMenu && userDropdown && !userMenu.contains(event.target)) {
+                userDropdown.classList.add('hidden');
+            }
+        });
+
+        // Auto-hide flash messages
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashMessages = document.querySelectorAll('#flash-messages > div');
+            flashMessages.forEach(function(message, index) {
+                setTimeout(function() {
+                    message.classList.add('notification-enter-active');
+                }, index * 100);
+                
+                setTimeout(function() {
+                    message.style.opacity = '0';
+                    setTimeout(() => message.remove(), 300);
+                }, 5000 + index * 100);
+            });
+        });
+
+        // Global search functionality
+        const globalSearch = document.getElementById('global-search');
+        if (globalSearch) {
+            globalSearch.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const query = this.value.trim();
+                    if (query) {
+                        window.location.href = `/files/list?search=${encodeURIComponent(query)}`;
+                    }
+                }
+            });
+        }
+
+        // CSRF token for AJAX requests
+        const csrfToken = document.querySelector('meta[name=csrf-token]').getAttribute('content');
+        
+        // Global AJAX setup
+        function makeRequest(url, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            };
+            
+            return fetch(url, { ...defaultOptions, ...options });
+        }
+
+        // Show loading spinner
+        function showLoading(element) {
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+            spinner.id = 'loading-spinner';
+            element.appendChild(spinner);
+        }
+
+        function hideLoading() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.remove();
+            }
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('flash-messages') || createNotificationContainer();
+            
+            const notification = document.createElement('div');
+            notification.className = 'notification-enter max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg p-4';
+            
+            const iconClass = {
+                'error': 'fas fa-exclamation-circle text-red-400',
+                'success': 'fas fa-check-circle text-green-400',
+                'warning': 'fas fa-exclamation-triangle text-yellow-400',
+                'info': 'fas fa-info-circle text-blue-400'
+            }[type] || 'fas fa-info-circle text-blue-400';
+            
+            notification.innerHTML = `
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="${iconClass}"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900">${message}</p>
+                    </div>
+                    <div class="ml-auto pl-3">
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('notification-enter-active');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        function createNotificationContainer() {
+            const container = document.createElement('div');
+            container.id = 'flash-messages';
+            container.className = 'fixed top-20 right-4 z-50 space-y-2';
+            document.body.appendChild(container);
+            return container;
+        }
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
