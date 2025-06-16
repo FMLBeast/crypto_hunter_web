@@ -958,8 +958,8 @@ def docker_deploy():
     click.echo("Deploying with Docker...")
     
     # Generate docker-compose.yml if it doesn't exist
-    if not os.path.exists('docker-compose.yml'):
-        with open('docker-compose.yml', 'w') as f:
+    if not os.path.exists('../docker-compose.yml'):
+        with open('../docker-compose.yml', 'w') as f:
             f.write(CONFIG_TEMPLATES['docker-compose.yml'])
     
     # Build and start services

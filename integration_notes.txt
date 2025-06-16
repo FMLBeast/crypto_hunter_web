@@ -1,5 +1,0 @@
-
-# Add to your crypto_hunter_web/__init__.py in the create_app function:
-from crypto_hunter_web.routes.agents import agents_bp
-app.register_blueprint(agents_bp)
-

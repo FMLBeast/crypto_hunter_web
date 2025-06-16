@@ -48,7 +48,7 @@ from crypto_hunter_web.services.extractors import (
 )
 
 # Constants
-IMAGE_PATH = "uploads/image.png"
+IMAGE_PATH = "../uploads/image.png"
 OUTPUT_DIR = "extraction"
 MAX_DEPTH = 15  # Maximum recursion depth
 PASSPHRASE = "Bodhi tree blossom"  # Passphrase for decryption

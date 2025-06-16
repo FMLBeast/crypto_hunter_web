@@ -12,7 +12,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crypto_hunter_web.services.agents.agent_framework import BaseAgent, AgentType, AgentTask, AgentResult
-from crypto_hunter_web import create_app, db
+from crypto_hunter_web import db
 from crypto_hunter_web.models import AnalysisFile, FileStatus
 from crypto_hunter_web.services.file_analyzer import FileAnalyzer
 from crypto_hunter_web.services.extraction_engine import ExtractionEngine
