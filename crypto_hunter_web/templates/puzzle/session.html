@@ -1,366 +1,752 @@
+<!-- puzzle/session.html -->
 {% extends "base.html" %}
 
 {% block title %}{{ session.name }} - Puzzle Session{% endblock %}
 
 {% block extra_head %}
 <style>
-    /* Custom styles for puzzle session */
+    .session-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .session-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+        z-index: 1;
+    }
+    
+    .session-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .progress-tracker {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        position: sticky;
+        top: 100px;
+        z-index: 10;
+    }
+    
     .step-timeline {
         position: relative;
+        padding: 20px 0 20px 40px;
     }
     
     .step-timeline::before {
         content: '';
         position: absolute;
+        left: 16px;
         top: 0;
         bottom: 0;
-        left: 18px;
         width: 2px;
-        background-color: #e5e7eb;
-        z-index: 0;
+        background: #e5e7eb;
     }
     
     .step-item {
         position: relative;
-        z-index: 1;
+        margin-bottom: 24px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .step-item:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
+    
+    .step-item.active {
+        border-color: #10b981;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+    }
+    
+    .step-item.completed {
+        background: #f0fdf4;
+        border-color: #22c55e;
     }
     
     .step-marker {
-        position: relative;
-        z-index: 2;
+        position: absolute;
+        left: -32px;
+        top: 16px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 3px solid white;
+        background: #6b7280;
+        z-index: 1;
     }
     
     .step-marker.active {
-        background-color: #4f46e5;
-        border-color: #4f46e5;
-        color: white;
+        background: #10b981;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
     }
     
-    .region-highlight {
+    .step-marker.completed {
+        background: #22c55e;
+    }
+    
+    .step-marker.pending {
+        background: #f59e0b;
+    }
+    
+    .collaborator-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
         position: relative;
-        display: inline;
+    }
+    
+    .collaborator-avatar.online::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border: 2px solid white;
+        border-radius: 50%;
+    }
+    
+    .file-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        transition: all 0.3s ease;
         cursor: pointer;
     }
     
-    .region-highlight.yellow {
-        background-color: rgba(250, 204, 21, 0.3);
+    .file-card:hover {
+        border-color: #3b82f6;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
     
-    .region-highlight.green {
-        background-color: rgba(34, 197, 94, 0.3);
+    .file-card.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
     }
     
-    .region-highlight.blue {
-        background-color: rgba(59, 130, 246, 0.3);
-    }
-    
-    .region-highlight.red {
-        background-color: rgba(239, 68, 68, 0.3);
-    }
-    
-    .region-highlight.purple {
-        background-color: rgba(168, 85, 247, 0.3);
-    }
-    
-    .region-highlight:hover::after {
-        content: attr(data-title);
-        position: absolute;
-        bottom: 100%;
-        left: 0;
-        background-color: #1f2937;
-        color: white;
+    .finding-badge {
+        display: inline-block;
         padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        white-space: nowrap;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .finding-high {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    .finding-medium {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .finding-low {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    
+    .chat-container {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 16px;
+        background: #f9fafb;
+        border-radius: 8px;
+    }
+    
+    .chat-message {
+        margin-bottom: 12px;
+        display: flex;
+        align-items: flex-start;
+        space-x: 8px;
+    }
+    
+    .chat-message.own {
+        flex-direction: row-reverse;
+        space-x-reverse: 8px;
+    }
+    
+    .chat-bubble {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 8px 12px;
+        max-width: 70%;
+        font-size: 14px;
+    }
+    
+    .chat-bubble.own {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    
+    .region-overlay {
+        position: absolute;
+        border: 2px solid #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        cursor: pointer;
         z-index: 10;
+    }
+    
+    .region-overlay:hover {
+        background: rgba(239, 68, 68, 0.2);
+    }
+    
+    .region-marker {
+        position: absolute;
+        top: -8px;
+        left: -8px;
+        width: 16px;
+        height: 16px;
+        background: #ef4444;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: bold;
+    }
+    
+    .breakthrough-alert {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 20px;
+        position: relative;
+        overflow: hidden;
+        animation: breakthrough-pulse 2s infinite;
+    }
+    
+    @keyframes breakthrough-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.9; }
+    }
+    
+    .hint-panel {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 20px;
+    }
+    
+    .hint-level {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .hint-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    
+    .hint-dot.available {
+        background: #10b981;
+    }
+    
+    .hint-dot.used {
+        background: #6b7280;
+    }
+    
+    .hint-dot.locked {
+        background: #e5e7eb;
+    }
+    
+    .session-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .stat-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        backdrop-filter: blur(10px);
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+    
+    .stat-label {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .activity-feed {
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 12px 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        margin-right: 12px;
+        flex-shrink: 0;
+    }
+    
+    .activity-upload {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    
+    .activity-finding {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .activity-breakthrough {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .activity-collaboration {
+        background: #fde2e7;
+        color: #be185d;
+    }
+    
+    .floating-controls {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+        z-index: 30;
+    }
+    
+    .control-btn {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s ease;
+    }
+    
+    .control-btn:hover {
+        background: #f3f4f6;
+        transform: scale(1.1);
+    }
+    
+    .control-btn.primary {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    
+    .fullscreen-viewer {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 50;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .viewer-content {
+        max-width: 90vw;
+        max-height: 90vh;
+        background: white;
+        border-radius: 8px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .viewer-toolbar {
+        background: #f9fafb;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: between;
+        align-items: center;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="space-y-6">
     <!-- Session Header -->
-    <div class="bg-white shadow-sm rounded-lg p-6 mb-6">
-        <div class="flex justify-between items-start">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">{{ session.name }}</h1>
-                <p class="mt-1 text-sm text-gray-600">{{ session.description }}</p>
-                <div class="mt-3 flex items-center text-xs text-gray-500">
-                    <span class="mr-3">
-                        <i class="far fa-user mr-1"></i>
-                        Owner: {{ session.owner }}
-                    </span>
-                    <span class="mr-3">
-                        <i class="far fa-calendar-alt mr-1"></i>
-                        Created: {{ session.created_at.strftime('%Y-%m-%d %H:%M') }}
-                    </span>
-                    <span class="mr-3">
-                        <i class="fas fa-lock{{ '-open' if session.is_public else '' }} mr-1"></i>
-                        {{ 'Public' if session.is_public else 'Private' }}
-                    </span>
-                    <span class="px-2 py-0.5 rounded-full text-xs {% if session.status == 'active' %}bg-green-100 text-green-800{% elif session.status == 'paused' %}bg-yellow-100 text-yellow-800{% elif session.status == 'completed' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ session.status.capitalize() }}
-                    </span>
-                </div>
-            </div>
-            <div class="flex space-x-2">
-                <button id="add-step-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm">
-                    <i class="fas fa-plus mr-1"></i>Add Step
-                </button>
-                <button id="add-collaborator-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm">
-                    <i class="fas fa-user-plus mr-1"></i>Add Collaborator
-                </button>
-                <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm">
-                        <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-                        <div class="py-1">
-                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <i class="fas fa-edit mr-2"></i>Edit Session
-                            </button>
-                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <i class="fas fa-download mr-2"></i>Export Session
-                            </button>
-                            <button class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                <i class="fas fa-share mr-2"></i>Share Session
-                            </button>
-                            <div class="border-t border-gray-100"></div>
-                            <button class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                <i class="fas fa-trash-alt mr-2"></i>Delete Session
-                            </button>
+    <div class="session-header">
+        <div class="session-content p-8">
+            <div class="flex items-start justify-between">
+                <div class="flex items-center space-x-6">
+                    <div class="text-6xl">🧩</div>
+                    <div>
+                        <h1 class="text-3xl font-bold mb-2">{{ session.name }}</h1>
+                        <p class="text-lg opacity-90 mb-4">{{ session.description or 'No description provided' }}</p>
+                        
+                        <div class="flex items-center space-x-6 text-sm">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-user"></i>
+                                <span>{{ session.owner }}</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-calendar"></i>
+                                <span>{{ session.created_at.strftime('%B %d, %Y') if session.created_at else 'Unknown' }}</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-users"></i>
+                                <span>{{ session.collaborators|length + 1 }} member{{ 's' if session.collaborators|length != 0 else '' }}</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                {% if session.status == 'solved' %}
+                                <i class="fas fa-trophy text-yellow-300"></i>
+                                <span>Solved</span>
+                                {% elif session.status == 'active' %}
+                                <i class="fas fa-play text-green-300"></i>
+                                <span>Active</span>
+                                {% else %}
+                                <i class="fas fa-pause text-gray-300"></i>
+                                <span>{{ session.status.title() }}</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Collaborators -->
-        {% if session.collaborators %}
-        <div class="mt-4 pt-4 border-t border-gray-200">
-            <h3 class="text-sm font-medium text-gray-700">Collaborators</h3>
-            <div class="mt-2 flex flex-wrap gap-2">
-                {% for collaborator in session.collaborators %}
-                <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100">
-                    <span class="w-2 h-2 rounded-full {% if collaborator.online %}bg-green-500{% else %}bg-gray-400{% endif %} mr-1"></span>
-                    {{ collaborator.username }}
-                    <span class="ml-1 text-gray-500">({{ collaborator.role }})</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    
-    <!-- Main Content Area -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left Sidebar - Steps Timeline -->
-        <div class="lg:col-span-1">
-            <div class="bg-white shadow-sm rounded-lg p-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Steps Timeline</h2>
                 
-                <div class="step-timeline space-y-4">
-                    {% for step in steps %}
-                    <div class="step-item flex" data-step-id="{{ step.id }}">
-                        <div class="step-marker w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 {% if step.is_active %}active{% endif %}">
-                            <span class="text-xs">{{ loop.index }}</span>
+                <div class="flex items-center space-x-3">
+                    <!-- Collaborators -->
+                    <div class="flex -space-x-2">
+                        {% for collaborator in session.collaborators[:5] %}
+                        <div class="collaborator-avatar {{ 'online' if collaborator.is_online else '' }}" 
+                             title="{{ collaborator.username }} ({{ collaborator.role }})">
+                            {{ collaborator.username[0].upper() }}
                         </div>
-                        <div class="flex-1 bg-gray-50 rounded-lg p-3 {% if step.is_active %}border-2 border-indigo-200{% endif %}">
-                            <div class="flex justify-between items-start">
-                                <h3 class="font-medium text-gray-900">{{ step.title }}</h3>
-                                <span class="text-xs text-gray-500">{{ step.timestamp }}</span>
-                            </div>
+                        {% endfor %}
+                        {% if session.collaborators|length > 5 %}
+                        <div class="collaborator-avatar" title="+{{ session.collaborators|length - 5 }} more">
+                            +{{ session.collaborators|length - 5 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <button onclick="inviteCollaborator()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-user-plus mr-2"></i>Invite
+                    </button>
+                    
+                    {% if session.can_edit %}
+                    <button onclick="editSession()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-cog mr-2"></i>Settings
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Session Statistics -->
+            <div class="session-stats mt-8">
+                <div class="stat-card">
+                    <div class="stat-value text-blue-600">{{ steps|length }}</div>
+                    <div class="stat-label">Steps</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value text-green-600">{{ completed_steps }}</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value text-purple-600">{{ total_findings }}</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value text-yellow-600">{{ total_files }}</div>
+                    <div class="stat-label">Files</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value text-red-600">{{ session_progress }}%</div>
+                    <div class="stat-label">Progress</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Breakthrough Alert -->
+    {% if recent_breakthrough %}
+    <div class="breakthrough-alert">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-lightbulb text-2xl"></i>
+                <div>
+                    <h3 class="font-bold text-lg">Breakthrough!</h3>
+                    <p>{{ recent_breakthrough.description }}</p>
+                </div>
+            </div>
+            <button onclick="dismissBreakthrough()" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <!-- Progress Tracker -->
+        <div class="xl:col-span-1">
+            <div class="progress-tracker">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Progress Tracker</h2>
+                    <p class="text-sm text-gray-600">{{ completed_steps }}/{{ steps|length }} steps completed</p>
+                </div>
+                
+                <div class="step-timeline">
+                    {% for step in steps %}
+                    <div class="step-item {{ 'active' if step.is_active else ('completed' if step.status == 'completed' else '') }}" 
+                         onclick="selectStep('{{ step.id }}')">
+                        <div class="step-marker {{ 'active' if step.is_active else ('completed' if step.status == 'completed' else 'pending') }}"></div>
+                        
+                        <div class="p-4">
+                            <h3 class="font-medium text-gray-900 mb-1">{{ step.title }}</h3>
                             {% if step.description %}
-                            <p class="mt-1 text-sm text-gray-600">{{ step.description }}</p>
+                            <p class="text-sm text-gray-600 mb-2">{{ step.description[:80] }}{% if step.description|length > 80 %}...{% endif %}</p>
                             {% endif %}
                             
-                            <!-- Step Resources -->
-                            <div class="mt-2 space-y-2">
-                                {% if step.files %}
-                                <div>
-                                    <span class="text-xs font-medium text-gray-500">Files:</span>
-                                    <div class="mt-1 space-y-1">
-                                        {% for file in step.files %}
-                                        <a href="{{ url_for('puzzle.view_session', session_id=session.id, file_id=file.id) }}" class="block text-xs text-indigo-600 hover:text-indigo-800">
-                                            <i class="fas fa-file mr-1"></i>{{ file.filename }}
-                                        </a>
-                                        {% endfor %}
-                                    </div>
+                            <div class="flex items-center justify-between text-xs text-gray-500">
+                                <span>{{ step.created_at.strftime('%m/%d %H:%M') if step.created_at else 'Unknown' }}</span>
+                                <div class="flex items-center space-x-2">
+                                    {% if step.files %}
+                                    <span><i class="fas fa-file mr-1"></i>{{ step.files|length }}</span>
+                                    {% endif %}
+                                    {% if step.findings %}
+                                    <span><i class="fas fa-search mr-1"></i>{{ step.findings|length }}</span>
+                                    {% endif %}
+                                    {% if step.regions %}
+                                    <span><i class="fas fa-map-marker-alt mr-1"></i>{{ step.regions|length }}</span>
+                                    {% endif %}
                                 </div>
-                                {% endif %}
-                                
-                                {% if step.findings %}
-                                <div>
-                                    <span class="text-xs font-medium text-gray-500">Findings:</span>
-                                    <div class="mt-1 space-y-1">
-                                        {% for finding in step.findings %}
-                                        <div class="text-xs text-green-600">
-                                            <i class="fas fa-search mr-1"></i>{{ finding.title }}
-                                        </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                
-                                {% if step.regions %}
-                                <div>
-                                    <span class="text-xs font-medium text-gray-500">Regions:</span>
-                                    <div class="mt-1 space-y-1">
-                                        {% for region in step.regions %}
-                                        <div class="text-xs text-purple-600">
-                                            <i class="fas fa-map-marker-alt mr-1"></i>{{ region.title }}
-                                        </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <!-- Step Actions -->
-                            <div class="mt-3 flex justify-end space-x-2">
-                                {% if not step.is_active %}
-                                <button class="activate-step-btn text-xs text-indigo-600 hover:text-indigo-800" data-step-id="{{ step.id }}">
-                                    <i class="fas fa-arrow-right mr-1"></i>Activate
-                                </button>
-                                {% endif %}
-                                <button class="text-xs text-gray-600 hover:text-gray-800">
-                                    <i class="fas fa-edit mr-1"></i>Edit
-                                </button>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
-                </div>
-                
-                <!-- Add Step Form (Hidden by default) -->
-                <div id="add-step-form" class="mt-6 border-t border-gray-200 pt-4 hidden">
-                    <h3 class="text-sm font-medium text-gray-900 mb-3">Add New Step</h3>
-                    <form method="POST" action="{{ url_for('puzzle.add_step', session_id=session.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <div class="space-y-3">
-                            <div>
-                                <label for="title" class="block text-xs font-medium text-gray-700">Title</label>
-                                <input type="text" name="title" id="title" required
-                                       class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            </div>
-                            <div>
-                                <label for="description" class="block text-xs font-medium text-gray-700">Description</label>
-                                <textarea name="description" id="description" rows="3"
-                                          class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
-                            </div>
-                            <div class="flex justify-end space-x-2">
-                                <button type="button" id="cancel-add-step" class="text-xs text-gray-600 hover:text-gray-800">
-                                    Cancel
-                                </button>
-                                <button type="submit" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded">
-                                    Add Step
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Add Collaborator Form (Hidden by default) -->
-            <div id="add-collaborator-form" class="mt-4 bg-white shadow-sm rounded-lg p-4 hidden">
-                <h3 class="text-sm font-medium text-gray-900 mb-3">Add Collaborator</h3>
-                <form method="POST" action="{{ url_for('puzzle.add_collaborator', session_id=session.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="space-y-3">
-                        <div>
-                            <label for="username" class="block text-xs font-medium text-gray-700">Username</label>
-                            <input type="text" name="username" id="username" required
-                                   class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        <div>
-                            <label for="role" class="block text-xs font-medium text-gray-700">Role</label>
-                            <select name="role" id="role"
-                                    class="mt-1 block w-full border-gray-300 rounded-sm shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="viewer">Viewer</option>
-                                <option value="editor">Editor</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
-                        <div class="flex justify-end space-x-2">
-                            <button type="button" id="cancel-add-collaborator" class="text-xs text-gray-600 hover:text-gray-800">
-                                Cancel
-                            </button>
-                            <button type="submit" class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded">
-                                Add Collaborator
-                            </button>
+                    
+                    <!-- Add New Step Button -->
+                    {% if session.can_edit %}
+                    <div class="step-item border-dashed border-2 border-gray-300 hover:border-blue-400 cursor-pointer" 
+                         onclick="addNewStep()">
+                        <div class="step-marker" style="background: #e5e7eb;"></div>
+                        <div class="p-4 text-center text-gray-500">
+                            <i class="fas fa-plus mb-2"></i>
+                            <p class="text-sm">Add New Step</p>
                         </div>
                     </div>
-                </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
-        
-        <!-- Main Content Area - File Viewer and Tools -->
-        <div class="lg:col-span-2 space-y-6">
+
+        <!-- Main Work Area -->
+        <div class="xl:col-span-2 space-y-6">
+            <!-- Active File Viewer -->
             {% if active_file %}
-            <!-- File Viewer -->
-            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
-                <div class="bg-gray-100 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                    <div class="flex items-center">
-                        <span class="font-medium text-gray-900">{{ active_file.filename }}</span>
-                        <span class="ml-2 text-xs text-gray-500">{{ active_file.file_size_human }}</span>
-                        <span class="ml-2 text-xs text-gray-500">{{ active_file.file_type }}</span>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-semibold text-gray-900">{{ active_file.filename }}</h2>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="toggleRegionMode()" class="text-blue-600 hover:text-blue-800 text-sm">
+                                <i class="fas fa-crosshairs mr-1"></i>Mark Regions
+                            </button>
+                            <button onclick="fullscreenViewer()" class="text-gray-600 hover:text-gray-800">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex space-x-2">
-                        <button id="tag-region-btn" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded">
-                            <i class="fas fa-highlighter mr-1"></i>Tag Region
-                        </button>
-                        <button class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded">
-                            <i class="fas fa-tools mr-1"></i>Tools
+                </div>
+                
+                <div class="relative" id="file-viewer">
+                    {% if active_file.is_image %}
+                    <div class="relative max-h-96 overflow-hidden">
+                        <img src="{{ url_for('content.file_content', sha=active_file.sha256_hash) }}" 
+                             alt="{{ active_file.filename }}" 
+                             class="w-full h-auto"
+                             id="main-image">
+                        
+                        <!-- Region Overlays -->
+                        {% for region in active_file.regions %}
+                        <div class="region-overlay" 
+                             style="left: {{ region.x }}px; top: {{ region.y }}px; width: {{ region.width }}px; height: {{ region.height }}px;"
+                             onclick="showRegionDetails('{{ region.id }}')"
+                             title="{{ region.title }}">
+                            <div class="region-marker">{{ loop.index }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% elif active_file.is_text %}
+                    <div class="p-4 bg-gray-900 text-green-400 font-mono text-sm max-h-96 overflow-auto">
+                        <pre>{{ active_file.content_preview[:1000] }}{% if active_file.content_preview|length > 1000 %}...{% endif %}</pre>
+                    </div>
+                    {% else %}
+                    <div class="p-8 text-center text-gray-500">
+                        <div class="text-6xl mb-4">📄</div>
+                        <p class="text-lg font-medium">{{ active_file.filename }}</p>
+                        <p class="text-sm">{{ active_file.file_size | filesizeformat }} • {{ active_file.mime_type }}</p>
+                        <div class="mt-4 space-x-3">
+                            <a href="{{ url_for('content.file_content', sha=active_file.sha256_hash) }}" 
+                               class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                                View Content
+                            </a>
+                            <a href="{{ url_for('files.file_detail', sha=active_file.sha256_hash) }}" 
+                               class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm">
+                                Analyze
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Files Grid -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-semibold text-gray-900">Session Files</h2>
+                        <button onclick="addFiles()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">
+                            <i class="fas fa-plus mr-1"></i>Add Files
                         </button>
                     </div>
                 </div>
                 
                 <div class="p-4">
-                    {% if active_file.content_type == 'text' %}
-                    <!-- Text Content -->
-                    <div id="file-content" class="font-mono text-sm whitespace-pre-wrap bg-gray-50 p-4 rounded overflow-auto max-h-[600px]">
-                        {{ active_file.content }}
-                    </div>
-                    {% elif active_file.content_type == 'image' %}
-                    <!-- Image Content -->
-                    <div class="text-center">
-                        <img src="{{ active_file.content_url }}" alt="{{ active_file.filename }}" class="max-w-full max-h-[600px] mx-auto">
+                    {% if session_files %}
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {% for file in session_files %}
+                        <div class="file-card {{ 'selected' if file.id == active_file.id else '' }}" 
+                             onclick="selectFile('{{ file.id }}')">
+                            <div class="flex items-center space-x-3 mb-3">
+                                <div class="text-2xl">
+                                    {% if file.mime_type and 'image' in file.mime_type %}🖼️
+                                    {% elif file.mime_type and 'text' in file.mime_type %}📄
+                                    {% elif file.mime_type and 'archive' in file.mime_type %}📦
+                                    {% else %}📁{% endif %}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-medium text-gray-900 truncate">{{ file.filename }}</h3>
+                                    <p class="text-xs text-gray-500">{{ file.file_size | filesizeformat }}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between text-xs">
+                                <div class="flex space-x-2">
+                                    {% for finding in file.findings[:3] %}
+                                    <span class="finding-badge finding-{{ finding.priority }}">{{ finding.priority }}</span>
+                                    {% endfor %}
+                                    {% if file.findings|length > 3 %}
+                                    <span class="text-gray-500">+{{ file.findings|length - 3 }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="flex items-center space-x-1 text-gray-500">
+                                    {% if file.analysis_complete %}
+                                    <i class="fas fa-check-circle text-green-500"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock text-yellow-500"></i>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                     {% else %}
-                    <!-- Binary Content -->
-                    <div class="text-center p-8">
-                        <i class="fas fa-file-binary text-4xl text-gray-400 mb-2"></i>
-                        <p class="text-gray-600">Binary file content cannot be displayed directly.</p>
-                        <a href="{{ url_for('files.download_file', file_id=active_file.id) }}" class="mt-2 inline-block text-indigo-600 hover:text-indigo-800">
-                            <i class="fas fa-download mr-1"></i>Download File
-                        </a>
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-4">📁</div>
+                        <p class="text-lg font-medium">No files yet</p>
+                        <p class="text-sm">Add files to start solving the puzzle</p>
+                        <button onclick="addFiles()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                            <i class="fas fa-plus mr-2"></i>Add First File
+                        </button>
                     </div>
                     {% endif %}
                 </div>
             </div>
-            
-            <!-- Findings for Active File -->
-            {% if active_file.findings %}
-            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
-                <div class="bg-gray-100 px-4 py-3 border-b border-gray-200">
-                    <h3 class="font-medium text-gray-900">Findings</h3>
+
+            <!-- Current Findings -->
+            {% if current_findings %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Current Findings</h2>
+                    <p class="text-sm text-gray-600">Insights from the current step</p>
                 </div>
-                <div class="divide-y divide-gray-200">
-                    {% for finding in active_file.findings %}
-                    <div class="p-4">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h4 class="font-medium text-gray-900">{{ finding.title }}</h4>
-                                <p class="mt-1 text-sm text-gray-600">{{ finding.description }}</p>
-                                {% if finding.raw_data %}
-                                <div class="mt-2 bg-gray-50 p-2 rounded font-mono text-xs overflow-auto">
-                                    {{ finding.raw_data }}
+                
+                <div class="p-4 space-y-3">
+                    {% for finding in current_findings %}
+                    <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h3 class="font-medium text-gray-900 text-sm">{{ finding.title }}</h3>
+                                <p class="text-xs text-gray-600 mt-1">{{ finding.description[:100] }}{% if finding.description|length > 100 %}...{% endif %}</p>
+                                <div class="flex items-center space-x-2 mt-2">
+                                    <span class="finding-badge finding-{{ finding.priority }}">{{ finding.priority }}</span>
+                                    {% if finding.confidence %}
+                                    <span class="text-xs text-gray-500">{{ (finding.confidence * 100)|round }}% confidence</span>
+                                    {% endif %}
                                 </div>
-                                {% endif %}
                             </div>
-                            <button class="add-finding-btn text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded" data-finding-id="{{ finding.id }}">
-                                <i class="fas fa-plus mr-1"></i>Add to Step
+                            <button onclick="expandFinding('{{ finding.id }}')" class="text-blue-600 hover:text-blue-800 text-xs">
+                                <i class="fas fa-external-link-alt"></i>
                             </button>
                         </div>
                     </div>
@@ -368,356 +754,533 @@
                 </div>
             </div>
             {% endif %}
-            
-            {% else %}
-            <!-- No Active File -->
-            <div class="bg-white shadow-sm rounded-lg p-8 text-center">
-                <i class="fas fa-file-search text-6xl text-gray-300 mb-4"></i>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">No File Selected</h3>
-                <p class="text-gray-600 mb-4">
-                    Select a file from the steps timeline or upload a new file to begin analysis.
-                </p>
-                <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm">
-                    <i class="fas fa-upload mr-2"></i>Upload File
-                </button>
-            </div>
-            {% endif %}
         </div>
-    </div>
-</div>
 
-<!-- Tag Region Modal (Hidden by default) -->
-<div id="tag-region-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-            <h3 class="font-medium text-gray-900">Tag Region of Interest</h3>
-            <button id="close-tag-modal" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="p-4">
-            <form id="tag-region-form">
-                <input type="hidden" id="file_content_id" name="file_content_id">
-                <input type="hidden" id="start_offset" name="start_offset">
-                <input type="hidden" id="end_offset" name="end_offset">
+        <!-- Right Sidebar -->
+        <div class="xl:col-span-1 space-y-6">
+            <!-- Activity Feed -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Recent Activity</h2>
+                </div>
                 
-                <div class="space-y-4">
-                    <div>
-                        <label for="region_title" class="block text-sm font-medium text-gray-700">Title</label>
-                        <input type="text" id="region_title" name="title" required
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    
-                    <div>
-                        <label for="region_description" class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea id="region_description" name="description" rows="3"
-                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
-                    </div>
-                    
-                    <div>
-                        <label for="region_type" class="block text-sm font-medium text-gray-700">Type</label>
-                        <select id="region_type" name="region_type"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="text">Text</option>
-                            <option value="crypto">Cryptographic</option>
-                            <option value="binary">Binary Data</option>
-                            <option value="steganography">Steganography</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Color</label>
-                        <div class="mt-1 flex space-x-2">
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="color" value="#yellow" class="form-radio text-yellow-500" checked>
-                                <span class="ml-2 w-4 h-4 bg-yellow-200 rounded"></span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="color" value="#green" class="form-radio text-green-500">
-                                <span class="ml-2 w-4 h-4 bg-green-200 rounded"></span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="color" value="#blue" class="form-radio text-blue-500">
-                                <span class="ml-2 w-4 h-4 bg-blue-200 rounded"></span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="color" value="#red" class="form-radio text-red-500">
-                                <span class="ml-2 w-4 h-4 bg-red-200 rounded"></span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="color" value="#purple" class="form-radio text-purple-500">
-                                <span class="ml-2 w-4 h-4 bg-purple-200 rounded"></span>
-                            </label>
+                <div class="activity-feed p-4">
+                    {% for activity in recent_activities %}
+                    <div class="activity-item">
+                        <div class="activity-icon activity-{{ activity.type }}">
+                            <i class="fas fa-{{ activity.icon }}"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-900">{{ activity.description }}</p>
+                            <div class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                                <span>{{ activity.user }}</span>
+                                <span>•</span>
+                                <span>{{ activity.timestamp.strftime('%H:%M') if activity.timestamp else 'Unknown' }}</span>
+                            </div>
                         </div>
                     </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Collaboration Chat -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Team Chat</h2>
                 </div>
                 
-                <div class="mt-6 flex justify-end space-x-3">
-                    <button type="button" id="cancel-tag-region" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Cancel
-                    </button>
-                    <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Tag Region
-                    </button>
+                <div class="chat-container" id="chat-messages">
+                    {% for message in recent_messages %}
+                    <div class="chat-message {{ 'own' if message.user_id == current_user.id else '' }}">
+                        <div class="collaborator-avatar" style="font-size: 10px;">
+                            {{ message.user.username[0].upper() }}
+                        </div>
+                        <div class="chat-bubble {{ 'own' if message.user_id == current_user.id else '' }}">
+                            {{ message.content }}
+                            <div class="text-xs opacity-70 mt-1">{{ message.timestamp.strftime('%H:%M') if message.timestamp else 'Unknown' }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-            </form>
+                
+                <div class="p-4 border-t border-gray-200">
+                    <div class="flex space-x-2">
+                        <input type="text" id="chat-input" placeholder="Type a message..." 
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               onkeypress="handleChatKeypress(event)">
+                        <button onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hints Panel -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Hints</h2>
+                    <div class="hint-level">
+                        {% for i in range(3) %}
+                        <div class="hint-dot {{ 'used' if i < hints_used else ('available' if i < hints_available else 'locked') }}"></div>
+                        {% endfor %}
+                        <span class="text-sm text-gray-600 ml-2">{{ hints_used }}/{{ hints_available }} used</span>
+                    </div>
+                </div>
+                
+                {% if available_hints %}
+                <div class="p-4">
+                    <div class="hint-panel">
+                        <h3 class="font-medium text-amber-800 mb-2">
+                            <i class="fas fa-lightbulb mr-2"></i>Hint Available
+                        </h3>
+                        <p class="text-sm text-amber-700 mb-3">Need a nudge in the right direction?</p>
+                        <button onclick="showHint()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded text-sm">
+                            <i class="fas fa-eye mr-1"></i>Reveal Hint
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if revealed_hints %}
+                <div class="p-4">
+                    <div class="space-y-3">
+                        {% for hint in revealed_hints %}
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-blue-800">HINT {{ loop.index }}</span>
+                                <span class="text-xs text-blue-600">{{ hint.timestamp.strftime('%H:%M') if hint.timestamp else 'Unknown' }}</span>
+                            </div>
+                            <p class="text-sm text-blue-900">{{ hint.content }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Controls -->
+    <div class="floating-controls">
+        <button class="control-btn" onclick="previousStep()" title="Previous Step">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button class="control-btn primary" onclick="completeStep()" title="Complete Current Step">
+            <i class="fas fa-check"></i>
+        </button>
+        <button class="control-btn" onclick="nextStep()" title="Next Step">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <button class="control-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+            <i class="fas fa-expand"></i>
+        </button>
+    </div>
+
+    <!-- Fullscreen File Viewer -->
+    <div class="fullscreen-viewer" id="fullscreen-viewer">
+        <div class="viewer-content">
+            <div class="viewer-toolbar">
+                <h3 class="font-medium text-gray-900" id="viewer-title">File Viewer</h3>
+                <button onclick="closeFullscreenViewer()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="viewer-body" class="p-4">
+                <!-- Dynamic content -->
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
-<!-- JavaScript for Puzzle Session -->
+{% block extra_scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Add Step Form Toggle
-    const addStepBtn = document.getElementById('add-step-btn');
-    const addStepForm = document.getElementById('add-step-form');
-    const cancelAddStep = document.getElementById('cancel-add-step');
+let currentStepId = '{{ active_step.id if active_step else "" }}';
+let currentFileId = '{{ active_file.id if active_file else "" }}';
+let regionMode = false;
+let ws = null;
+
+// WebSocket connection for real-time collaboration
+function initWebSocket() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${location.host}/ws/session/{{ session.id }}`);
     
-    if (addStepBtn && addStepForm && cancelAddStep) {
-        addStepBtn.addEventListener('click', function() {
-            addStepForm.classList.remove('hidden');
-            addCollaboratorForm.classList.add('hidden');
-        });
-        
-        cancelAddStep.addEventListener('click', function() {
-            addStepForm.classList.add('hidden');
-        });
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        handleRealtimeUpdate(data);
+    };
+    
+    ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+    };
+}
+
+function handleRealtimeUpdate(data) {
+    switch (data.type) {
+        case 'chat_message':
+            addChatMessage(data.message);
+            break;
+        case 'activity_update':
+            addActivityItem(data.activity);
+            break;
+        case 'collaborator_update':
+            updateCollaboratorStatus(data.collaborator);
+            break;
+        case 'step_update':
+            updateStepStatus(data.step);
+            break;
+        case 'breakthrough':
+            showBreakthroughAlert(data.breakthrough);
+            break;
     }
+}
+
+// Step management
+function selectStep(stepId) {
+    currentStepId = stepId;
     
-    // Add Collaborator Form Toggle
-    const addCollaboratorBtn = document.getElementById('add-collaborator-btn');
-    const addCollaboratorForm = document.getElementById('add-collaborator-form');
-    const cancelAddCollaborator = document.getElementById('cancel-add-collaborator');
-    
-    if (addCollaboratorBtn && addCollaboratorForm && cancelAddCollaborator) {
-        addCollaboratorBtn.addEventListener('click', function() {
-            addCollaboratorForm.classList.remove('hidden');
-            addStepForm.classList.add('hidden');
-        });
-        
-        cancelAddCollaborator.addEventListener('click', function() {
-            addCollaboratorForm.classList.add('hidden');
-        });
-    }
-    
-    // Activate Step
-    const activateStepBtns = document.querySelectorAll('.activate-step-btn');
-    
-    activateStepBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const stepId = this.getAttribute('data-step-id');
-            
-            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/step/${stepId}/activate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Failed to activate step: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error activating step:', error);
-                alert('An error occurred while activating the step.');
-            });
-        });
+    // Update UI
+    document.querySelectorAll('.step-item').forEach(item => {
+        item.classList.remove('active');
     });
+    event.currentTarget.classList.add('active');
     
-    // Tag Region
-    const tagRegionBtn = document.getElementById('tag-region-btn');
-    const tagRegionModal = document.getElementById('tag-region-modal');
-    const closeTagModal = document.getElementById('close-tag-modal');
-    const cancelTagRegion = document.getElementById('cancel-tag-region');
-    const tagRegionForm = document.getElementById('tag-region-form');
-    
-    if (tagRegionBtn && tagRegionModal && closeTagModal && cancelTagRegion && tagRegionForm) {
-        tagRegionBtn.addEventListener('click', function() {
-            // Check if text is selected
-            const selection = window.getSelection();
-            if (selection.toString().length === 0) {
-                alert('Please select text to tag as a region of interest.');
-                return;
+    // Load step data
+    fetch(`/api/puzzle/sessions/{{ session.id }}/steps/${stepId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateWorkArea(data.step);
             }
-            
-            // Get the selected text range
-            const range = selection.getRangeAt(0);
-            const startOffset = range.startOffset;
-            const endOffset = range.endOffset;
-            
-            // Set form values
-            document.getElementById('file_content_id').value = '{{ active_file.content_entries[0].id if active_file and active_file.content_entries else "" }}';
-            document.getElementById('start_offset').value = startOffset;
-            document.getElementById('end_offset').value = endOffset;
-            document.getElementById('region_title').value = selection.toString().substring(0, 30) + (selection.toString().length > 30 ? '...' : '');
-            
-            // Show modal
-            tagRegionModal.classList.remove('hidden');
         });
-        
-        closeTagModal.addEventListener('click', function() {
-            tagRegionModal.classList.add('hidden');
-        });
-        
-        cancelTagRegion.addEventListener('click', function() {
-            tagRegionModal.classList.add('hidden');
-        });
-        
-        tagRegionForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = {
-                file_content_id: document.getElementById('file_content_id').value,
-                start_offset: parseInt(document.getElementById('start_offset').value),
-                end_offset: parseInt(document.getElementById('end_offset').value),
-                title: document.getElementById('region_title').value,
-                description: document.getElementById('region_description').value,
-                region_type: document.getElementById('region_type').value,
-                color: document.querySelector('input[name="color"]:checked').value
-            };
-            
-            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/region`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify(formData)
+}
+
+function addNewStep() {
+    const title = prompt('Enter step title:');
+    if (title) {
+        fetch(`/api/puzzle/sessions/{{ session.id }}/steps`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                title: title,
+                description: ''
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    tagRegionModal.classList.add('hidden');
-                    // Highlight the region
-                    highlightRegion(formData.start_offset, formData.end_offset, formData.color, formData.title);
-                    // Reload after a short delay
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    alert('Failed to tag region: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error tagging region:', error);
-                alert('An error occurred while tagging the region.');
-            });
-        });
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Failed to create step: ' + data.error);
+              }
+          });
     }
-    
-    // Add Finding to Step
-    const addFindingBtns = document.querySelectorAll('.add-finding-btn');
-    
-    addFindingBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const findingId = this.getAttribute('data-finding-id');
-            const activeStep = document.querySelector('.step-item .step-marker.active');
-            
-            if (!activeStep) {
-                alert('Please activate a step first.');
-                return;
+}
+
+function completeStep() {
+    if (confirm('Mark current step as completed?')) {
+        fetch(`/api/puzzle/sessions/{{ session.id }}/steps/${currentStepId}/complete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
             }
-            
-            const stepId = activeStep.closest('.step-item').getAttribute('data-step-id');
-            
-            const formData = new FormData();
-            formData.append('finding_id', findingId);
-            
-            fetch(`{{ url_for('puzzle.view_session', session_id=session.id) }}/step/${stepId}/finding`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Finding added to step successfully!');
-                    // Reload after a short delay
-                    setTimeout(() => window.location.reload(), 500);
-                } else {
-                    alert('Failed to add finding: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error adding finding:', error);
-                alert('An error occurred while adding the finding.');
-            });
-        });
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Failed to complete step: ' + data.error);
+              }
+          });
+    }
+}
+
+// File management
+function selectFile(fileId) {
+    currentFileId = fileId;
+    
+    // Update selection UI
+    document.querySelectorAll('.file-card').forEach(card => {
+        card.classList.remove('selected');
     });
+    event.currentTarget.classList.add('selected');
     
-    // Helper function to highlight a region
-    function highlightRegion(startOffset, endOffset, color, title) {
-        const fileContent = document.getElementById('file-content');
-        if (!fileContent) return;
+    // Load file viewer
+    window.location.href = `{{ url_for('puzzle.view_session', session_id=session.id) }}?file_id=${fileId}`;
+}
+
+function addFiles() {
+    // Open file selection modal
+    window.open('/files/upload?return_to_session={{ session.id }}', '_blank');
+}
+
+// Region marking
+function toggleRegionMode() {
+    regionMode = !regionMode;
+    const viewer = document.getElementById('file-viewer');
+    
+    if (regionMode) {
+        viewer.style.cursor = 'crosshair';
+        viewer.addEventListener('mousedown', startRegionSelection);
+        event.target.innerHTML = '<i class="fas fa-times mr-1"></i>Cancel';
+        event.target.classList.add('bg-red-600', 'text-white');
+    } else {
+        viewer.style.cursor = 'default';
+        viewer.removeEventListener('mousedown', startRegionSelection);
+        event.target.innerHTML = '<i class="fas fa-crosshairs mr-1"></i>Mark Regions';
+        event.target.classList.remove('bg-red-600', 'text-white');
+    }
+}
+
+function startRegionSelection(e) {
+    if (!regionMode) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'region-overlay';
+    overlay.style.left = startX + 'px';
+    overlay.style.top = startY + 'px';
+    overlay.style.width = '0px';
+    overlay.style.height = '0px';
+    
+    e.currentTarget.appendChild(overlay);
+    
+    function updateSelection(e) {
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
         
-        const text = fileContent.textContent;
-        const colorClass = color.substring(1); // Remove # from color
+        const width = Math.abs(currentX - startX);
+        const height = Math.abs(currentY - startY);
+        const left = Math.min(currentX, startX);
+        const top = Math.min(currentY, startY);
         
-        // Create a new range
-        const range = document.createRange();
-        const textNodes = getTextNodes(fileContent);
-        
-        // Find the text node and offset
-        let currentOffset = 0;
-        let startNode = null;
-        let endNode = null;
-        let startNodeOffset = 0;
-        let endNodeOffset = 0;
-        
-        for (const node of textNodes) {
-            const nodeLength = node.textContent.length;
-            
-            if (currentOffset + nodeLength >= startOffset && !startNode) {
-                startNode = node;
-                startNodeOffset = startOffset - currentOffset;
-            }
-            
-            if (currentOffset + nodeLength >= endOffset && !endNode) {
-                endNode = node;
-                endNodeOffset = endOffset - currentOffset;
-                break;
-            }
-            
-            currentOffset += nodeLength;
-        }
-        
-        if (startNode && endNode) {
-            range.setStart(startNode, startNodeOffset);
-            range.setEnd(endNode, endNodeOffset);
-            
-            const span = document.createElement('span');
-            span.className = `region-highlight ${colorClass}`;
-            span.setAttribute('data-title', title);
-            
-            range.surroundContents(span);
-        }
+        overlay.style.left = left + 'px';
+        overlay.style.top = top + 'px';
+        overlay.style.width = width + 'px';
+        overlay.style.height = height + 'px';
     }
     
-    // Helper function to get all text nodes
-    function getTextNodes(node) {
-        const textNodes = [];
-        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+    function finishSelection() {
+        document.removeEventListener('mousemove', updateSelection);
+        document.removeEventListener('mouseup', finishSelection);
         
-        let currentNode;
-        while (currentNode = walker.nextNode()) {
-            textNodes.push(currentNode);
+        const title = prompt('Enter region title:');
+        if (title) {
+            saveRegion(title, overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height);
+        } else {
+            overlay.remove();
         }
         
-        return textNodes;
+        toggleRegionMode();
     }
     
-    // Highlight existing regions
-    {% if active_file and active_file.regions %}
-    {% for region in active_file.regions %}
-    highlightRegion({{ region.start_offset }}, {{ region.end_offset }}, '{{ region.color }}', '{{ region.title }}');
-    {% endfor %}
+    document.addEventListener('mousemove', updateSelection);
+    document.addEventListener('mouseup', finishSelection);
+}
+
+function saveRegion(title, x, y, width, height) {
+    fetch(`/api/puzzle/sessions/{{ session.id }}/regions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+            title: title,
+            file_id: currentFileId,
+            step_id: currentStepId,
+            x: parseInt(x),
+            y: parseInt(y),
+            width: parseInt(width),
+            height: parseInt(height)
+        })
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              location.reload();
+          } else {
+              alert('Failed to save region: ' + data.error);
+          }
+      });
+}
+
+// Chat functionality
+function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (message && ws) {
+        ws.send(JSON.stringify({
+            type: 'chat_message',
+            content: message,
+            session_id: '{{ session.id }}'
+        }));
+        input.value = '';
+    }
+}
+
+function handleChatKeypress(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+}
+
+function addChatMessage(message) {
+    const container = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${message.user_id === {{ current_user.id }} ? 'own' : ''}`;
+    
+    messageDiv.innerHTML = `
+        <div class="collaborator-avatar" style="font-size: 10px;">
+            ${message.username[0].toUpperCase()}
+        </div>
+        <div class="chat-bubble ${message.user_id === {{ current_user.id }} ? 'own' : ''}">
+            ${message.content}
+            <div class="text-xs opacity-70 mt-1">${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</div>
+        </div>
+    `;
+    
+    container.appendChild(messageDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
+// Hint system
+function showHint() {
+    if (confirm('Use a hint? This cannot be undone.')) {
+        fetch(`/api/puzzle/sessions/{{ session.id }}/hints`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Failed to get hint: ' + data.error);
+              }
+          });
+    }
+}
+
+// Collaboration features
+function inviteCollaborator() {
+    const email = prompt('Enter collaborator email:');
+    if (email) {
+        fetch(`/api/puzzle/sessions/{{ session.id }}/invite`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                email: email,
+                role: 'viewer'
+            })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  alert('Invitation sent!');
+                  location.reload();
+              } else {
+                  alert('Failed to send invitation: ' + data.error);
+              }
+          });
+    }
+}
+
+// Fullscreen viewer
+function fullscreenViewer() {
+    const viewer = document.getElementById('fullscreen-viewer');
+    const title = document.getElementById('viewer-title');
+    const body = document.getElementById('viewer-body');
+    
+    title.textContent = '{{ active_file.filename if active_file else "" }}';
+    
+    {% if active_file and active_file.is_image %}
+    body.innerHTML = '<img src="{{ url_for("content.file_content", sha=active_file.sha256_hash) if active_file else "" }}" class="max-w-full max-h-full object-contain">';
+    {% elif active_file and active_file.is_text %}
+    body.innerHTML = '<pre class="bg-gray-900 text-green-400 p-4 rounded overflow-auto max-h-96 text-sm">{{ active_file.content_preview if active_file else "" }}</pre>';
     {% endif %}
+    
+    viewer.style.display = 'flex';
+}
+
+function closeFullscreenViewer() {
+    document.getElementById('fullscreen-viewer').style.display = 'none';
+}
+
+// Navigation
+function previousStep() {
+    const steps = Array.from(document.querySelectorAll('.step-item[onclick]'));
+    const currentIndex = steps.findIndex(step => step.classList.contains('active'));
+    if (currentIndex > 0) {
+        steps[currentIndex - 1].click();
+    }
+}
+
+function nextStep() {
+    const steps = Array.from(document.querySelectorAll('.step-item[onclick]'));
+    const currentIndex = steps.findIndex(step => step.classList.contains('active'));
+    if (currentIndex < steps.length - 1) {
+        steps[currentIndex + 1].click();
+    }
+}
+
+function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.documentElement.requestFullscreen();
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    initWebSocket();
+    
+    // Auto-scroll chat to bottom
+    const chatContainer = document.getElementById('chat-messages');
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+                case 'Enter':
+                    e.preventDefault();
+                    completeStep();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousStep();
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    nextStep();
+                    break;
+            }
+        }
+        
+        if (e.key === 'Escape') {
+            closeFullscreenViewer();
+            if (regionMode) toggleRegionMode();
+        }
+    });
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (ws) {
+        ws.close();
+    }
 });
 </script>
 {% endblock %}

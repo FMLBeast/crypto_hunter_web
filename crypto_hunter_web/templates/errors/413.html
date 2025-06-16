@@ -1,0 +1,22 @@
+<!-- errors/413.html -->
+{% extends "base.html" %}
+
+{% block title %}File Too Large - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
+        <div class="text-6xl mb-4">📁</div>
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">File Too Large</h1>
+        <p class="text-gray-600 mb-6">The uploaded file exceeds the maximum allowed size limit.</p>
+        <div class="space-y-3">
+            <a href="{{ url_for('files.upload_file') }}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+                Try Upload Again
+            </a>
+            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+                Return to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

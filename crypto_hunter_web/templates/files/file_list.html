@@ -1,499 +1,827 @@
+<!-- files/list.html -->
 {% extends "base.html" %}
 
-{% block title %}Files - Crypto Hunter{% endblock %}
+{% block title %}File Browser - Crypto Hunter{% endblock %}
 
 {% block extra_head %}
 <style>
-.filter-tag {
-    transition: all 0.2s ease;
-}
-.filter-tag:hover {
-    transform: translateY(-1px);
-}
-.file-row {
-    transition: all 0.2s ease;
-}
-.file-row:hover {
-    background-color: #f8fafc;
-    transform: translateX(2px);
-}
-.search-highlight {
-    background-color: #fef3c7;
-    padding: 1px 2px;
-    border-radius: 2px;
-}
+    .file-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    
+    .file-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .file-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border-color: #3b82f6;
+    }
+    
+    .file-card.selected {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    
+    .file-preview {
+        height: 120px;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .file-icon {
+        font-size: 3rem;
+        opacity: 0.7;
+    }
+    
+    .file-status-overlay {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-complete { background: #dcfce7; color: #166534; }
+    .status-analyzing { background: #dbeafe; color: #1e40af; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-error { background: #fee2e2; color: #991b1b; }
+    
+    .analysis-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: #f1f5f9;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+        transition: width 0.5s ease;
+    }
+    
+    .progress-bar.pulse {
+        animation: progressPulse 1.5s infinite;
+    }
+    
+    @keyframes progressPulse {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+    }
+    
+    .file-actions {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        display: flex;
+        gap: 4px;
+    }
+    
+    .file-card:hover .file-actions {
+        opacity: 1;
+    }
+    
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .action-btn:hover {
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .bulk-actions {
+        position: sticky;
+        top: 100px;
+        z-index: 20;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transform: translateY(-60px);
+        opacity: 0;
+        transition: all 0.3s ease;
+    }
+    
+    .bulk-actions.active {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    
+    .filter-bar {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        padding: 16px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+    }
+    
+    .view-switcher {
+        display: flex;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    
+    .view-btn {
+        padding: 8px 12px;
+        border: none;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+    
+    .view-btn.active {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .sort-dropdown {
+        position: relative;
+    }
+    
+    .dropdown-content {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        min-width: 200px;
+        z-index: 30;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s;
+    }
+    
+    .dropdown-content.active {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+    
+    .stats-bar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        color: #6b7280;
+    }
+    
+    .search-highlight {
+        background: rgba(59, 130, 246, 0.2);
+        padding: 2px 4px;
+        border-radius: 2px;
+    }
+    
+    .infinite-scroll-trigger {
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 20px;
+    }
+    
+    .file-preview-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .file-preview-modal.active {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .preview-content {
+        background: white;
+        border-radius: 8px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: auto;
+        position: relative;
+    }
+    
+    .tag-badge {
+        display: inline-block;
+        background: #f3f4f6;
+        color: #374151;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-right: 4px;
+        margin-bottom: 2px;
+    }
+    
+    .table-view {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .table-view table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .table-view th {
+        background: #f9fafb;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #374151;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .table-view td {
+        padding: 12px;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: middle;
+    }
+    
+    .table-view tr:hover {
+        background: #f9fafb;
+    }
+    
+    .table-view tr.selected {
+        background: #eff6ff;
+        border-color: #3b82f6;
+    }
+    
+    .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        z-index: 40;
+        min-width: 180px;
+        opacity: 0;
+        visibility: hidden;
+        transform: scale(0.95);
+        transition: all 0.2s;
+    }
+    
+    .context-menu.active {
+        opacity: 1;
+        visibility: visible;
+        transform: scale(1);
+    }
+    
+    .context-menu-item {
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #374151;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .context-menu-item:hover {
+        background: #f9fafb;
+    }
+    
+    .context-menu-item:last-child {
+        border-bottom: none;
+    }
+    
+    .context-menu-item.destructive {
+        color: #dc2626;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6b7280;
+    }
+    
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Header -->
-    <div class="mb-8">
+<div class="space-y-6">
+    <!-- Header Section -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">File Management</h1>
-                <p class="mt-1 text-sm text-gray-600">
-                    Manage and analyze your steganography files
-                </p>
+                <h1 class="text-2xl font-bold text-gray-900">File Browser</h1>
+                <div class="breadcrumb">
+                    <i class="fas fa-home"></i>
+                    <span>Files</span>
+                    {% if current_folder %}
+                    <i class="fas fa-chevron-right"></i>
+                    <span>{{ current_folder }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="flex space-x-3">
+            
+            <div class="flex items-center space-x-3">
+                <div class="view-switcher">
+                    <button class="view-btn active" onclick="switchView('grid')" data-view="grid">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                    <button class="view-btn" onclick="switchView('list')" data-view="list">
+                        <i class="fas fa-list"></i>
+                    </button>
+                    <button class="view-btn" onclick="switchView('table')" data-view="table">
+                        <i class="fas fa-table"></i>
+                    </button>
+                </div>
+                
                 <a href="{{ url_for('files.upload_file') }}" 
-                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium flex items-center">
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
                     <i class="fas fa-upload mr-2"></i>Upload Files
                 </a>
-                <button onclick="startBatchAnalysis()" 
-                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium flex items-center">
-                    <i class="fas fa-play mr-2"></i>Batch Analysis
-                </button>
             </div>
         </div>
     </div>
 
-    <!-- Advanced Search Component -->
-    <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div class="space-y-4">
-            <!-- Main Search Bar -->
+    <!-- Statistics Bar -->
+    <div class="stats-bar">
+        <div class="flex items-center space-x-6">
+            <div class="text-center">
+                <div class="text-2xl font-bold">{{ files.total }}</div>
+                <div class="text-sm opacity-90">Total Files</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold">{{ analyzed_count }}</div>
+                <div class="text-sm opacity-90">Analyzed</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold">{{ pending_count }}</div>
+                <div class="text-sm opacity-90">Pending</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold">{{ total_size | filesizeformat }}</div>
+                <div class="text-sm opacity-90">Total Size</div>
+            </div>
+        </div>
+        
+        <div class="text-right">
+            <div class="text-sm opacity-90">Real-time Status</div>
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span class="text-sm">{{ active_workers }} workers active</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <div class="flex-1 flex items-center space-x-4">
             <div class="relative">
-                <div class="flex">
-                    <div class="relative flex-1">
-                        <input type="text" id="hyperfast-search" value="{{ search or '' }}"
-                               placeholder="Hyperfast search: filename, SHA, patterns, content..."
-                               class="w-full px-4 py-2 pr-12 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                            <i class="fas fa-search text-gray-400"></i>
+                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="search-input" placeholder="Search files..." 
+                       value="{{ request.args.get('search', '') }}"
+                       class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            
+            <select id="file-type-filter" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">All Types</option>
+                {% for file_type in file_types %}
+                <option value="{{ file_type }}" {% if request.args.get('type') == file_type %}selected{% endif %}>
+                    {{ file_type | title }}
+                </option>
+                {% endfor %}
+            </select>
+            
+            <select id="status-filter" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">All Status</option>
+                <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="analyzing" {% if request.args.get('status') == 'analyzing' %}selected{% endif %}>Analyzing</option>
+                <option value="complete" {% if request.args.get('status') == 'complete' %}selected{% endif %}>Complete</option>
+                <option value="error" {% if request.args.get('status') == 'error' %}selected{% endif %}>Error</option>
+            </select>
+            
+            <div class="sort-dropdown">
+                <button onclick="toggleDropdown()" class="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <i class="fas fa-sort mr-2"></i>Sort
+                    <i class="fas fa-chevron-down ml-2"></i>
+                </button>
+                <div class="dropdown-content" id="sort-dropdown">
+                    <div class="p-2">
+                        <div class="context-menu-item" onclick="sortFiles('name')">
+                            <i class="fas fa-sort-alpha-down"></i>Name
+                        </div>
+                        <div class="context-menu-item" onclick="sortFiles('size')">
+                            <i class="fas fa-weight-hanging"></i>Size
+                        </div>
+                        <div class="context-menu-item" onclick="sortFiles('date')">
+                            <i class="fas fa-calendar"></i>Date Added
+                        </div>
+                        <div class="context-menu-item" onclick="sortFiles('type')">
+                            <i class="fas fa-file"></i>File Type
+                        </div>
+                        <div class="context-menu-item" onclick="sortFiles('status')">
+                            <i class="fas fa-tasks"></i>Status
                         </div>
                     </div>
-                    <button id="search-btn" onclick="performSearch()"
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-r-md">
-                        Search
-                    </button>
-                    <button id="magic-search-btn" onclick="performMagicSearch()"
-                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 ml-2 rounded">
-                        Magic
-                    </button>
-                </div>
-
-                <!-- Search Suggestions -->
-                <div id="search-suggestions" class="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 hidden">
-                    <!-- Suggestions populated by JS -->
                 </div>
             </div>
-
-            <!-- Advanced Filters Row -->
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                <select id="filter-type" onchange="updateFilters()" class="px-3 py-2 border border-gray-300 rounded text-sm">
-                    <option value="">All Types</option>
-                    <option value="image" {% if file_type_filter == 'image' %}selected{% endif %}>Images</option>
-                    <option value="text" {% if file_type_filter == 'text' %}selected{% endif %}>Text</option>
-                    <option value="binary" {% if file_type_filter == 'binary' %}selected{% endif %}>Binary</option>
-                    <option value="archive" {% if file_type_filter == 'archive' %}selected{% endif %}>Archives</option>
-                    <option value="document" {% if file_type_filter == 'document' %}selected{% endif %}>Documents</option>
-                </select>
-
-                <select id="filter-status" onchange="updateFilters()" class="px-3 py-2 border border-gray-300 rounded text-sm">
-                    <option value="">All Status</option>
-                    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-                    <option value="complete" {% if status_filter == 'complete' %}selected{% endif %}>Complete</option>
-                    <option value="analyzing" {% if status_filter == 'analyzing' %}selected{% endif %}>Analyzing</option>
-                    <option value="error" {% if status_filter == 'error' %}selected{% endif %}>Error</option>
-                </select>
-
-                <select id="filter-size" onchange="updateFilters()" class="px-3 py-2 border border-gray-300 rounded text-sm">
-                    <option value="">All Sizes</option>
-                    <option value="small">< 1MB</option>
-                    <option value="medium">1MB - 10MB</option>
-                    <option value="large">10MB - 100MB</option>
-                    <option value="huge">> 100MB</option>
-                </select>
-
-                <select id="filter-root" onchange="updateFilters()" class="px-3 py-2 border border-gray-300 rounded text-sm">
-                    <option value="">All Files</option>
-                    <option value="root" {% if root_only %}selected{% endif %}>Root Files Only</option>
-                    <option value="extracted">Extracted Only</option>
-                </select>
-
-                <input type="date" id="filter-date-from" onchange="updateFilters()" 
-                       class="px-3 py-2 border border-gray-300 rounded text-sm"
-                       placeholder="From Date">
-
-                <input type="date" id="filter-date-to" onchange="updateFilters()" 
-                       class="px-3 py-2 border border-gray-300 rounded text-sm"
-                       placeholder="To Date">
-            </div>
-
-            <!-- Active Filters Display -->
-            <div id="active-filters" class="flex flex-wrap gap-2">
-                {% if search %}
-                <span class="filter-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
-                    Search: "{{ search }}"
-                    <button onclick="clearFilter('search')" class="ml-2 text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </span>
-                {% endif %}
-                {% if file_type_filter %}
-                <span class="filter-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                    Type: {{ file_type_filter }}
-                    <button onclick="clearFilter('file_type')" class="ml-2 text-green-600 hover:text-green-800">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </span>
-                {% endif %}
-                {% if status_filter %}
-                <span class="filter-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">
-                    Status: {{ status_filter }}
-                    <button onclick="clearFilter('status')" class="ml-2 text-yellow-600 hover:text-yellow-800">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </span>
-                {% endif %}
-                {% if root_only %}
-                <span class="filter-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
-                    Root Files Only
-                    <button onclick="clearFilter('root_only')" class="ml-2 text-purple-600 hover:text-purple-800">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </span>
-                {% endif %}
-            </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <label class="flex items-center text-sm">
+                <input type="checkbox" id="select-all" class="mr-2 rounded">
+                Select All
+            </label>
+            <span id="selected-count" class="text-sm text-gray-600">0 selected</span>
         </div>
     </div>
 
-    <!-- File Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="flex items-center">
-                <div class="p-2 bg-blue-100 rounded-lg">
-                    <i class="fas fa-file text-blue-600"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Total Files</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ files.total }}</p>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="flex items-center">
-                <div class="p-2 bg-green-100 rounded-lg">
-                    <i class="fas fa-check-circle text-green-600"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Analyzed</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ analyzed_count }}</p>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="flex items-center">
-                <div class="p-2 bg-yellow-100 rounded-lg">
-                    <i class="fas fa-clock text-yellow-600"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Pending</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ pending_count }}</p>
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-actions" id="bulk-actions">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-medium text-gray-700">
+                    <span id="bulk-count">0</span> files selected
+                </span>
+                <div class="h-4 w-px bg-gray-300"></div>
+                <div class="flex space-x-2">
+                    <button onclick="bulkAnalyze()" class="text-sm text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-play mr-1"></i>Analyze Selected
+                    </button>
+                    <button onclick="bulkDownload()" class="text-sm text-green-600 hover:text-green-800">
+                        <i class="fas fa-download mr-1"></i>Download
+                    </button>
+                    <button onclick="bulkAddToSession()" class="text-sm text-purple-600 hover:text-purple-800">
+                        <i class="fas fa-puzzle-piece mr-1"></i>Add to Session
+                    </button>
+                    <button onclick="bulkDelete()" class="text-sm text-red-600 hover:text-red-800">
+                        <i class="fas fa-trash mr-1"></i>Delete
+                    </button>
                 </div>
             </div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="flex items-center">
-                <div class="p-2 bg-purple-100 rounded-lg">
-                    <i class="fas fa-gem text-purple-600"></i>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Root Files</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ root_count }}</p>
-                </div>
-            </div>
+            <button onclick="clearSelection()" class="text-sm text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times mr-1"></i>Clear Selection
+            </button>
         </div>
     </div>
 
-    <!-- File List -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900">
-                    Files ({{ files.total }} total, showing {{ files.items|length }})
-                </h2>
-                <div class="flex items-center space-x-2">
-                    <select id="sort-by" onchange="updateSort()" class="text-sm border border-gray-300 rounded px-2 py-1">
-                        <option value="created_at">Sort by Date</option>
-                        <option value="filename">Sort by Name</option>
-                        <option value="file_size">Sort by Size</option>
-                        <option value="status">Sort by Status</option>
-                    </select>
-                    <select id="sort-order" onchange="updateSort()" class="text-sm border border-gray-300 rounded px-2 py-1">
-                        <option value="desc">Descending</option>
-                        <option value="asc">Ascending</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
+    <!-- File Grid View -->
+    <div id="grid-view" class="file-grid">
         {% if files.items %}
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <input type="checkbox" id="select-all" onchange="toggleSelectAll()" class="mr-2">
-                            File
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SHA256</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for file in files.items %}
-                    <tr class="file-row" data-file-id="{{ file.id }}">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <input type="checkbox" class="file-checkbox mr-3" value="{{ file.id }}">
-                                <div class="flex-shrink-0">
-                                    {% if file.is_root_file %}
-                                        <i class="fas fa-gem text-purple-500 text-lg" title="Root File"></i>
-                                    {% elif file.file_type == 'image' %}
-                                        <i class="fas fa-image text-blue-500"></i>
-                                    {% elif file.file_type == 'archive' %}
-                                        <i class="fas fa-file-archive text-yellow-500"></i>
-                                    {% elif file.file_type == 'text' %}
-                                        <i class="fas fa-file-alt text-green-500"></i>
-                                    {% else %}
-                                        <i class="fas fa-file text-gray-400"></i>
-                                    {% endif %}
-                                </div>
-                                <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">
-                                        <a href="{{ url_for('files.file_detail', sha=file.sha256_hash) }}" 
-                                           class="hover:text-indigo-600">
-                                            {{ file.filename }}
-                                        </a>
-                                    </div>
-                                    <div class="text-sm text-gray-500">
-                                        {{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
-                                        {% if file.findings.count() > 0 %}
-                                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                {{ file.findings.count() }} findings
-                                            </span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900 font-mono">
-                                <span class="cursor-pointer" onclick="copyToClipboard('{{ file.sha256_hash }}')" 
-                                      title="Click to copy">
-                                    {{ file.sha256_hash[:16] }}...
-                                </span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                {% if file.file_type == 'image' %}bg-blue-100 text-blue-800
-                                {% elif file.file_type == 'archive' %}bg-yellow-100 text-yellow-800
-                                {% elif file.file_type == 'text' %}bg-green-100 text-green-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ file.file_type or file.mime_type or 'Unknown' }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {% if file.file_size %}
-                                {% if file.file_size < 1024 %}
-                                    {{ file.file_size }} B
-                                {% elif file.file_size < 1024*1024 %}
-                                    {{ "%.1f"|format(file.file_size / 1024) }} KB
-                                {% elif file.file_size < 1024*1024*1024 %}
-                                    {{ "%.1f"|format(file.file_size / (1024*1024)) }} MB
-                                {% else %}
-                                    {{ "%.2f"|format(file.file_size / (1024*1024*1024)) }} GB
-                                {% endif %}
-                            {% else %}
-                                Unknown
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                {% if file.status == 'complete' %}bg-green-100 text-green-800
-                                {% elif file.status == 'pending' %}bg-yellow-100 text-yellow-800
-                                {% elif file.status == 'analyzing' %}bg-blue-100 text-blue-800
-                                {% else %}bg-red-100 text-red-800{% endif %}">
-                                {% if file.status == 'analyzing' %}
-                                    <div class="spinner mr-1"></div>
-                                {% endif %}
-                                {{ file.status.title() }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            {% if file.status == 'complete' %}
-                                <div class="flex items-center">
-                                    <div class="w-16 bg-gray-200 rounded-full h-2">
-                                        <div class="bg-green-500 h-2 rounded-full" style="width: 100%"></div>
-                                    </div>
-                                    <span class="ml-2 text-xs text-gray-500">100%</span>
-                                </div>
-                            {% elif file.status == 'analyzing' %}
-                                <div class="flex items-center">
-                                    <div class="w-16 bg-gray-200 rounded-full h-2">
-                                        <div class="bg-blue-500 h-2 rounded-full animate-pulse" style="width: 60%"></div>
-                                    </div>
-                                    <span class="ml-2 text-xs text-gray-500">60%</span>
-                                </div>
-                            {% else %}
-                                <div class="flex items-center">
-                                    <div class="w-16 bg-gray-200 rounded-full h-2">
-                                        <div class="bg-gray-300 h-2 rounded-full" style="width: 0%"></div>
-                                    </div>
-                                    <span class="ml-2 text-xs text-gray-500">0%</span>
-                                </div>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                            <a href="{{ url_for('files.file_detail', sha=file.sha256_hash) }}" 
-                               class="text-indigo-600 hover:text-indigo-900" title="View Details">
+            {% for file in files.items %}
+            <div class="file-card" data-file-id="{{ file.id }}" data-file-hash="{{ file.sha256_hash }}">
+                <!-- File Actions -->
+                <div class="file-actions">
+                    <button class="action-btn" onclick="selectFile(event, '{{ file.id }}')" title="Select">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="action-btn" onclick="previewFile('{{ file.sha256_hash }}')" title="Quick Preview">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                
+                <!-- Status Overlay -->
+                <div class="file-status-overlay status-{{ file.status.value if file.status else 'pending' }}">
+                    {{ file.status.value.title() if file.status else 'Pending' }}
+                </div>
+                
+                <!-- File Preview -->
+                <div class="file-preview" onclick="openFile('{{ file.sha256_hash }}')">
+                    {% if file.mime_type %}
+                        {% if 'image' in file.mime_type %}
+                            <i class="file-icon fas fa-image text-blue-500"></i>
+                        {% elif 'audio' in file.mime_type %}
+                            <i class="file-icon fas fa-music text-green-500"></i>
+                        {% elif 'video' in file.mime_type %}
+                            <i class="file-icon fas fa-video text-purple-500"></i>
+                        {% elif 'archive' in file.mime_type or 'zip' in file.mime_type %}
+                            <i class="file-icon fas fa-archive text-yellow-500"></i>
+                        {% elif 'text' in file.mime_type %}
+                            <i class="file-icon fas fa-file-alt text-gray-500"></i>
+                        {% elif 'pdf' in file.mime_type %}
+                            <i class="file-icon fas fa-file-pdf text-red-500"></i>
+                        {% else %}
+                            <i class="file-icon fas fa-file text-gray-400"></i>
+                        {% endif %}
+                    {% else %}
+                        <i class="file-icon fas fa-file text-gray-400"></i>
+                    {% endif %}
+                    
+                    <!-- Progress Bar for Analyzing Files -->
+                    {% if file.status and file.status.value == 'analyzing' %}
+                    <div class="analysis-progress">
+                        <div class="progress-bar pulse" style="width: 60%"></div>
+                    </div>
+                    {% elif file.status and file.status.value == 'complete' %}
+                    <div class="analysis-progress">
+                        <div class="progress-bar" style="width: 100%"></div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- File Info -->
+                <div class="p-4">
+                    <h3 class="font-medium text-gray-900 truncate mb-1" title="{{ file.filename }}">
+                        {{ file.filename }}
+                    </h3>
+                    
+                    <div class="text-sm text-gray-600 mb-2">
+                        <div class="flex justify-between items-center">
+                            <span>{{ file.file_size | filesizeformat }}</span>
+                            <span>{{ file.created_at.strftime('%m/%d') if file.created_at else '' }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            {{ file.mime_type.split('/')[1] if file.mime_type and '/' in file.mime_type else (file.mime_type or 'Unknown') }}
+                        </div>
+                    </div>
+                    
+                    <!-- Tags -->
+                    {% if file.tags %}
+                    <div class="mb-2">
+                        {% for tag in file.tags[:3] %}
+                        <span class="tag-badge">{{ tag }}</span>
+                        {% endfor %}
+                        {% if file.tags|length > 3 %}
+                        <span class="tag-badge">+{{ file.tags|length - 3 }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Findings Count -->
+                    {% if file.findings_count %}
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span>
+                            <i class="fas fa-search mr-1"></i>
+                            {{ file.findings_count }} finding{{ 's' if file.findings_count != 1 else '' }}
+                        </span>
+                        {% if file.extracted_files_count %}
+                        <span>
+                            <i class="fas fa-boxes mr-1"></i>
+                            {{ file.extracted_files_count }} extracted
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="px-4 pb-4 flex space-x-2">
+                    <button onclick="openFile('{{ file.sha256_hash }}')" 
+                            class="flex-1 bg-blue-50 text-blue-700 px-3 py-1 rounded text-xs font-medium hover:bg-blue-100 transition-colors">
+                        View Details
+                    </button>
+                    {% if file.status and file.status.value == 'pending' %}
+                    <button onclick="analyzeFile('{{ file.sha256_hash }}')" 
+                            class="bg-green-50 text-green-700 px-3 py-1 rounded text-xs font-medium hover:bg-green-100 transition-colors">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-span-full">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📁</div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No Files Found</h3>
+                    <p class="text-gray-600 mb-6">
+                        {% if request.args.get('search') %}
+                            No files match your search criteria.
+                        {% else %}
+                            Upload your first files to start analyzing them.
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('files.upload_file') }}" 
+                       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-upload mr-2"></i>Upload Files
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Table View (Hidden by default) -->
+    <div id="table-view" class="table-view hidden">
+        <table>
+            <thead>
+                <tr>
+                    <th width="40">
+                        <input type="checkbox" id="table-select-all" class="rounded">
+                    </th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Status</th>
+                    <th>Findings</th>
+                    <th>Date Added</th>
+                    <th width="120">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in files.items %}
+                <tr class="table-row" data-file-id="{{ file.id }}" onclick="selectTableRow(this, '{{ file.id }}')">
+                    <td>
+                        <input type="checkbox" class="file-select rounded" value="{{ file.id }}">
+                    </td>
+                    <td>
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-file text-gray-400"></i>
+                            <span class="font-medium truncate">{{ file.filename }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="text-sm text-gray-600">
+                            {{ file.mime_type.split('/')[1] if file.mime_type and '/' in file.mime_type else (file.mime_type or 'Unknown') }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="text-sm">{{ file.file_size | filesizeformat }}</span>
+                    </td>
+                    <td>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if file.status and file.status.value == 'complete' %}bg-green-100 text-green-800
+                            {% elif file.status and file.status.value == 'analyzing' %}bg-blue-100 text-blue-800
+                            {% elif file.status and file.status.value == 'error' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ file.status.value.title() if file.status else 'Pending' }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="text-sm">{{ file.findings_count or 0 }}</span>
+                    </td>
+                    <td>
+                        <span class="text-sm text-gray-600">
+                            {{ file.created_at.strftime('%Y-%m-%d %H:%M') if file.created_at else 'Unknown' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="flex space-x-1">
+                            <button onclick="openFile('{{ file.sha256_hash }}')" 
+                                    class="text-blue-600 hover:text-blue-800" title="View Details">
                                 <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="{{ url_for('content.file_content', sha=file.sha256_hash) }}" 
-                               class="text-green-600 hover:text-green-900" title="View Content">
-                                <i class="fas fa-file-code"></i>
-                            </a>
+                            </button>
+                            <button onclick="previewFile('{{ file.sha256_hash }}')" 
+                                    class="text-green-600 hover:text-green-800" title="Preview">
+                                <i class="fas fa-search"></i>
+                            </button>
                             <a href="{{ url_for('graph.graph_focus', sha=file.sha256_hash) }}" 
-                               class="text-purple-600 hover:text-purple-900" title="View Graph">
+                               class="text-purple-600 hover:text-purple-800" title="Graph View">
                                 <i class="fas fa-project-diagram"></i>
                             </a>
-                            {% if file.status == 'pending' %}
-                            <button onclick="analyzeFile('{{ file.sha256_hash }}')" 
-                                    class="text-blue-600 hover:text-blue-900" title="Start Analysis">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            {% endif %}
-                            <button onclick="downloadFile('{{ file.sha256_hash }}')" 
-                                    class="text-gray-600 hover:text-gray-900" title="Download">
-                                <i class="fas fa-download"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Pagination -->
-        {% if files.pages > 1 %}
-        <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div class="flex-1 flex justify-between sm:hidden">
-                {% if files.has_prev %}
-                <a href="{{ url_for('files.file_list', page=files.prev_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
-                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Previous
-                </a>
-                {% endif %}
-                {% if files.has_next %}
-                <a href="{{ url_for('files.file_list', page=files.next_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
-                   class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Next
-                </a>
-                {% endif %}
-            </div>
-            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-gray-700">
-                        Showing <span class="font-medium">{{ files.per_page * (files.page - 1) + 1 }}</span>
-                        to <span class="font-medium">{{ files.per_page * (files.page - 1) + files.items|length }}</span>
-                        of <span class="font-medium">{{ files.total }}</span> results
-                    </p>
-                </div>
-                <div>
-                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                        {% if files.has_prev %}
-                        <a href="{{ url_for('files.file_list', page=files.prev_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
-                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                        {% endif %}
-
-                        {% for page_num in files.iter_pages() %}
-                            {% if page_num %}
-                                {% if page_num != files.page %}
-                                <a href="{{ url_for('files.file_list', page=page_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
-                                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                    {{ page_num }}
-                                </a>
-                                {% else %}
-                                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">
-                                    {{ page_num }}
-                                </span>
-                                {% endif %}
-                            {% else %}
-                            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                                ...
-                            </span>
-                            {% endif %}
-                        {% endfor %}
-
-                        {% if files.has_next %}
-                        <a href="{{ url_for('files.file_list', page=files.next_num, search=search, sha=sha_search, status=status_filter, file_type=file_type_filter, root_only=root_only) }}" 
-                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                        {% endif %}
-                    </nav>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {% else %}
-        <!-- Empty State -->
-        <div class="text-center py-12">
-            <div class="text-6xl mb-4">📁</div>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">No files found</h3>
-            <p class="text-gray-500 mb-6">
-                {% if search or status_filter or file_type_filter %}
-                    No files match your current filters. Try adjusting your search criteria.
-                {% else %}
-                    Get started by uploading your first file for analysis.
-                {% endif %}
-            </p>
-            <div class="space-x-3">
-                {% if search or status_filter or file_type_filter %}
-                <button onclick="clearAllFilters()" 
-                        class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
-                    Clear Filters
-                </button>
-                {% endif %}
-                <a href="{{ url_for('files.upload_file') }}" 
-                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
-                    Upload Files
-                </a>
-            </div>
-        </div>
-        {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    <!-- Bulk Actions Bar (hidden by default) -->
-    <div id="bulk-actions-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 hidden">
-        <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <div class="flex items-center">
-                <span id="selected-count" class="text-sm text-gray-700">0 files selected</span>
-            </div>
-            <div class="flex items-center space-x-3">
-                <button onclick="bulkAnalyze()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm">
-                    <i class="fas fa-play mr-2"></i>Analyze Selected
-                </button>
-                <button onclick="bulkDownload()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">
-                    <i class="fas fa-download mr-2"></i>Download Selected
-                </button>
-                <button onclick="bulkDelete()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
-                    <i class="fas fa-trash mr-2"></i>Delete Selected
-                </button>
-                <button onclick="clearSelection()" class="text-gray-600 hover:text-gray-800 px-4 py-2 text-sm">
-                    Clear Selection
-                </button>
-            </div>
+    <!-- Pagination -->
+    {% if files.pages > 1 %}
+    <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-6 py-3">
+        <div class="text-sm text-gray-600">
+            Showing {{ files.per_page * (files.page - 1) + 1 }} to {{ files.per_page * (files.page - 1) + files.items|length }} of {{ files.total }} files
+        </div>
+        
+        <div class="flex space-x-1">
+            {% if files.has_prev %}
+            <a href="{{ url_for('files.file_list', page=files.prev_num, **request.args.to_dict(flat=False)|reject_page) }}" 
+               class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                Previous
+            </a>
+            {% endif %}
+            
+            {% for page_num in files.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != files.page %}
+                    <a href="{{ url_for('files.file_list', page=page_num, **request.args.to_dict(flat=False)|reject_page) }}" 
+                       class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                        {{ page_num }}
+                    </a>
+                    {% else %}
+                    <span class="px-3 py-2 text-sm bg-blue-600 text-white border border-blue-600 rounded-lg">
+                        {{ page_num }}
+                    </span>
+                    {% endif %}
+                {% else %}
+                <span class="px-3 py-2 text-sm text-gray-500">…</span>
+                {% endif %}
+            {% endfor %}
+            
+            {% if files.has_next %}
+            <a href="{{ url_for('files.file_list', page=files.next_num, **request.args.to_dict(flat=False)|reject_page) }}" 
+               class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                Next
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Infinite Scroll Trigger -->
+    <div class="infinite-scroll-trigger" id="scroll-trigger">
+        <div class="text-center">
+            <i class="fas fa-spinner fa-spin text-gray-400"></i>
+            <div class="text-sm text-gray-500 mt-2">Loading more files...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Context Menu -->
+<div class="context-menu" id="context-menu">
+    <div class="context-menu-item" onclick="contextAction('view')">
+        <i class="fas fa-eye"></i>View Details
+    </div>
+    <div class="context-menu-item" onclick="contextAction('preview')">
+        <i class="fas fa-search"></i>Quick Preview
+    </div>
+    <div class="context-menu-item" onclick="contextAction('analyze')">
+        <i class="fas fa-play"></i>Start Analysis
+    </div>
+    <div class="context-menu-item" onclick="contextAction('download')">
+        <i class="fas fa-download"></i>Download
+    </div>
+    <div class="context-menu-item" onclick="contextAction('graph')">
+        <i class="fas fa-project-diagram"></i>View in Graph
+    </div>
+    <div class="context-menu-item" onclick="contextAction('session')">
+        <i class="fas fa-puzzle-piece"></i>Add to Session
+    </div>
+    <div class="context-menu-item destructive" onclick="contextAction('delete')">
+        <i class="fas fa-trash"></i>Delete File
+    </div>
+</div>
+
+<!-- File Preview Modal -->
+<div class="file-preview-modal" id="preview-modal">
+    <div class="preview-content">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900" id="preview-title">File Preview</h3>
+            <button onclick="closePreview()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-6" id="preview-content">
+            <!-- Dynamic preview content -->
         </div>
     </div>
 </div>
@@ -501,354 +829,412 @@
 
 {% block extra_scripts %}
 <script>
-// Global variables
 let selectedFiles = new Set();
+let currentView = 'grid';
+let contextMenuTarget = null;
+
+// View switching
+function switchView(view) {
+    currentView = view;
+    
+    // Update button states
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    
+    // Show/hide views
+    document.getElementById('grid-view').classList.toggle('hidden', view !== 'grid');
+    document.getElementById('table-view').classList.toggle('hidden', view !== 'table');
+    
+    // Store preference
+    localStorage.setItem('fileViewPreference', view);
+}
+
+// File selection
+function selectFile(event, fileId) {
+    event.stopPropagation();
+    
+    const card = document.querySelector(`[data-file-id="${fileId}"]`);
+    
+    if (selectedFiles.has(fileId)) {
+        selectedFiles.delete(fileId);
+        card.classList.remove('selected');
+    } else {
+        selectedFiles.add(fileId);
+        card.classList.add('selected');
+    }
+    
+    updateSelectionUI();
+}
+
+function selectTableRow(row, fileId) {
+    const checkbox = row.querySelector('.file-select');
+    checkbox.checked = !checkbox.checked;
+    
+    if (checkbox.checked) {
+        selectedFiles.add(fileId);
+        row.classList.add('selected');
+    } else {
+        selectedFiles.delete(fileId);
+        row.classList.remove('selected');
+    }
+    
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const count = selectedFiles.size;
+    
+    // Update counters
+    document.getElementById('selected-count').textContent = `${count} selected`;
+    document.getElementById('bulk-count').textContent = count;
+    
+    // Show/hide bulk actions
+    const bulkActions = document.getElementById('bulk-actions');
+    bulkActions.classList.toggle('active', count > 0);
+    
+    // Update select all checkbox
+    const totalFiles = document.querySelectorAll('.file-card').length;
+    const selectAllCheckbox = document.getElementById('select-all');
+    selectAllCheckbox.checked = count === totalFiles && count > 0;
+    selectAllCheckbox.indeterminate = count > 0 && count < totalFiles;
+}
+
+// Select all functionality
+document.getElementById('select-all').addEventListener('change', function() {
+    const shouldSelect = this.checked;
+    selectedFiles.clear();
+    
+    document.querySelectorAll('.file-card').forEach(card => {
+        const fileId = card.dataset.fileId;
+        card.classList.toggle('selected', shouldSelect);
+        
+        if (shouldSelect) {
+            selectedFiles.add(fileId);
+        }
+    });
+    
+    // Update table checkboxes too
+    document.querySelectorAll('.file-select').forEach(checkbox => {
+        checkbox.checked = shouldSelect;
+    });
+    
+    updateSelectionUI();
+});
 
 // Search functionality
-function performSearch() {
-    const query = document.getElementById('hyperfast-search').value;
-    updateUrl({ search: query, page: 1 });
+let searchTimeout;
+document.getElementById('search-input').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        const searchTerm = this.value.toLowerCase();
+        filterFiles();
+    }, 300);
+});
+
+// Filter functionality
+document.getElementById('file-type-filter').addEventListener('change', filterFiles);
+document.getElementById('status-filter').addEventListener('change', filterFiles);
+
+function filterFiles() {
+    const searchTerm = document.getElementById('search-input').value.toLowerCase();
+    const typeFilter = document.getElementById('file-type-filter').value;
+    const statusFilter = document.getElementById('status-filter').value;
+    
+    const params = new URLSearchParams(window.location.search);
+    
+    if (searchTerm) params.set('search', searchTerm);
+    else params.delete('search');
+    
+    if (typeFilter) params.set('type', typeFilter);
+    else params.delete('type');
+    
+    if (statusFilter) params.set('status', statusFilter);
+    else params.delete('status');
+    
+    // Update URL without reload for better UX
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({}, '', newUrl);
+    
+    // In a real implementation, you'd fetch filtered results
+    // For now, we'll just reload
+    setTimeout(() => window.location.reload(), 100);
 }
 
-function performMagicSearch() {
-    const query = document.getElementById('hyperfast-search').value;
-    if (!query) {
-        showNotification('Enter a search query first', 'warning');
-        return;
-    }
-
-    showLoading();
-    fetch('/api/search/magic', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
-        },
-        body: JSON.stringify({ query: query })
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading();
-        if (data.success) {
-            // Apply magic search results
-            updateUrl({ search: data.enhanced_query, page: 1 });
-        } else {
-            showNotification('Magic search failed: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        hideLoading();
-        showNotification('Magic search failed', 'error');
-    });
+// Sort functionality
+function toggleDropdown() {
+    const dropdown = document.getElementById('sort-dropdown');
+    dropdown.classList.toggle('active');
 }
 
-// Filter management
-function updateFilters() {
-    const type = document.getElementById('filter-type').value;
-    const status = document.getElementById('filter-status').value;
-    const size = document.getElementById('filter-size').value;
-    const root = document.getElementById('filter-root').value;
-    const dateFrom = document.getElementById('filter-date-from').value;
-    const dateTo = document.getElementById('filter-date-to').value;
-
-    updateUrl({
-        file_type: type,
-        status: status,
-        size: size,
-        root_only: root === 'root',
-        date_from: dateFrom,
-        date_to: dateTo,
-        page: 1
-    });
-}
-
-function clearFilter(filterType) {
-    const params = {};
-    params[filterType] = '';
-    params.page = 1;
-    updateUrl(params);
-}
-
-function clearAllFilters() {
-    updateUrl({
-        search: '',
-        file_type: '',
-        status: '',
-        size: '',
-        root_only: '',
-        date_from: '',
-        date_to: '',
-        page: 1
-    });
-}
-
-// Sorting
-function updateSort() {
-    const sortBy = document.getElementById('sort-by').value;
-    const sortOrder = document.getElementById('sort-order').value;
-    updateUrl({ sort_by: sortBy, sort_order: sortOrder, page: 1 });
-}
-
-// URL management
-function updateUrl(params) {
-    const url = new URL(window.location);
-    Object.keys(params).forEach(key => {
-        if (params[key] === '' || params[key] === null || params[key] === false) {
-            url.searchParams.delete(key);
-        } else {
-            url.searchParams.set(key, params[key]);
-        }
-    });
-    window.location.href = url.toString();
+function sortFiles(sortBy) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('sort', sortBy);
+    
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
 }
 
 // File actions
-function analyzeFile(sha) {
-    showLoading();
-    fetch(`/api/analysis/start/${sha}`, {
+function openFile(hash) {
+    window.location.href = `/files/${hash}/details`;
+}
+
+function previewFile(hash) {
+    fetch(`/api/files/${hash}/preview`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showPreviewModal(data.preview);
+            } else {
+                alert('Preview not available for this file type');
+            }
+        });
+}
+
+function analyzeFile(hash) {
+    fetch(`/api/files/${hash}/analyze`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': getCSRFToken()
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading();
-        if (data.success) {
-            showNotification(`Analysis started for ${data.filename}`, 'success');
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            showNotification('Failed to start analysis: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        hideLoading();
-        showNotification('Failed to start analysis', 'error');
-    });
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              // Update UI to show analysis started
+              const card = document.querySelector(`[data-file-hash="${hash}"]`);
+              if (card) {
+                  card.querySelector('.file-status-overlay').textContent = 'Analyzing';
+                  card.querySelector('.file-status-overlay').className = 'file-status-overlay status-analyzing';
+              }
+          } else {
+              alert('Failed to start analysis: ' + data.error);
+          }
+      });
 }
 
-function downloadFile(sha) {
-    window.open(`/files/${sha}/download`, '_blank');
-}
-
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification('SHA256 copied to clipboard', 'success', 2000);
-    });
-}
-
-// Batch operations
-function startBatchAnalysis() {
-    if (confirm('Start analysis for all pending files?')) {
-        showLoading();
-        fetch('/api/analysis/batch', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCSRFToken()
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
-            if (data.success) {
-                showNotification(`Batch analysis started for ${data.count} files`, 'success');
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showNotification('Failed to start batch analysis', 'error');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            showNotification('Failed to start batch analysis', 'error');
-        });
-    }
-}
-
-// Selection management
-function toggleSelectAll() {
-    const selectAll = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.file-checkbox');
-
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAll.checked;
-        if (selectAll.checked) {
-            selectedFiles.add(checkbox.value);
-        } else {
-            selectedFiles.delete(checkbox.value);
-        }
-    });
-
-    updateBulkActionsBar();
-}
-
-function updateBulkActionsBar() {
-    const bar = document.getElementById('bulk-actions-bar');
-    const count = document.getElementById('selected-count');
-
-    if (selectedFiles.size > 0) {
-        bar.classList.remove('hidden');
-        count.textContent = `${selectedFiles.size} files selected`;
-    } else {
-        bar.classList.add('hidden');
-    }
-}
-
-function clearSelection() {
-    selectedFiles.clear();
-    document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = false);
-    document.getElementById('select-all').checked = false;
-    updateBulkActionsBar();
-}
-
+// Bulk actions
 function bulkAnalyze() {
     if (selectedFiles.size === 0) return;
-
-    if (confirm(`Start analysis for ${selectedFiles.size} selected files?`)) {
-        showLoading();
-        fetch('/api/analysis/bulk', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({ file_ids: Array.from(selectedFiles) })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
-            if (data.success) {
-                showNotification(`Analysis started for ${data.count} files`, 'success');
-                clearSelection();
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showNotification('Failed to start bulk analysis', 'error');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            showNotification('Failed to start bulk analysis', 'error');
-        });
-    }
+    
+    const fileHashes = Array.from(selectedFiles).map(id => {
+        const card = document.querySelector(`[data-file-id="${id}"]`);
+        return card.dataset.fileHash;
+    });
+    
+    fetch('/api/files/bulk/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ file_hashes: fileHashes })
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              alert(`Started analysis for ${data.started_count} files`);
+              window.location.reload();
+          } else {
+              alert('Bulk analysis failed: ' + data.error);
+          }
+      });
 }
 
 function bulkDownload() {
     if (selectedFiles.size === 0) return;
+    
+    const fileHashes = Array.from(selectedFiles).map(id => {
+        const card = document.querySelector(`[data-file-id="${id}"]`);
+        return card.dataset.fileHash;
+    });
+    
+    window.location.href = `/api/files/bulk/download?hashes=${fileHashes.join(',')}`;
+}
 
-    window.open('/api/files/bulk-download?' + 
-                Array.from(selectedFiles).map(id => `ids=${id}`).join('&'), '_blank');
+function bulkAddToSession() {
+    if (selectedFiles.size === 0) return;
+    alert('Session functionality coming soon!');
 }
 
 function bulkDelete() {
     if (selectedFiles.size === 0) return;
-
-    if (confirm(`Delete ${selectedFiles.size} selected files? This action cannot be undone.`)) {
-        showLoading();
-        fetch('/api/files/bulk-delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({ file_ids: Array.from(selectedFiles) })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
-            if (data.success) {
-                showNotification(`${data.count} files deleted`, 'success');
-                clearSelection();
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                showNotification('Failed to delete files', 'error');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            showNotification('Failed to delete files', 'error');
-        });
+    
+    if (!confirm(`Are you sure you want to delete ${selectedFiles.size} files?`)) {
+        return;
     }
+    
+    const fileHashes = Array.from(selectedFiles).map(id => {
+        const card = document.querySelector(`[data-file-id="${id}"]`);
+        return card.dataset.fileHash;
+    });
+    
+    fetch('/api/files/bulk/delete', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ file_hashes: fileHashes })
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              window.location.reload();
+          } else {
+              alert('Bulk delete failed: ' + data.error);
+          }
+      });
 }
 
-// Event listeners
-document.addEventListener('DOMContentLoaded', function() {
-    // Search on Enter key
-    document.getElementById('hyperfast-search').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            performSearch();
-        }
+function clearSelection() {
+    selectedFiles.clear();
+    document.querySelectorAll('.file-card').forEach(card => {
+        card.classList.remove('selected');
     });
+    document.querySelectorAll('.file-select').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectionUI();
+}
 
-    // File selection
-    document.querySelectorAll('.file-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                selectedFiles.add(this.value);
-            } else {
-                selectedFiles.delete(this.value);
-                document.getElementById('select-all').checked = false;
+// Context menu
+document.addEventListener('contextmenu', function(e) {
+    const fileCard = e.target.closest('.file-card');
+    if (fileCard) {
+        e.preventDefault();
+        contextMenuTarget = fileCard;
+        
+        const contextMenu = document.getElementById('context-menu');
+        contextMenu.style.left = e.pageX + 'px';
+        contextMenu.style.top = e.pageY + 'px';
+        contextMenu.classList.add('active');
+    }
+});
+
+document.addEventListener('click', function() {
+    document.getElementById('context-menu').classList.remove('active');
+    document.getElementById('sort-dropdown').classList.remove('active');
+});
+
+function contextAction(action) {
+    if (!contextMenuTarget) return;
+    
+    const fileHash = contextMenuTarget.dataset.fileHash;
+    
+    switch (action) {
+        case 'view':
+            openFile(fileHash);
+            break;
+        case 'preview':
+            previewFile(fileHash);
+            break;
+        case 'analyze':
+            analyzeFile(fileHash);
+            break;
+        case 'download':
+            window.location.href = `/api/files/${fileHash}/download`;
+            break;
+        case 'graph':
+            window.location.href = `/graph/focus/${fileHash}`;
+            break;
+        case 'session':
+            alert('Session functionality coming soon!');
+            break;
+        case 'delete':
+            if (confirm('Are you sure you want to delete this file?')) {
+                fetch(`/api/files/${fileHash}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                }).then(() => window.location.reload());
             }
-            updateBulkActionsBar();
-        });
-    });
+            break;
+    }
+    
+    document.getElementById('context-menu').classList.remove('active');
+}
 
-    // Real-time search suggestions
-    let searchTimeout;
-    document.getElementById('hyperfast-search').addEventListener('input', function(e) {
-        clearTimeout(searchTimeout);
-        const query = e.target.value;
+// Preview modal
+function showPreviewModal(previewData) {
+    document.getElementById('preview-title').textContent = previewData.filename;
+    document.getElementById('preview-content').innerHTML = previewData.content;
+    document.getElementById('preview-modal').classList.add('active');
+}
 
-        if (query.length > 2) {
-            searchTimeout = setTimeout(() => {
-                fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
-                    .then(data => showSearchSuggestions(data))
-                    .catch(error => console.log('Search suggestions failed:', error));
-            }, 300);
-        } else {
-            hideSearchSuggestions();
+function closePreview() {
+    document.getElementById('preview-modal').classList.remove('active');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+            case 'a':
+                e.preventDefault();
+                document.getElementById('select-all').click();
+                break;
+            case 'f':
+                e.preventDefault();
+                document.getElementById('search-input').focus();
+                break;
+        }
+    }
+    
+    if (e.key === 'Escape') {
+        closePreview();
+        clearSelection();
+    }
+});
+
+// Real-time updates for analyzing files
+function startRealTimeUpdates() {
+    setInterval(() => {
+        const analyzingCards = document.querySelectorAll('.status-analyzing');
+        if (analyzingCards.length > 0) {
+            // Check for status updates
+            fetch('/api/files/status/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    hashes: Array.from(analyzingCards).map(card => 
+                        card.closest('.file-card').dataset.fileHash
+                    )
+                })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      data.statuses.forEach(status => {
+                          const card = document.querySelector(`[data-file-hash="${status.hash}"]`);
+                          if (card && status.status !== 'analyzing') {
+                              // Reload page to show updated status
+                              window.location.reload();
+                          }
+                      });
+                  }
+              });
+        }
+    }, 5000);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Load saved view preference
+    const savedView = localStorage.getItem('fileViewPreference') || 'grid';
+    if (savedView !== currentView) {
+        switchView(savedView);
+    }
+    
+    // Start real-time updates
+    startRealTimeUpdates();
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.sort-dropdown')) {
+            document.getElementById('sort-dropdown').classList.remove('active');
         }
     });
 });
-
-function showSearchSuggestions(data) {
-    const container = document.getElementById('search-suggestions');
-    if (data.suggestions && data.suggestions.length > 0) {
-        container.innerHTML = data.suggestions.map(suggestion => 
-            `<div class="px-4 py-2 hover:bg-gray-100 cursor-pointer" onclick="applySuggestion('${suggestion}')">${suggestion}</div>`
-        ).join('');
-        container.classList.remove('hidden');
-    } else {
-        hideSearchSuggestions();
-    }
-}
-
-function hideSearchSuggestions() {
-    document.getElementById('search-suggestions').classList.add('hidden');
-}
-
-function applySuggestion(suggestion) {
-    document.getElementById('hyperfast-search').value = suggestion;
-    hideSearchSuggestions();
-    performSearch();
-}
-
-// Auto-refresh file status every 30 seconds
-setInterval(function() {
-    // Only refresh if there are analyzing files
-    if (document.querySelector('.bg-blue-100')) {
-        fetch(window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'ajax=1')
-            .then(response => response.text())
-            .then(html => {
-                // Update only the table body
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const newTbody = doc.querySelector('tbody');
-                if (newTbody) {
-                    document.querySelector('tbody').innerHTML = newTbody.innerHTML;
-                }
-            })
-            .catch(error => console.log('Auto-refresh failed:', error));
-    }
-}, 30000);
 </script>
 {% endblock %}

@@ -1,0 +1,839 @@
+{% extends "base.html" %}
+
+{% block title %}Visual Graph - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">File Relationship Graph</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Interactive visualization of file relationships and extraction chains
+                </p>
+            </div>
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                <button onclick="resetGraph()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-undo mr-2"></i>
+                    Reset View
+                </button>
+                <button onclick="exportGraph()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-download mr-2"></i>
+                    Export
+                </button>
+                <button onclick="refreshGraph()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Controls -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Layout Type -->
+                <div>
+                    <label for="layout" class="block text-sm font-medium text-gray-700 mb-1">Layout</label>
+                    <select id="layout" onchange="updateLayout(this.value)" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="force" {% if layout_type == 'force' %}selected{% endif %}>Force Directed</option>
+                        <option value="hierarchical" {% if layout_type == 'hierarchical' %}selected{% endif %}>Hierarchical</option>
+                        <option value="circular" {% if layout_type == 'circular' %}selected{% endif %}>Circular</option>
+                        <option value="grid" {% if layout_type == 'grid' %}selected{% endif %}>Grid</option>
+                    </select>
+                </div>
+
+                <!-- Filter Type -->
+                <div>
+                    <label for="filter" class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
+                    <select id="filter" onchange="updateFilter(this.value)" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="all" {% if request.args.get('filter') == 'all' %}selected{% endif %}>All Files</option>
+                        <option value="root_only" {% if request.args.get('filter') == 'root_only' %}selected{% endif %}>Root Files Only</option>
+                        <option value="recent" {% if request.args.get('filter') == 'recent' %}selected{% endif %}>Recent Files</option>
+                        <option value="high_priority" {% if request.args.get('filter') == 'high_priority' %}selected{% endif %}>High Priority</option>
+                        <option value="with_findings" {% if request.args.get('filter') == 'with_findings' %}selected{% endif %}>Files with Findings</option>
+                    </select>
+                </div>
+
+                <!-- Max Nodes -->
+                <div>
+                    <label for="max_nodes" class="block text-sm font-medium text-gray-700 mb-1">Max Nodes</label>
+                    <select id="max_nodes" onchange="updateMaxNodes(this.value)" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="50" {% if request.args.get('max_nodes') == '50' %}selected{% endif %}>50</option>
+                        <option value="100" {% if request.args.get('max_nodes') == '100' %}selected{% endif %}>100</option>
+                        <option value="200" {% if request.args.get('max_nodes') == '200' %}selected{% endif %}>200</option>
+                        <option value="500" {% if request.args.get('max_nodes') == '500' %}selected{% endif %}>500</option>
+                    </select>
+                </div>
+
+                <!-- Include Findings -->
+                <div class="flex items-center">
+                    <input type="checkbox" id="include_findings" {% if request.args.get('include_findings', 'true') == 'true' %}checked{% endif %} onchange="updateIncludeFindings(this.checked)" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="include_findings" class="ml-2 text-sm text-gray-700">Include Findings</label>
+                </div>
+            </div>
+
+            <!-- Graph Stats -->
+            {% if graph_metadata %}
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-lg font-semibold text-gray-900">{{ graph_metadata.total_nodes }}</div>
+                    <div class="text-sm text-gray-500">Nodes</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-lg font-semibold text-gray-900">{{ graph_metadata.total_edges }}</div>
+                    <div class="text-sm text-gray-500">Edges</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-lg font-semibold text-gray-900">{{ graph_stats.connected_components if graph_stats else 1 }}</div>
+                    <div class="text-sm text-gray-500">Components</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-lg font-semibold text-gray-900">{{ graph_stats.avg_degree|round(1) if graph_stats else 0 }}</div>
+                    <div class="text-sm text-gray-500">Avg Degree</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Graph Container -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-900">Graph Visualization</h2>
+                <div class="flex items-center space-x-4">
+                    <!-- Zoom Controls -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="zoomIn()" class="p-2 text-gray-400 hover:text-gray-600" title="Zoom In">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button onclick="zoomOut()" class="p-2 text-gray-400 hover:text-gray-600" title="Zoom Out">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <button onclick="fitToScreen()" class="p-2 text-gray-400 hover:text-gray-600" title="Fit to Screen">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Legend Toggle -->
+                    <button onclick="toggleLegend()" class="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" title="Toggle Legend">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Legend
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Canvas -->
+        <div class="relative">
+            <div id="graph-container" class="w-full" style="height: 600px; background: #f9fafb;">
+                <!-- Graph will be rendered here -->
+            </div>
+            
+            <!-- Loading Overlay -->
+            <div id="graph-loading" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
+                <div class="text-center">
+                    <div class="spinner mb-4"></div>
+                    <p class="text-gray-600">Loading graph...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Legend -->
+        <div id="graph-legend" class="hidden p-4 border-t border-gray-200 bg-gray-50">
+            <h3 class="text-sm font-medium text-gray-900 mb-3">Legend</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Node Types -->
+                <div>
+                    <h4 class="text-xs font-medium text-gray-700 mb-2">Node Types</h4>
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-blue-500 rounded-full"></div>
+                            <span class="text-xs text-gray-600">Regular File</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-yellow-500 rounded-full"></div>
+                            <span class="text-xs text-gray-600">Root File</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-green-500 rounded-full"></div>
+                            <span class="text-xs text-gray-600">Extracted File</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-red-500 rounded-full"></div>
+                            <span class="text-xs text-gray-600">Finding</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Edge Types -->
+                <div>
+                    <h4 class="text-xs font-medium text-gray-700 mb-2">Relationship Types</h4>
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-0.5 bg-blue-500"></div>
+                            <span class="text-xs text-gray-600">Extraction</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-0.5 bg-green-500"></div>
+                            <span class="text-xs text-gray-600">Similar Content</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-0.5 bg-purple-500 border-dashed border-t-2"></div>
+                            <span class="text-xs text-gray-600">Reference</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-0.5 bg-red-500"></div>
+                            <span class="text-xs text-gray-600">Finding Link</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Interactions -->
+                <div>
+                    <h4 class="text-xs font-medium text-gray-700 mb-2">Interactions</h4>
+                    <div class="space-y-1">
+                        <div class="text-xs text-gray-600">• Click node to select</div>
+                        <div class="text-xs text-gray-600">• Double-click to view details</div>
+                        <div class="text-xs text-gray-600">• Drag to pan</div>
+                        <div class="text-xs text-gray-600">• Scroll to zoom</div>
+                        <div class="text-xs text-gray-600">• Right-click for context menu</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Selected Node Details -->
+    <div id="node-details" class="hidden mt-6 bg-white rounded-lg shadow">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Node Details</h3>
+                <button onclick="closeNodeDetails()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="node-details-content">
+                <!-- Node details will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Context Menu -->
+<div id="context-menu" class="hidden fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+    <button onclick="viewNodeDetails()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+        <i class="fas fa-eye mr-2"></i>View Details
+    </button>
+    <button onclick="highlightConnections()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+        <i class="fas fa-project-diagram mr-2"></i>Highlight Connections
+    </button>
+    <button onclick="hideNode()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+        <i class="fas fa-eye-slash mr-2"></i>Hide Node
+    </button>
+    <div class="border-t border-gray-100"></div>
+    <button onclick="analyzeNode()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+        <i class="fas fa-play mr-2"></i>Analyze
+    </button>
+    <button onclick="downloadNode()" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+        <i class="fas fa-download mr-2"></i>Download
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- D3.js for graph visualization -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+// Graph data and configuration
+let graphData = {
+    nodes: {{ nodes | safe }},
+    edges: {{ edges | safe }}
+};
+
+let svg, simulation, node, link, zoom;
+let selectedNode = null;
+let currentLayout = '{{ layout_type }}';
+
+// Initialize the graph
+document.addEventListener('DOMContentLoaded', function() {
+    initializeGraph();
+    hideLoading();
+});
+
+function initializeGraph() {
+    const container = document.getElementById('graph-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Clear any existing SVG
+    d3.select('#graph-container').select('svg').remove();
+
+    // Create SVG
+    svg = d3.select('#graph-container')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // Create zoom behavior
+    zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on('zoom', (event) => {
+            svg.select('g').attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    // Create container group
+    const g = svg.append('g');
+
+    // Create arrow markers for directed edges
+    svg.append('defs').selectAll('marker')
+        .data(['extraction', 'reference', 'finding'])
+        .enter().append('marker')
+        .attr('id', d => `arrow-${d}`)
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 15)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', d => getEdgeColor(d));
+
+    // Create force simulation
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(30));
+
+    // Create links
+    link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(graphData.edges)
+        .enter().append('line')
+        .attr('class', 'link')
+        .attr('stroke', d => getEdgeColor(d.type))
+        .attr('stroke-width', d => getEdgeWidth(d.weight))
+        .attr('stroke-dasharray', d => d.type === 'reference' ? '5,5' : null)
+        .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+    // Create nodes
+    node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(graphData.nodes)
+        .enter().append('g')
+        .attr('class', 'node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+
+    // Add circles to nodes
+    node.append('circle')
+        .attr('r', d => getNodeRadius(d))
+        .attr('fill', d => getNodeColor(d))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+
+    // Add labels to nodes
+    node.append('text')
+        .attr('dx', 12)
+        .attr('dy', '.35em')
+        .style('font-size', '12px')
+        .style('fill', '#374151')
+        .text(d => truncateText(d.label, 20));
+
+    // Add event listeners
+    node.on('click', handleNodeClick)
+        .on('dblclick', handleNodeDoubleClick)
+        .on('contextmenu', handleNodeRightClick);
+
+    // Apply layout
+    applyLayout(currentLayout);
+
+    // Start simulation
+    simulation.on('tick', ticked);
+}
+
+function ticked() {
+    link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+
+    node
+        .attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+}
+
+function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+}
+
+function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+}
+
+// Node and edge styling functions
+function getNodeColor(node) {
+    switch (node.type) {
+        case 'root_file': return '#EAB308'; // Yellow
+        case 'extracted_file': return '#22C55E'; // Green
+        case 'finding': return '#EF4444'; // Red
+        default: return '#3B82F6'; // Blue
+    }
+}
+
+function getNodeRadius(node) {
+    if (node.type === 'finding') return 8;
+    if (node.is_root) return 12;
+    return 10;
+}
+
+function getEdgeColor(type) {
+    switch (type) {
+        case 'extraction': return '#3B82F6'; // Blue
+        case 'similar': return '#22C55E'; // Green
+        case 'reference': return '#8B5CF6'; // Purple
+        case 'finding': return '#EF4444'; // Red
+        default: return '#6B7280'; // Gray
+    }
+}
+
+function getEdgeWidth(weight) {
+    return Math.max(1, (weight || 1) * 2);
+}
+
+// Layout functions
+function applyLayout(layoutType) {
+    const width = svg.attr('width');
+    const height = svg.attr('height');
+
+    switch (layoutType) {
+        case 'hierarchical':
+            // Implement hierarchical layout
+            simulation
+                .force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-200))
+                .force('y', d3.forceY().y(d => d.level * 100 + 50).strength(0.8))
+                .force('x', d3.forceX(width / 2).strength(0.1));
+            break;
+            
+        case 'circular':
+            // Implement circular layout
+            const radius = Math.min(width, height) / 3;
+            const angleStep = (2 * Math.PI) / graphData.nodes.length;
+            
+            graphData.nodes.forEach((node, i) => {
+                const angle = i * angleStep;
+                node.fx = width/2 + radius * Math.cos(angle);
+                node.fy = height/2 + radius * Math.sin(angle);
+            });
+            
+            simulation
+                .force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(50))
+                .force('charge', d3.forceManyBody().strength(-100))
+                .force('center', null);
+            break;
+            
+        case 'grid':
+            // Implement grid layout
+            const cols = Math.ceil(Math.sqrt(graphData.nodes.length));
+            const cellWidth = width / cols;
+            const cellHeight = height / Math.ceil(graphData.nodes.length / cols);
+            
+            graphData.nodes.forEach((node, i) => {
+                node.fx = (i % cols) * cellWidth + cellWidth/2;
+                node.fy = Math.floor(i / cols) * cellHeight + cellHeight/2;
+            });
+            
+            simulation
+                .force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(30))
+                .force('charge', null)
+                .force('center', null);
+            break;
+            
+        default: // force
+            // Reset to force-directed layout
+            graphData.nodes.forEach(node => {
+                node.fx = null;
+                node.fy = null;
+            });
+            
+            simulation
+                .force('link', d3.forceLink(graphData.edges).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+            break;
+    }
+    
+    simulation.alpha(1).restart();
+}
+
+// Event handlers
+function handleNodeClick(event, d) {
+    event.stopPropagation();
+    
+    // Deselect previous node
+    if (selectedNode) {
+        d3.select(`#node-${selectedNode.id}`).select('circle')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2);
+    }
+    
+    // Select new node
+    selectedNode = d;
+    d3.select(`#node-${d.id}`).select('circle')
+        .attr('stroke', '#000')
+        .attr('stroke-width', 3);
+    
+    showNodeDetails(d);
+}
+
+function handleNodeDoubleClick(event, d) {
+    event.stopPropagation();
+    
+    if (d.type === 'file' || d.type === 'root_file' || d.type === 'extracted_file') {
+        window.open(`/files/detail/${d.file_id}`, '_blank');
+    } else if (d.type === 'finding') {
+        window.open(`/analysis/finding/${d.finding_id}`, '_blank');
+    }
+}
+
+function handleNodeRightClick(event, d) {
+    event.preventDefault();
+    selectedNode = d;
+    
+    const contextMenu = document.getElementById('context-menu');
+    contextMenu.style.left = event.pageX + 'px';
+    contextMenu.style.top = event.pageY + 'px';
+    contextMenu.classList.remove('hidden');
+}
+
+// Control functions
+function updateLayout(layout) {
+    currentLayout = layout;
+    applyLayout(layout);
+}
+
+function updateFilter(filter) {
+    const url = new URL(window.location);
+    url.searchParams.set('filter', filter);
+    window.location.href = url.toString();
+}
+
+function updateMaxNodes(maxNodes) {
+    const url = new URL(window.location);
+    url.searchParams.set('max_nodes', maxNodes);
+    window.location.href = url.toString();
+}
+
+function updateIncludeFindings(includeFindings) {
+    const url = new URL(window.location);
+    url.searchParams.set('include_findings', includeFindings);
+    window.location.href = url.toString();
+}
+
+function zoomIn() {
+    svg.transition().call(zoom.scaleBy, 1.5);
+}
+
+function zoomOut() {
+    svg.transition().call(zoom.scaleBy, 1 / 1.5);
+}
+
+function fitToScreen() {
+    const bounds = svg.select('g').node().getBBox();
+    const width = svg.attr('width');
+    const height = svg.attr('height');
+    const scale = Math.min(width / bounds.width, height / bounds.height) * 0.9;
+    const translate = [width / 2 - scale * (bounds.x + bounds.width / 2), 
+                     height / 2 - scale * (bounds.y + bounds.height / 2)];
+    
+    svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+}
+
+function resetGraph() {
+    // Reset zoom
+    svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity);
+    
+    // Reset node positions
+    graphData.nodes.forEach(node => {
+        node.fx = null;
+        node.fy = null;
+    });
+    
+    // Restart simulation
+    simulation.alpha(1).restart();
+    
+    // Clear selection
+    selectedNode = null;
+    closeNodeDetails();
+    hideContextMenu();
+}
+
+function refreshGraph() {
+    showLoading();
+    location.reload();
+}
+
+function exportGraph() {
+    const svgData = new XMLSerializer().serializeToString(svg.node());
+    const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+    const svgUrl = URL.createObjectURL(svgBlob);
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.href = svgUrl;
+    downloadLink.download = 'crypto-hunter-graph.svg';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+
+function toggleLegend() {
+    const legend = document.getElementById('graph-legend');
+    legend.classList.toggle('hidden');
+}
+
+function showNodeDetails(node) {
+    const detailsContainer = document.getElementById('node-details');
+    const contentContainer = document.getElementById('node-details-content');
+    
+    let content = '';
+    
+    if (node.type === 'finding') {
+        content = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Finding Information</h4>
+                    <dl class="space-y-1">
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Type:</dt>
+                            <dd class="text-sm text-gray-900">${node.finding_type || 'Unknown'}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Confidence:</dt>
+                            <dd class="text-sm text-gray-900">${Math.round((node.confidence || 0) * 100)}%</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Status:</dt>
+                            <dd class="text-sm text-gray-900">${node.status || 'Unknown'}</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Description</h4>
+                    <p class="text-sm text-gray-700">${node.description || 'No description available'}</p>
+                </div>
+            </div>
+        `;
+    } else {
+        content = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">File Information</h4>
+                    <dl class="space-y-1">
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Filename:</dt>
+                            <dd class="text-sm text-gray-900 truncate">${node.filename || node.label}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Size:</dt>
+                            <dd class="text-sm text-gray-900">${node.file_size || 'Unknown'}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Type:</dt>
+                            <dd class="text-sm text-gray-900">${node.mime_type || 'Unknown'}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Status:</dt>
+                            <dd class="text-sm text-gray-900">${node.status || 'Unknown'}</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Analysis</h4>
+                    <dl class="space-y-1">
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Findings:</dt>
+                            <dd class="text-sm text-gray-900">${node.findings_count || 0}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Extractions:</dt>
+                            <dd class="text-sm text-gray-900">${node.extractions_count || 0}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-sm text-gray-500">Priority:</dt>
+                            <dd class="text-sm text-gray-900">${node.priority || 'Normal'}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h4 class="font-medium text-gray-900 mb-2">Hash</h4>
+                <p class="text-xs text-gray-500 font-mono break-all">${node.hash || 'No hash available'}</p>
+            </div>
+        `;
+    }
+    
+    contentContainer.innerHTML = content;
+    detailsContainer.classList.remove('hidden');
+}
+
+function closeNodeDetails() {
+    document.getElementById('node-details').classList.add('hidden');
+    
+    if (selectedNode) {
+        d3.select(`#node-${selectedNode.id}`).select('circle')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2);
+        selectedNode = null;
+    }
+}
+
+// Context menu functions
+function viewNodeDetails() {
+    if (selectedNode) {
+        if (selectedNode.type === 'finding') {
+            window.open(`/analysis/finding/${selectedNode.finding_id}`, '_blank');
+        } else {
+            window.open(`/files/detail/${selectedNode.file_id}`, '_blank');
+        }
+    }
+    hideContextMenu();
+}
+
+function highlightConnections() {
+    if (!selectedNode) return;
+    
+    // Dim all nodes and edges
+    node.select('circle').style('opacity', 0.3);
+    link.style('opacity', 0.1);
+    
+    // Highlight selected node
+    d3.select(`#node-${selectedNode.id}`).select('circle').style('opacity', 1);
+    
+    // Highlight connected nodes and edges
+    graphData.edges.forEach(edge => {
+        if (edge.source.id === selectedNode.id || edge.target.id === selectedNode.id) {
+            d3.select(`#edge-${edge.id}`).style('opacity', 1);
+            d3.select(`#node-${edge.source.id}`).select('circle').style('opacity', 1);
+            d3.select(`#node-${edge.target.id}`).select('circle').style('opacity', 1);
+        }
+    });
+    
+    hideContextMenu();
+}
+
+function hideNode() {
+    if (selectedNode) {
+        d3.select(`#node-${selectedNode.id}`).style('display', 'none');
+        
+        // Hide connected edges
+        graphData.edges.forEach(edge => {
+            if (edge.source.id === selectedNode.id || edge.target.id === selectedNode.id) {
+                d3.select(`#edge-${edge.id}`).style('display', 'none');
+            }
+        });
+    }
+    hideContextMenu();
+}
+
+function analyzeNode() {
+    if (selectedNode && selectedNode.file_id) {
+        makeRequest(`/api/files/${selectedNode.file_id}/analyze`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Analysis started', 'success');
+            } else {
+                showNotification('Failed to start analysis', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Analysis error:', error);
+            showNotification('Failed to start analysis', 'error');
+        });
+    }
+    hideContextMenu();
+}
+
+function downloadNode() {
+    if (selectedNode && selectedNode.file_id) {
+        window.open(`/files/download/${selectedNode.file_id}`, '_blank');
+    }
+    hideContextMenu();
+}
+
+function hideContextMenu() {
+    document.getElementById('context-menu').classList.add('hidden');
+}
+
+// Utility functions
+function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength - 3) + '...';
+}
+
+function showLoading() {
+    document.getElementById('graph-loading').classList.remove('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('graph-loading').classList.add('hidden');
+}
+
+// Close context menu when clicking elsewhere
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('#context-menu')) {
+        hideContextMenu();
+    }
+});
+
+// Handle window resize
+window.addEventListener('resize', function() {
+    const container = document.getElementById('graph-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    svg.attr('width', width).attr('height', height);
+    
+    simulation
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .alpha(0.3)
+        .restart();
+});
+
+// Add node and edge IDs for easier selection
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        node.attr('id', d => `node-${d.id}`);
+        link.attr('id', d => `edge-${d.source.id}-${d.target.id}`);
+    }, 100);
+});
+</script>
+{% endblock %}

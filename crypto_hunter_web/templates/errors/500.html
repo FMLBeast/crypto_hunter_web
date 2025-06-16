@@ -1,21 +1,558 @@
+<!-- errors/500.html -->
 {% extends "base.html" %}
 
 {% block title %}Server Error - Crypto Hunter{% endblock %}
 
+{% block extra_head %}
+<style>
+    .error-container {
+        min-height: calc(100vh - 200px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+    
+    .error-card {
+        background: white;
+        border-radius: 20px;
+        padding: 3rem;
+        text-align: center;
+        max-width: 600px;
+        width: 100%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .error-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.05) 0%, transparent 70%);
+        z-index: 1;
+    }
+    
+    .error-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .error-icon {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 2rem;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 3rem;
+        animation: errorPulse 2s ease-in-out infinite;
+        position: relative;
+    }
+    
+    .error-icon::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        opacity: 0.2;
+        animation: errorRipple 2s ease-out infinite;
+    }
+    
+    @keyframes errorPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    
+    @keyframes errorRipple {
+        0% { transform: scale(1); opacity: 0.2; }
+        100% { transform: scale(1.3); opacity: 0; }
+    }
+    
+    .error-code {
+        font-size: 4rem;
+        font-weight: 900;
+        color: #ef4444;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .error-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 1rem;
+    }
+    
+    .error-description {
+        color: #6b7280;
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin-bottom: 2.5rem;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .error-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+    }
+    
+    .error-actions .primary-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .action-button {
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+    
+    .action-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .action-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+    
+    .action-secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+    }
+    
+    .action-secondary:hover {
+        background: #e5e7eb;
+    }
+    
+    .error-details {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #f3f4f6;
+    }
+    
+    .details-toggle {
+        background: none;
+        border: none;
+        color: #6b7280;
+        font-size: 0.875rem;
+        cursor: pointer;
+        text-decoration: underline;
+        margin-bottom: 1rem;
+    }
+    
+    .details-content {
+        display: none;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: left;
+    }
+    
+    .details-content.active {
+        display: block;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .error-id {
+        font-family: monospace;
+        background: #374151;
+        color: #e5e7eb;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        margin-bottom: 1rem;
+        word-break: break-all;
+    }
+    
+    .error-timestamp {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    
+    .error-suggestions {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+        text-align: left;
+    }
+    
+    .suggestions-title {
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .suggestions-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        color: #78350f;
+        font-size: 0.875rem;
+    }
+    
+    .suggestions-list li {
+        padding: 0.25rem 0;
+        display: flex;
+        align-items: flex-start;
+    }
+    
+    .suggestions-list li::before {
+        content: '•';
+        color: #f59e0b;
+        font-weight: bold;
+        margin-right: 0.5rem;
+        margin-top: 0.1rem;
+    }
+    
+    .contact-info {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+    
+    .contact-title {
+        font-weight: 600;
+        color: #075985;
+        margin-bottom: 0.5rem;
+    }
+    
+    .contact-text {
+        color: #0c4a6e;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    
+    .contact-button {
+        background: #0ea5e9;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        transition: background 0.2s ease;
+    }
+    
+    .contact-button:hover {
+        background: #0284c7;
+    }
+    
+    @media (max-width: 768px) {
+        .error-card {
+            padding: 2rem 1.5rem;
+            margin: 1rem;
+        }
+        
+        .error-code {
+            font-size: 3rem;
+        }
+        
+        .error-title {
+            font-size: 1.5rem;
+        }
+        
+        .error-actions .primary-row {
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .action-button {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 1.5rem;
+    }
+    
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        background: #dc2626;
+        border-radius: 50%;
+        animation: statusBlink 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes statusBlink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="min-h-screen flex items-center justify-center px-4">
-    <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
-        <div class="text-6xl mb-4">⚠️</div>
-        <h1 class="text-2xl font-bold text-gray-900 mb-2">Server Error</h1>
-        <p class="text-gray-600 mb-6">Something went wrong with our analysis engine. The error has been logged.</p>
-        <div class="space-y-3">
-            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
-                Return to Dashboard
-            </a>
-            <button onclick="history.back()" class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium">
-                Go Back
-            </button>
+<div class="error-container">
+    <div class="error-card">
+        <div class="error-content">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                Service Temporarily Unavailable
+            </div>
+            
+            <div class="error-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            
+            <div class="error-code">500</div>
+            <h1 class="error-title">Internal Server Error</h1>
+            <p class="error-description">
+                Oops! Something went wrong on our end. Our steganography analysis engine encountered an unexpected error while processing your request.
+            </p>
+            
+            <div class="error-actions">
+                <div class="primary-row">
+                    <a href="{{ url_for('main.index') }}" class="action-button action-primary">
+                        <i class="fas fa-home mr-2"></i>
+                        Return Home
+                    </a>
+                    <button onclick="window.location.reload()" class="action-button action-secondary">
+                        <i class="fas fa-redo mr-2"></i>
+                        Try Again
+                    </button>
+                    <a href="{{ url_for('dashboard.index') }}" class="action-button action-secondary">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <div class="error-suggestions">
+                <div class="suggestions-title">
+                    <i class="fas fa-lightbulb mr-2"></i>
+                    What you can try:
+                </div>
+                <ul class="suggestions-list">
+                    <li>Refresh the page and try your request again</li>
+                    <li>Check if you have a stable internet connection</li>
+                    <li>Try accessing the page in a few minutes</li>
+                    <li>Clear your browser cache and cookies</li>
+                    <li>If uploading files, ensure they meet size requirements</li>
+                </ul>
+            </div>
+            
+            <div class="contact-info">
+                <div class="contact-title">Still having issues?</div>
+                <div class="contact-text">Our technical team has been automatically notified and is working on a fix.</div>
+                <a href="mailto:support@cryptohunter.com" class="contact-button">
+                    <i class="fas fa-envelope mr-2"></i>
+                    Contact Support
+                </a>
+            </div>
+            
+            <div class="error-details">
+                <button class="details-toggle" onclick="toggleDetails()">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Show technical details
+                </button>
+                
+                <div class="details-content" id="error-details">
+                    {% if error_id %}
+                    <div>
+                        <strong>Error ID:</strong>
+                        <div class="error-id">{{ error_id }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="error-timestamp">
+                        <strong>Timestamp:</strong> {{ moment().format('YYYY-MM-DD HH:mm:ss UTC') }}
+                    </div>
+                    
+                    {% if user_agent %}
+                    <div>
+                        <strong>User Agent:</strong> {{ user_agent[:100] }}{% if user_agent|length > 100 %}...{% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if request_url %}
+                    <div>
+                        <strong>Request URL:</strong> {{ request_url }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if request_method %}
+                    <div>
+                        <strong>Method:</strong> {{ request_method }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3 text-xs text-gray-500">
+                        This information helps our developers identify and resolve the issue faster.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleDetails() {
+    const details = document.getElementById('error-details');
+    const button = document.querySelector('.details-toggle');
+    
+    if (details.classList.contains('active')) {
+        details.classList.remove('active');
+        button.innerHTML = '<i class="fas fa-info-circle mr-1"></i>Show technical details';
+    } else {
+        details.classList.add('active');
+        button.innerHTML = '<i class="fas fa-info-circle mr-1"></i>Hide technical details';
+    }
+}
+
+// Auto-retry functionality
+let retryAttempts = 0;
+const maxRetries = 3;
+
+function autoRetry() {
+    if (retryAttempts < maxRetries) {
+        retryAttempts++;
+        console.log(`Auto-retry attempt ${retryAttempts}/${maxRetries}`);
+        
+        // Wait a bit longer with each retry
+        const delay = retryAttempts * 5000;
+        
+        setTimeout(() => {
+            // Check if the server is responding
+            fetch(window.location.href, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        autoRetry();
+                    }
+                })
+                .catch(() => {
+                    autoRetry();
+                });
+        }, delay);
+    }
+}
+
+// Start auto-retry after 10 seconds
+setTimeout(autoRetry, 10000);
+
+// Report error to analytics if available
+if (typeof gtag !== 'undefined') {
+    gtag('event', 'exception', {
+        'description': '500 Internal Server Error',
+        'fatal': false,
+        'error_id': '{{ error_id or "unknown" }}',
+        'page_path': window.location.pathname
+    });
+}
+
+// Service worker notification for offline/online status
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(registration => {
+        console.log('Service Worker ready for error reporting');
+    });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        window.location.reload();
+    }
+    
+    if (e.key === 'h' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        window.location.href = '{{ url_for("main.index") }}';
+    }
+});
+
+// Show helpful browser info
+console.log('🔧 Crypto Hunter Debug Info:');
+console.log('Error ID: {{ error_id or "N/A" }}');
+console.log('Timestamp: ' + new Date().toISOString());
+console.log('User Agent: ' + navigator.userAgent);
+console.log('URL: ' + window.location.href);
+console.log('Referrer: ' + document.referrer);
+
+// Add some visual feedback
+document.addEventListener('DOMContentLoaded', function() {
+    // Add subtle animation to error icon
+    const errorIcon = document.querySelector('.error-icon');
+    if (errorIcon) {
+        errorIcon.addEventListener('mouseover', function() {
+            this.style.transform = 'scale(1.1) rotate(5deg)';
+        });
+        
+        errorIcon.addEventListener('mouseout', function() {
+            this.style.transform = 'scale(1) rotate(0deg)';
+        });
+    }
+    
+    // Add click tracking for buttons
+    document.querySelectorAll('.action-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const action = this.textContent.trim();
+            console.log('Error page action:', action);
+            
+            // Track with analytics if available
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'error_page_action', {
+                    'action': action,
+                    'error_id': '{{ error_id or "unknown" }}'
+                });
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

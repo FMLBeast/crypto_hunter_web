@@ -1,276 +1,1171 @@
+<!-- auth/settings.html -->
 {% extends "base.html" %}
 
-{% block title %}User Settings - Crypto Hunter{% endblock %}
+{% block title %}Settings - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<style>
+    .settings-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .settings-header {
+        background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .settings-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M20 20c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8 8 3.6 8 8zm0-20c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8 8 3.6 8 8z'/%3E%3C/g%3E%3C/svg%3E") repeat;
+        z-index: 1;
+    }
+    
+    .settings-header-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 2rem;
+    }
+    
+    .settings-nav {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        padding: 1.5rem;
+        height: fit-content;
+        position: sticky;
+        top: 120px;
+    }
+    
+    .nav-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: #6b7280;
+        font-weight: 500;
+        border: 1px solid transparent;
+    }
+    
+    .nav-item:hover {
+        background: #f8fafc;
+        color: #374151;
+        border-color: #e5e7eb;
+    }
+    
+    .nav-item.active {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    
+    .nav-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .settings-content {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .content-section {
+        display: none;
+        padding: 2rem;
+    }
+    
+    .content-section.active {
+        display: block;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .section-header {
+        border-bottom: 1px solid #f3f4f6;
+        padding-bottom: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+    
+    .section-description {
+        color: #6b7280;
+        font-size: 0.95rem;
+    }
+    
+    .form-group {
+        margin-bottom: 2rem;
+    }
+    
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    
+    .form-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        background: white;
+    }
+    
+    .form-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+    
+    .form-help {
+        font-size: 0.8rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+    }
+    
+    .avatar-section {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: #f8fafc;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .avatar-display {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2rem;
+        font-weight: bold;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .avatar-display img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .avatar-controls {
+        flex: 1;
+    }
+    
+    .avatar-title {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+    
+    .avatar-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-bottom: 1rem;
+    }
+    
+    .avatar-buttons {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .btn-primary {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+    
+    .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+    }
+    
+    .btn-secondary:hover {
+        background: #e5e7eb;
+    }
+    
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+    }
+    
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+    
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 52px;
+        height: 28px;
+    }
+    
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #d1d5db;
+        transition: 0.3s;
+        border-radius: 28px;
+    }
+    
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    input:checked + .toggle-slider {
+        background-color: #3b82f6;
+    }
+    
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+    
+    .preference-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        background: #fafbfc;
+    }
+    
+    .preference-info {
+        flex: 1;
+    }
+    
+    .preference-title {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+    
+    .preference-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    
+    .api-key-item {
+        display: flex;
+        align-items: center;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        background: white;
+    }
+    
+    .api-key-info {
+        flex: 1;
+    }
+    
+    .api-key-name {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+    
+    .api-key-details {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    
+    .api-key-value {
+        font-family: monospace;
+        background: #f3f4f6;
+        padding: 0.5rem;
+        border-radius: 6px;
+        margin: 0.5rem 0;
+        font-size: 0.8rem;
+        word-break: break-all;
+    }
+    
+    .api-key-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .notification-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        background: white;
+    }
+    
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        color: white;
+    }
+    
+    .notification-email .notification-icon {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+    
+    .notification-browser .notification-icon {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+    
+    .notification-slack .notification-icon {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    }
+    
+    .storage-usage {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .usage-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .usage-title {
+        font-weight: 600;
+        color: #1f2937;
+    }
+    
+    .usage-amount {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    
+    .usage-bar {
+        width: 100%;
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+    
+    .usage-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #059669);
+        transition: width 0.5s ease;
+        border-radius: 4px;
+    }
+    
+    .usage-fill.warning {
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+    
+    .usage-fill.danger {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+    
+    .danger-zone {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .danger-title {
+        color: #991b1b;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .danger-description {
+        color: #7f1d1d;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    
+    .two-factor-setup {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .two-factor-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .two-factor-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin-right: 1rem;
+    }
+    
+    .two-factor-info {
+        flex: 1;
+    }
+    
+    .two-factor-title {
+        font-weight: 600;
+        color: #075985;
+        margin-bottom: 0.25rem;
+    }
+    
+    .two-factor-description {
+        font-size: 0.875rem;
+        color: #0c4a6e;
+    }
+    
+    @media (max-width: 768px) {
+        .settings-layout {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .settings-nav {
+            position: static;
+            display: flex;
+            overflow-x: auto;
+            padding: 1rem;
+        }
+        
+        .nav-item {
+            flex-shrink: 0;
+            margin-right: 0.5rem;
+            margin-bottom: 0;
+        }
+        
+        .avatar-section {
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .avatar-buttons {
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="md:grid md:grid-cols-3 md:gap-6">
-        <div class="md:col-span-1">
-            <div class="px-4 sm:px-0">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">Account Settings</h3>
-                <p class="mt-1 text-sm text-gray-600">
-                    Manage your account preferences, API keys, and notification settings.
-                </p>
-            </div>
+<div class="settings-container">
+    <!-- Settings Header -->
+    <div class="settings-header">
+        <div class="settings-header-content">
+            <h1 class="text-3xl font-bold mb-2">Account Settings</h1>
+            <p class="text-lg opacity-90">Manage your account preferences and security settings</p>
         </div>
-        <div class="mt-5 md:mt-0 md:col-span-2">
-            <div class="shadow sm:rounded-md">
-                <div class="px-4 py-5 bg-white sm:p-6">
-                    <div class="grid grid-cols-6 gap-6">
-                        <div class="col-span-6 sm:col-span-3">
-                            <label for="email" class="block text-sm font-medium text-gray-700">Email address</label>
-                            <div class="mt-1 flex rounded-md shadow-sm">
-                                <input type="text" name="email" id="email" value="{{ current_user.email }}" disabled
-                                       class="flex-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full min-w-0 rounded-md sm:text-sm border-gray-300 bg-gray-100">
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Contact administrator to change your email</p>
-                        </div>
+    </div>
 
-                        <div class="col-span-6 sm:col-span-3">
-                            <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                            <div class="mt-1 flex rounded-md shadow-sm">
-                                <input type="text" name="username" id="username" value="{{ current_user.username }}" disabled
-                                       class="flex-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full min-w-0 rounded-md sm:text-sm border-gray-300 bg-gray-100">
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Username cannot be changed</p>
-                        </div>
+    <div class="settings-layout">
+        <!-- Navigation Sidebar -->
+        <nav class="settings-nav">
+            <a href="#profile" class="nav-item active" onclick="showSection('profile')" data-section="profile">
+                <i class="fas fa-user nav-icon"></i>
+                Profile
+            </a>
+            <a href="#security" class="nav-item" onclick="showSection('security')" data-section="security">
+                <i class="fas fa-shield-alt nav-icon"></i>
+                Security
+            </a>
+            <a href="#preferences" class="nav-item" onclick="showSection('preferences')" data-section="preferences">
+                <i class="fas fa-cog nav-icon"></i>
+                Preferences
+            </a>
+            <a href="#notifications" class="nav-item" onclick="showSection('notifications')" data-section="notifications">
+                <i class="fas fa-bell nav-icon"></i>
+                Notifications
+            </a>
+            <a href="#api" class="nav-item" onclick="showSection('api')" data-section="api">
+                <i class="fas fa-key nav-icon"></i>
+                API Keys
+            </a>
+            <a href="#storage" class="nav-item" onclick="showSection('storage')" data-section="storage">
+                <i class="fas fa-database nav-icon"></i>
+                Storage
+            </a>
+        </nav>
 
-                        <div class="col-span-6">
-                            <div class="flex justify-between">
-                                <a href="{{ url_for('auth.edit_profile') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <i class="fas fa-user-edit mr-2"></i> Edit Profile
-                                </a>
-                                <a href="{{ url_for('auth.change_password') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <i class="fas fa-key mr-2"></i> Change Password
-                                </a>
-                            </div>
+        <!-- Content Area -->
+        <div class="settings-content">
+            <!-- Profile Section -->
+            <div id="profile-section" class="content-section active">
+                <div class="section-header">
+                    <h2 class="section-title">Profile Information</h2>
+                    <p class="section-description">Update your personal information and profile picture</p>
+                </div>
+
+                <!-- Avatar Section -->
+                <div class="avatar-section">
+                    <div class="avatar-display">
+                        {% if current_user.avatar %}
+                        <img src="{{ current_user.avatar }}" alt="Profile Picture">
+                        {% else %}
+                        {{ current_user.username[0].upper() }}
+                        {% endif %}
+                    </div>
+                    <div class="avatar-controls">
+                        <div class="avatar-title">Profile Picture</div>
+                        <div class="avatar-description">JPG, PNG or GIF. Maximum size 5MB.</div>
+                        <div class="avatar-buttons">
+                            <button class="btn btn-primary">
+                                <i class="fas fa-upload mr-2"></i>Upload New
+                            </button>
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-trash mr-2"></i>Remove
+                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <div class="hidden sm:block" aria-hidden="true">
-        <div class="py-5">
-            <div class="border-t border-gray-200"></div>
-        </div>
-    </div>
+                <form method="POST" action="{{ url_for('auth.update_profile') }}">
+                    {{ csrf_token() }}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="form-group">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" id="username" name="username" class="form-input" 
+                                   value="{{ current_user.username }}" required>
+                            <p class="form-help">Your unique username for login and display</p>
+                        </div>
 
-    <!-- API Keys Section -->
-    <div class="md:grid md:grid-cols-3 md:gap-6">
-        <div class="md:col-span-1">
-            <div class="px-4 sm:px-0">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">API Keys</h3>
-                <p class="mt-1 text-sm text-gray-600">
-                    Manage your API keys for programmatic access to the platform.
-                </p>
-            </div>
-        </div>
-        <div class="mt-5 md:mt-0 md:col-span-2">
-            <div class="shadow sm:rounded-md">
-                <div class="px-4 py-5 bg-white sm:p-6">
-                    <div class="mb-4">
-                        <form action="{{ url_for('auth.create_api_key') }}" method="post" class="space-y-4">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <div>
-                                <label for="name" class="block text-sm font-medium text-gray-700">Key Name</label>
-                                <div class="mt-1">
-                                    <input type="text" name="name" id="name" required
-                                           class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                           placeholder="My API Key">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Permissions</label>
-                                <div class="mt-2 space-y-2">
-                                    <div class="flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="perm_read" name="permissions" type="checkbox" value="read" checked
-                                                   class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="perm_read" class="font-medium text-gray-700">Read</label>
-                                            <p class="text-gray-500">Access to read-only endpoints</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="perm_write" name="permissions" type="checkbox" value="write"
-                                                   class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="perm_write" class="font-medium text-gray-700">Write</label>
-                                            <p class="text-gray-500">Access to create and modify resources</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="perm_analyze" name="permissions" type="checkbox" value="analyze"
-                                                   class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="perm_analyze" class="font-medium text-gray-700">Analyze</label>
-                                            <p class="text-gray-500">Access to analysis endpoints</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <button type="submit"
-                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <i class="fas fa-plus-circle mr-2"></i> Create API Key
-                                </button>
-                            </div>
-                        </form>
+                        <div class="form-group">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" id="email" name="email" class="form-input" 
+                                   value="{{ current_user.email }}" required>
+                            <p class="form-help">Used for account recovery and notifications</p>
+                        </div>
                     </div>
 
-                    <div class="mt-6">
-                        <h4 class="text-base font-medium text-gray-900">Your API Keys</h4>
-                        <div class="mt-2 overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-300">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Name</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Used</th>
-                                        <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                                            <span class="sr-only">Actions</span>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 bg-white">
-                                    {% if api_keys %}
-                                        {% for key in api_keys %}
-                                            <tr>
-                                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ key.name }}</td>
-                                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ key.key_prefix }}...</td>
-                                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ key.created_at.strftime('%Y-%m-%d') }}</td>
-                                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ key.last_used.strftime('%Y-%m-%d') if key.last_used else 'Never' }}</td>
-                                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                    <form action="{{ url_for('auth.revoke_api_key', key_id=key.id) }}" method="post" class="inline">
-                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                        <button type="submit" class="text-red-600 hover:text-red-900">
-                                                            Revoke
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        {% endfor %}
-                                    {% else %}
-                                        <tr>
-                                            <td colspan="5" class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 text-center sm:pl-6">
-                                                No API keys found. Create one above.
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                </tbody>
-                            </table>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="form-group">
+                            <label for="first_name" class="form-label">First Name</label>
+                            <input type="text" id="first_name" name="first_name" class="form-input" 
+                                   value="{{ current_user.first_name or '' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="last_name" class="form-label">Last Name</label>
+                            <input type="text" id="last_name" name="last_name" class="form-input" 
+                                   value="{{ current_user.last_name or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bio" class="form-label">Bio</label>
+                        <textarea id="bio" name="bio" class="form-input form-textarea" 
+                                  placeholder="Tell us about yourself...">{{ current_user.bio or '' }}</textarea>
+                        <p class="form-help">Brief description about yourself and your expertise</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="organization" class="form-label">Organization</label>
+                        <input type="text" id="organization" name="organization" class="form-input" 
+                               value="{{ current_user.organization or '' }}" 
+                               placeholder="Company, University, or Organization">
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-2"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Security Section -->
+            <div id="security-section" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Security Settings</h2>
+                    <p class="section-description">Manage your password and security preferences</p>
+                </div>
+
+                <!-- Two-Factor Authentication -->
+                <div class="two-factor-setup">
+                    <div class="two-factor-header">
+                        <div class="two-factor-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="two-factor-info">
+                            <div class="two-factor-title">Two-Factor Authentication</div>
+                            <div class="two-factor-description">
+                                {% if current_user.two_factor_enabled %}
+                                2FA is currently enabled on your account
+                                {% else %}
+                                Add an extra layer of security to your account
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            {% if current_user.two_factor_enabled %}
+                            <button class="btn btn-danger" onclick="disable2FA()">
+                                <i class="fas fa-times mr-2"></i>Disable
+                            </button>
+                            {% else %}
+                            <button class="btn btn-primary" onclick="enable2FA()">
+                                <i class="fas fa-plus mr-2"></i>Enable
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <div class="hidden sm:block" aria-hidden="true">
-        <div class="py-5">
-            <div class="border-t border-gray-200"></div>
-        </div>
-    </div>
-
-    <!-- Notification Settings -->
-    <div class="md:grid md:grid-cols-3 md:gap-6">
-        <div class="md:col-span-1">
-            <div class="px-4 sm:px-0">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">Notification Settings</h3>
-                <p class="mt-1 text-sm text-gray-600">
-                    Configure how and when you receive notifications.
-                </p>
-            </div>
-        </div>
-        <div class="mt-5 md:mt-0 md:col-span-2">
-            <form action="{{ url_for('auth.update_notification_settings') }}" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="shadow sm:rounded-md">
-                    <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
-                        <fieldset>
-                            <legend class="text-base font-medium text-gray-900">Email Notifications</legend>
-                            <div class="mt-4 space-y-4">
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="email_findings" name="email_findings" type="checkbox"
-                                               {% if preferences.get('email_notifications', True) %}checked{% endif %}
-                                               class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="email_findings" class="font-medium text-gray-700">Finding Notifications</label>
-                                        <p class="text-gray-500">Receive email when new findings are discovered</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="email_security" name="email_security" type="checkbox"
-                                               {% if preferences.get('security_alerts', True) %}checked{% endif %}
-                                               class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="email_security" class="font-medium text-gray-700">Security Alerts</label>
-                                        <p class="text-gray-500">Receive email about security events (login attempts, etc.)</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </fieldset>
-
-                        <fieldset>
-                            <legend class="text-base font-medium text-gray-900">In-App Notifications</legend>
-                            <div class="mt-4 space-y-4">
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="app_analysis" name="app_analysis" type="checkbox"
-                                               {% if notification_settings.get('app_analysis', True) %}checked{% endif %}
-                                               class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="app_analysis" class="font-medium text-gray-700">Analysis Completion</label>
-                                        <p class="text-gray-500">Show notification when analysis completes</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="app_findings" name="app_findings" type="checkbox"
-                                               {% if notification_settings.get('app_findings', True) %}checked{% endif %}
-                                               class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="app_findings" class="font-medium text-gray-700">New Findings</label>
-                                        <p class="text-gray-500">Show notification for new findings</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="app_system" name="app_system" type="checkbox"
-                                               {% if notification_settings.get('app_system', True) %}checked{% endif %}
-                                               class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="app_system" class="font-medium text-gray-700">System Alerts</label>
-                                        <p class="text-gray-500">Show notification for system events</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </fieldset>
+                <!-- Change Password -->
+                <form method="POST" action="{{ url_for('auth.change_password') }}">
+                    {{ csrf_token() }}
+                    
+                    <div class="form-group">
+                        <label for="current_password" class="form-label">Current Password</label>
+                        <input type="password" id="current_password" name="current_password" class="form-input" required>
                     </div>
-                    <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
-                        <button type="submit"
-                                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Save Settings
+
+                    <div class="form-group">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" id="new_password" name="new_password" class="form-input" required>
+                        <p class="form-help">Must be at least 8 characters with letters, numbers, and symbols</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirm_password" class="form-label">Confirm New Password</label>
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-key mr-2"></i>Update Password
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Login History -->
+                <div class="mt-8">
+                    <h3 class="text-lg font-semibold mb-4">Recent Login Activity</h3>
+                    <div class="space-y-3">
+                        {% for login in recent_logins %}
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <div class="preference-title">{{ login.location or 'Unknown Location' }}</div>
+                                <div class="preference-description">
+                                    {{ login.user_agent[:60] }}... • {{ login.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </div>
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                {{ login.ip_address }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preferences Section -->
+            <div id="preferences-section" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Application Preferences</h2>
+                    <p class="section-description">Customize your Crypto Hunter experience</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('auth.update_preferences') }}">
+                    {{ csrf_token() }}
+                    
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Dark Mode</div>
+                            <div class="preference-description">Use dark theme for better visibility in low light</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="dark_mode" {% if current_user.preferences.dark_mode %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Auto-analyze uploads</div>
+                            <div class="preference-description">Automatically start analysis when files are uploaded</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="auto_analyze" {% if current_user.preferences.auto_analyze %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Email notifications</div>
+                            <div class="preference-description">Receive email updates about analysis completion</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="email_notifications" {% if current_user.preferences.email_notifications %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Advanced features</div>
+                            <div class="preference-description">Enable experimental and advanced analysis tools</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="advanced_features" {% if current_user.preferences.advanced_features %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="default_priority" class="form-label">Default Analysis Priority</label>
+                        <select id="default_priority" name="default_priority" class="form-input">
+                            <option value="low" {% if current_user.preferences.default_priority == 'low' %}selected{% endif %}>Low</option>
+                            <option value="medium" {% if current_user.preferences.default_priority == 'medium' %}selected{% endif %}>Medium</option>
+                            <option value="high" {% if current_user.preferences.default_priority == 'high' %}selected{% endif %}>High</option>
+                        </select>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-2"></i>Save Preferences
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Notifications Section -->
+            <div id="notifications-section" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Notification Settings</h2>
+                    <p class="section-description">Choose how you want to be notified about important events</p>
+                </div>
+
+                <div class="notification-item">
+                    <div class="notification-email notification-icon">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <div class="preference-info">
+                        <div class="preference-title">Email Notifications</div>
+                        <div class="preference-description">Get notified via email about analysis completion and important updates</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="email_enabled" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="notification-item">
+                    <div class="notification-browser notification-icon">
+                        <i class="fas fa-desktop"></i>
+                    </div>
+                    <div class="preference-info">
+                        <div class="preference-title">Browser Notifications</div>
+                        <div class="preference-description">Receive push notifications in your browser for real-time updates</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="browser_enabled">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="notification-item">
+                    <div class="notification-slack notification-icon">
+                        <i class="fab fa-slack"></i>
+                    </div>
+                    <div class="preference-info">
+                        <div class="preference-title">Slack Integration</div>
+                        <div class="preference-description">Send notifications to your Slack workspace</div>
+                    </div>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-plus mr-2"></i>Connect Slack
+                    </button>
+                </div>
+            </div>
+
+            <!-- API Keys Section -->
+            <div id="api-section" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">API Keys</h2>
+                    <p class="section-description">Manage API keys for programmatic access to Crypto Hunter</p>
+                </div>
+
+                <div class="flex justify-end mb-6">
+                    <button class="btn btn-primary" onclick="createAPIKey()">
+                        <i class="fas fa-plus mr-2"></i>Create New Key
+                    </button>
+                </div>
+
+                {% if api_keys %}
+                <div class="space-y-4">
+                    {% for key in api_keys %}
+                    <div class="api-key-item">
+                        <div class="api-key-info">
+                            <div class="api-key-name">{{ key.name }}</div>
+                            <div class="api-key-details">
+                                Created {{ key.created_at.strftime('%Y-%m-%d') }} • Last used {{ key.last_used.strftime('%Y-%m-%d') if key.last_used else 'Never' }}
+                            </div>
+                            <div class="api-key-value">{{ key.key_preview }}...</div>
+                        </div>
+                        <div class="api-key-actions">
+                            <button class="btn btn-secondary" onclick="copyAPIKey('{{ key.id }}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteAPIKey('{{ key.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500">
+                    <i class="fas fa-key text-4xl mb-4"></i>
+                    <h3 class="text-lg font-medium mb-2">No API Keys</h3>
+                    <p class="mb-4">Create an API key to access Crypto Hunter programmatically</p>
+                    <button class="btn btn-primary" onclick="createAPIKey()">
+                        <i class="fas fa-plus mr-2"></i>Create First Key
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Storage Section -->
+            <div id="storage-section" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Storage & Data</h2>
+                    <p class="section-description">Manage your storage usage and data retention</p>
+                </div>
+
+                <div class="storage-usage">
+                    <div class="usage-header">
+                        <div class="usage-title">Storage Usage</div>
+                        <div class="usage-amount">{{ used_storage_gb }}GB of {{ total_storage_gb }}GB used</div>
+                    </div>
+                    <div class="usage-bar">
+                        <div class="usage-fill {{ 'danger' if storage_percentage > 90 else ('warning' if storage_percentage > 75 else '') }}" 
+                             style="width: {{ storage_percentage }}%"></div>
+                    </div>
+                    <div class="text-sm text-gray-600 mt-2">
+                        {{ files_count }} files • {{ analysis_count }} completed analyses
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Auto-delete old files</div>
+                            <div class="preference-description">Automatically delete files older than 90 days</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="auto_delete">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="preference-item">
+                        <div class="preference-info">
+                            <div class="preference-title">Compress old analyses</div>
+                            <div class="preference-description">Compress analysis data older than 30 days</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="auto_compress" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button class="btn btn-secondary" onclick="exportData()">
+                        <i class="fas fa-download mr-2"></i>Export Data
+                    </button>
+                    <button class="btn btn-secondary" onclick="cleanupFiles()">
+                        <i class="fas fa-broom mr-2"></i>Cleanup Old Files
+                    </button>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="danger-zone">
+                    <div class="danger-title">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        Danger Zone
+                    </div>
+                    <div class="danger-description">
+                        These actions are irreversible. Please proceed with caution.
+                    </div>
+                    <div class="flex gap-3">
+                        <button class="btn btn-danger" onclick="deleteAllData()">
+                            <i class="fas fa-trash mr-2"></i>Delete All Data
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteAccount()">
+                            <i class="fas fa-user-times mr-2"></i>Delete Account
                         </button>
                     </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showSection(sectionName) {
+    // Hide all sections
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Remove active class from all nav items
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Show selected section
+    document.getElementById(sectionName + '-section').classList.add('active');
+    document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+    
+    // Update URL hash
+    window.location.hash = sectionName;
+}
+
+// API Key functions
+function createAPIKey() {
+    const name = prompt('Enter a name for this API key:');
+    if (name) {
+        fetch('/api/keys', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ name: name })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  alert(`API Key created: ${data.key}\n\nPlease save this key - you won't be able to see it again!`);
+                  location.reload();
+              } else {
+                  alert('Failed to create API key: ' + data.error);
+              }
+          });
+    }
+}
+
+function copyAPIKey(keyId) {
+    // This would copy the full key from server
+    fetch(`/api/keys/${keyId}/reveal`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              navigator.clipboard.writeText(data.key);
+              alert('API key copied to clipboard');
+          }
+      });
+}
+
+function deleteAPIKey(keyId) {
+    if (confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+        fetch(`/api/keys/${keyId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(() => location.reload());
+    }
+}
+
+// 2FA functions
+function enable2FA() {
+    window.location.href = '/auth/2fa/setup';
+}
+
+function disable2FA() {
+    if (confirm('Are you sure you want to disable two-factor authentication?')) {
+        fetch('/auth/2fa/disable', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(() => location.reload());
+    }
+}
+
+// Storage functions
+function exportData() {
+    window.location.href = '/api/user/export';
+}
+
+function cleanupFiles() {
+    if (confirm('This will permanently delete old files. Are you sure?')) {
+        fetch('/api/user/cleanup', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(() => {
+            alert('Cleanup initiated. Check back in a few minutes.');
+            location.reload();
+        });
+    }
+}
+
+function deleteAllData() {
+    const confirmation = prompt('Type "DELETE ALL DATA" to confirm this action:');
+    if (confirmation === 'DELETE ALL DATA') {
+        fetch('/api/user/delete-data', {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(() => {
+            alert('All data deleted successfully');
+            window.location.href = '/';
+        });
+    }
+}
+
+function deleteAccount() {
+    const confirmation = prompt('Type "DELETE ACCOUNT" to permanently delete your account:');
+    if (confirmation === 'DELETE ACCOUNT') {
+        fetch('/api/user/delete-account', {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(() => {
+            alert('Account deleted successfully');
+            window.location.href = '/';
+        });
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle URL hash
+    const hash = window.location.hash.substring(1);
+    if (hash && document.getElementById(hash + '-section')) {
+        showSection(hash);
+    }
+    
+    // Handle browser back/forward
+    window.addEventListener('hashchange', function() {
+        const hash = window.location.hash.substring(1);
+        if (hash && document.getElementById(hash + '-section')) {
+            showSection(hash);
+        }
+    });
+    
+    // Password strength indicator
+    const newPasswordField = document.getElementById('new_password');
+    if (newPasswordField) {
+        newPasswordField.addEventListener('input', function() {
+            // Add password strength visualization
+            console.log('Password strength check for:', this.value.length);
+        });
+    }
+});
+</script>
 {% endblock %}

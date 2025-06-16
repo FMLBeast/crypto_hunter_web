@@ -1,14 +1,14 @@
-<!-- errors/403.html -->
+<!-- errors/400.html -->
 {% extends "base.html" %}
 
-{% block title %}Access Forbidden - Crypto Hunter{% endblock %}
+{% block title %}Bad Request - Crypto Hunter{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center px-4">
     <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
-        <div class="text-6xl mb-4">🚫</div>
-        <h1 class="text-2xl font-bold text-gray-900 mb-2">Access Forbidden</h1>
-        <p class="text-gray-600 mb-6">You don't have permission to access this resource.</p>
+        <div class="text-6xl mb-4">❌</div>
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Bad Request</h1>
+        <p class="text-gray-600 mb-6">The request was invalid or malformed.</p>
         <div class="space-y-3">
             <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
                 Return to Dashboard

@@ -1,3 +1,4 @@
+<!-- errors/404.html -->
 {% extends "base.html" %}
 
 {% block title %}Page Not Found - Crypto Hunter{% endblock %}
@@ -9,10 +10,10 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">Page Not Found</h1>
         <p class="text-gray-600 mb-6">The page you're looking for doesn't exist in our steganography tracker.</p>
         <div class="space-y-3">
-            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
                 Return to Dashboard
             </a>
-            <a href="{{ url_for('files.file_list') }}" class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium">
+            <a href="{{ url_for('files.file_list') }}" class="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
                 Browse Files
             </a>
         </div>

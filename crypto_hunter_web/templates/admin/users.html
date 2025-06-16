@@ -1,0 +1,326 @@
+<!-- admin/users.html -->
+{% extends "base.html" %}
+
+{% block title %}User Management - Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">User Management</h1>
+                <p class="mt-2 text-sm text-gray-600">Manage system users and permissions</p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <button onclick="openUserModal('create')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-plus mr-2"></i>Add User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="p-6">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="md:col-span-2">
+                    <input type="text" name="search" placeholder="Search users..." value="{{ request.args.get('search', '') }}"
+                           class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <select name="role" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Roles</option>
+                        <option value="admin" {% if request.args.get('role') == 'admin' %}selected{% endif %}>Admin</option>
+                        <option value="user" {% if request.args.get('role') == 'user' %}selected{% endif %}>User</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                        Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Active</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% if users %}
+                        {% for user in users.items %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 bg-gray-300 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-user text-gray-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">{{ user.username }}</div>
+                                        <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if user.is_admin %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        Admin
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        User
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'Unknown' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ user.last_active.strftime('%Y-%m-%d %H:%M') if user.last_active else 'Never' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if user.is_active %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        Active
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        Inactive
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex space-x-2">
+                                    <button onclick="openUserModal('edit', {{ user.id }})" class="text-indigo-600 hover:text-indigo-900">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="toggleUserStatus({{ user.id }}, {{ user.is_active|lower }})" class="text-yellow-600 hover:text-yellow-900">
+                                        <i class="fas fa-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
+                                    </button>
+                                    {% if user.id != current_user.id %}
+                                    <button onclick="deleteUser({{ user.id }})" class="text-red-600 hover:text-red-900">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">No users found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if users and users.pages > 1 %}
+        <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if users.has_prev %}
+                        <a href="{{ url_for('admin.users', page=users.prev_num, **request.args) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Previous</a>
+                    {% endif %}
+                    {% if users.has_next %}
+                        <a href="{{ url_for('admin.users', page=users.next_num, **request.args) }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing {{ users.per_page * (users.page - 1) + 1 }} to {{ users.per_page * (users.page - 1) + users.items|length }} of {{ users.total }} results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                            {% if users.has_prev %}
+                                <a href="{{ url_for('admin.users', page=users.prev_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+                            {% for page_num in users.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != users.page %}
+                                        <a href="{{ url_for('admin.users', page=page_num, **request.args) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">{{ page_num }}</a>
+                                    {% else %}
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">{{ page_num }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                                {% endif %}
+                            {% endfor %}
+                            {% if users.has_next %}
+                                <a href="{{ url_for('admin.users', page=users.next_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- User Modal -->
+<div id="userModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div id="userModalContent">
+            <!-- Modal content will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openUserModal(action, userId = null) {
+    const modal = document.getElementById('userModal');
+    const content = document.getElementById('userModalContent');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    if (action === 'create') {
+        content.innerHTML = `
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-medium text-gray-900">Create User</h3>
+                <button onclick="closeUserModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="userForm" onsubmit="saveUser(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" name="username" required class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" name="email" required class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" name="password" required class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_admin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <label class="ml-2 text-sm text-gray-700">Admin privileges</label>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" onclick="closeUserModal()" class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Create User</button>
+                </div>
+            </form>
+        `;
+    }
+}
+
+function closeUserModal() {
+    const modal = document.getElementById('userModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function saveUser(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+
+    const data = {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        is_admin: formData.has('is_admin')
+    };
+
+    makeRequest('/admin/api/users', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('User created successfully', 'success');
+            closeUserModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message || 'Failed to create user', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Create user error:', error);
+        showNotification('Failed to create user', 'error');
+    });
+}
+
+function toggleUserStatus(userId, currentStatus) {
+    const newStatus = !currentStatus;
+    const action = newStatus ? 'activate' : 'deactivate';
+
+    if (confirm(`Are you sure you want to ${action} this user?`)) {
+        makeRequest(`/admin/api/users/${userId}/toggle`, {
+            method: 'POST',
+            body: JSON.stringify({ is_active: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.message || 'Failed to update user', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Toggle user error:', error);
+            showNotification('Failed to update user', 'error');
+        });
+    }
+}
+
+function deleteUser(userId) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        makeRequest(`/admin/api/users/${userId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('User deleted successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.message || 'Failed to delete user', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Delete user error:', error);
+            showNotification('Failed to delete user', 'error');
+        });
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('userModal');
+    if (modal && event.target === modal) {
+        closeUserModal();
+    }
+});
+</script>
+{% endblock %>

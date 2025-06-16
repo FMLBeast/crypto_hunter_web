@@ -1,514 +1,350 @@
+<!-- admin/logs.html -->
 {% extends "base.html" %}
 
-{% block title %}System Logs - Crypto Hunter{% endblock %}
-
-{% block extra_head %}
-<style>
-.log-viewer {
-    background: #1a1a1a;
-    color: #e5e7eb;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    line-height: 1.4;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.log-line {
-    padding: 4px 12px;
-    border-bottom: 1px solid #374151;
-    white-space: pre-wrap;
-    word-break: break-all;
-    transition: background-color 0.2s ease;
-}
-
-.log-line:hover {
-    background-color: #374151;
-}
-
-.log-line.error {
-    background-color: rgba(239, 68, 68, 0.1);
-    border-left: 3px solid #ef4444;
-}
-
-.log-line.warning {
-    background-color: rgba(245, 158, 11, 0.1);
-    border-left: 3px solid #f59e0b;
-}
-
-.log-line.info {
-    background-color: rgba(59, 130, 246, 0.1);
-    border-left: 3px solid #3b82f6;
-}
-
-.log-line.debug {
-    background-color: rgba(107, 114, 128, 0.1);
-    border-left: 3px solid #6b7280;
-}
-
-.log-timestamp {
-    color: #9ca3af;
-    margin-right: 8px;
-}
-
-.log-level {
-    font-weight: bold;
-    margin-right: 8px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.75rem;
-}
-
-.log-level.ERROR {
-    background: #dc2626;
-    color: white;
-}
-
-.log-level.WARNING {
-    background: #d97706;
-    color: white;
-}
-
-.log-level.INFO {
-    background: #2563eb;
-    color: white;
-}
-
-.log-level.DEBUG {
-    background: #6b7280;
-    color: white;
-}
-
-.log-filter-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 20px;
-    font-size: 0.875rem;
-    color: #374151;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.log-filter-chip:hover {
-    background: #e5e7eb;
-    border-color: #9ca3af;
-}
-
-.log-filter-chip.active {
-    background: #3b82f6;
-    color: white;
-    border-color: #3b82f6;
-}
-
-.log-controls {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 16px;
-}
-
-.metric-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px;
-    padding: 20px;
-    transition: transform 0.2s ease;
-}
-
-.metric-card:hover {
-    transform: translateY(-2px);
-}
-
-.performance-chart {
-    height: 200px;
-}
-
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.status-healthy {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.status-warning {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.status-critical {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.service-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.service-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px;
-    transition: all 0.2s ease;
-}
-
-.service-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.service-status {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
-}
-
-.service-online {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-}
-
-.service-offline {
-    background: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
-}
-
-.service-degraded {
-    background: #f59e0b;
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
-}
-
-.auto-scroll {
-    animation: auto-scroll 0.3s ease;
-}
-
-@keyframes auto-scroll {
-    from { opacity: 0.7; }
-    to { opacity: 1; }
-}
-
-.search-highlight {
-    background-color: #fef3c7;
-    padding: 1px 2px;
-    border-radius: 2px;
-}
-
-.log-sidebar {
-    background: #f8fafc;
-    border-radius: 8px;
-    padding: 16px;
-}
-
-.download-btn {
-    transition: all 0.2s ease;
-}
-
-.download-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-</style>
-{% endblock %}
+{% block title %}System Logs - Admin{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Header -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-8">
-        <div class="flex items-center justify-between">
+        <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">System Logs & Monitoring</h1>
-                <p class="mt-1 text-sm text-gray-600">
-                    Real-time system monitoring and log analysis
-                </p>
+                <h1 class="text-3xl font-bold text-gray-900">System Logs</h1>
+                <p class="mt-2 text-sm text-gray-600">Monitor system activity and errors</p>
             </div>
-            <div class="flex items-center space-x-3">
-                <button onclick="toggleAutoRefresh()" id="auto-refresh-btn" 
-                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
-                    <i class="fas fa-sync mr-2"></i>Auto Refresh: ON
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                <button onclick="refreshLogs()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-sync mr-2"></i>Refresh
                 </button>
-                <button onclick="clearLogs()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md">
+                <button onclick="clearLogs()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
                     <i class="fas fa-trash mr-2"></i>Clear Logs
                 </button>
-                <button onclick="downloadLogs()" class="download-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
-                    <i class="fas fa-download mr-2"></i>Download
-                </button>
             </div>
         </div>
     </div>
 
-    <!-- System Status Overview -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div class="metric-card">
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-2xl font-bold">{{ system_status.uptime }}</div>
-                    <div class="text-blue-100">System Uptime</div>
+    <!-- Log Filters -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="p-6">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div class="md:col-span-2">
+                    <input type="text" name="search" placeholder="Search logs..." value="{{ request.args.get('search', '') }}"
+                           class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
-                <i class="fas fa-clock text-3xl opacity-80"></i>
-            </div>
-        </div>
-
-        <div class="metric-card">
-            <div class="flex items-center justify-between">
                 <div>
-                    <div class="text-2xl font-bold">{{ system_status.cpu_usage }}%</div>
-                    <div class="text-blue-100">CPU Usage</div>
+                    <select name="level" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Levels</option>
+                        <option value="ERROR" {% if request.args.get('level') == 'ERROR' %}selected{% endif %}>Error</option>
+                        <option value="WARNING" {% if request.args.get('level') == 'WARNING' %}selected{% endif %}>Warning</option>
+                        <option value="INFO" {% if request.args.get('level') == 'INFO' %}selected{% endif %}>Info</option>
+                        <option value="DEBUG" {% if request.args.get('level') == 'DEBUG' %}selected{% endif %}>Debug</option>
+                    </select>
                 </div>
-                <i class="fas fa-microchip text-3xl opacity-80"></i>
-            </div>
-        </div>
-
-        <div class="metric-card">
-            <div class="flex items-center justify-between">
                 <div>
-                    <div class="text-2xl font-bold">{{ system_status.memory_usage }}%</div>
-                    <div class="text-blue-100">Memory Usage</div>
+                    <select name="timeframe" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="24h" {% if request.args.get('timeframe') == '24h' %}selected{% endif %}>Last 24 hours</option>
+                        <option value="7d" {% if request.args.get('timeframe') == '7d' %}selected{% endif %}>Last 7 days</option>
+                        <option value="30d" {% if request.args.get('timeframe') == '30d' %}selected{% endif %}>Last 30 days</option>
+                        <option value="all" {% if request.args.get('timeframe') == 'all' %}selected{% endif %}>All time</option>
+                    </select>
                 </div>
-                <i class="fas fa-memory text-3xl opacity-80"></i>
-            </div>
-        </div>
-
-        <div class="metric-card">
-            <div class="flex items-center justify-between">
                 <div>
-                    <div class="text-2xl font-bold">{{ system_status.active_connections }}</div>
-                    <div class="text-blue-100">Active Connections</div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                        Filter
+                    </button>
                 </div>
-                <i class="fas fa-network-wired text-3xl opacity-80"></i>
-            </div>
+            </form>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <!-- Main Log Viewer -->
-        <div class="lg:col-span-3">
-            <!-- Log Controls -->
-            <div class="log-controls mb-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-gray-900">Log Viewer</h2>
-                    <div class="flex items-center space-x-3">
-                        <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-600">Lines:</label>
-                            <select id="log-lines" onchange="updateLogLines()" class="text-sm border border-gray-300 rounded px-2 py-1">
-                                <option value="100">100</option>
-                                <option value="500" selected>500</option>
-                                <option value="1000">1000</option>
-                                <option value="all">All</option>
-                            </select>
+    <!-- Logs Display -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">Log Entries</h2>
+        </div>
+        <div class="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+            {% if logs %}
+                {% for log in logs %}
+                <div class="p-4 hover:bg-gray-50">
+                    <div class="flex items-start space-x-3">
+                        <div class="flex-shrink-0">
+                            {% if log.level == 'ERROR' %}
+                                <i class="fas fa-exclamation-circle text-red-500"></i>
+                            {% elif log.level == 'WARNING' %}
+                                <i class="fas fa-exclamation-triangle text-yellow-500"></i>
+                            {% elif log.level == 'INFO' %}
+                                <i class="fas fa-info-circle text-blue-500"></i>
+                            {% else %}
+                                <i class="fas fa-bug text-gray-500"></i>
+                            {% endif %}
                         </div>
-                        <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-600">Follow:</label>
-                            <input type="checkbox" id="follow-logs" checked onchange="toggleFollowLogs()" 
-                                   class="rounded border-gray-300">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Log Filters -->
-                <div class="flex items-center space-x-2 flex-wrap gap-2 mb-4">
-                    <span class="text-sm text-gray-600">Filter by level:</span>
-                    <span class="log-filter-chip active" onclick="toggleLogFilter('all')" data-level="all">
-                        All
-                    </span>
-                    <span class="log-filter-chip" onclick="toggleLogFilter('ERROR')" data-level="ERROR">
-                        Error
-                    </span>
-                    <span class="log-filter-chip" onclick="toggleLogFilter('WARNING')" data-level="WARNING">
-                        Warning
-                    </span>
-                    <span class="log-filter-chip" onclick="toggleLogFilter('INFO')" data-level="INFO">
-                        Info
-                    </span>
-                    <span class="log-filter-chip" onclick="toggleLogFilter('DEBUG')" data-level="DEBUG">
-                        Debug
-                    </span>
-                </div>
-
-                <!-- Search -->
-                <div class="flex items-center space-x-3">
-                    <div class="flex-1 relative">
-                        <input type="text" id="log-search" placeholder="Search logs..." 
-                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400"></i>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <p class="text-sm font-medium text-gray-900">{{ log.message }}</p>
+                                <p class="text-xs text-gray-500">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'Unknown' }}</p>
+                            </div>
+                            {% if log.module %}
+                                <p class="text-xs text-gray-500 mt-1">Module: {{ log.module }}</p>
+                            {% endif %}
+                            {% if log.details %}
+                                <details class="mt-2">
+                                    <summary class="text-xs text-gray-500 cursor-pointer">Show details</summary>
+                                    <pre class="text-xs text-gray-600 mt-1 bg-gray-100 p-2 rounded overflow-x-auto">{{ log.details }}</pre>
+                                </details>
+                            {% endif %}
                         </div>
                     </div>
-                    <button onclick="searchLogs()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
-                        Search
-                    </button>
-                    <button onclick="clearSearch()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
-                        Clear
-                    </button>
-                </div>
-            </div>
-
-            <!-- Log Display -->
-            <div class="log-viewer" style="height: 600px; overflow-y: auto;" id="log-display">
-                {% for log_entry in log_entries %}
-                <div class="log-line {{ log_entry.level.lower() }}" data-level="{{ log_entry.level }}">
-                    <span class="log-timestamp">{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}</span>
-                    <span class="log-level {{ log_entry.level }}">{{ log_entry.level }}</span>
-                    <span class="log-message">{{ log_entry.message }}</span>
-                    {% if log_entry.context %}
-                    <span class="text-gray-400"> | {{ log_entry.context }}</span>
-                    {% endif %}
                 </div>
                 {% endfor %}
-            </div>
+            {% else %}
+                <div class="p-8 text-center text-gray-500">
+                    <i class="fas fa-file-alt text-4xl mb-4"></i>
+                    <p>No log entries found</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-            <!-- Log Statistics -->
-            <div class="mt-6 bg-white rounded-lg shadow p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Log Statistics</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-red-600">{{ log_stats.error_count }}</div>
-                        <div class="text-sm text-gray-500">Errors</div>
+{% block extra_scripts %}
+<script>
+function refreshLogs() {
+    location.reload();
+}
+
+function clearLogs() {
+    if (confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
+        makeRequest('/admin/api/logs/clear', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Logs cleared successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.message || 'Failed to clear logs', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Clear logs error:', error);
+            showNotification('Failed to clear logs', 'error');
+        });
+    }
+}
+
+// Auto-refresh logs every 30 seconds
+setInterval(refreshLogs, 30000);
+</script>
+{% endblock %}<!-- admin/dashboard.html -->
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p class="mt-2 text-sm text-gray-600">System administration and monitoring</p>
+    </div>
+
+    <!-- System Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-users text-blue-600 text-2xl"></i>
                     </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-yellow-600">{{ log_stats.warning_count }}</div>
-                        <div class="text-sm text-gray-500">Warnings</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-blue-600">{{ log_stats.info_count }}</div>
-                        <div class="text-sm text-gray-500">Info</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-600">{{ log_stats.debug_count }}</div>
-                        <div class="text-sm text-gray-500">Debug</div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_users | default(0) }}</dd>
+                        </dl>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar -->
-        <div class="lg:col-span-1 space-y-6">
-            <!-- System Services -->
-            <div class="log-sidebar">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">System Services</h3>
-                <div class="service-grid">
-                    {% for service in system_services %}
-                    <div class="service-card">
-                        <div class="flex items-center justify-between mb-2">
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-file text-green-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Total Files</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_files | default(0) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-cogs text-yellow-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Active Tasks</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ active_tasks | default(0) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-hdd text-purple-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Storage Used</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ storage_used | default('0 GB') }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">System Actions</h2>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="systemAction('restart_workers')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-sync mr-2"></i>Restart Workers
+                    </button>
+                    <button onclick="systemAction('clear_cache')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-trash mr-2"></i>Clear Cache
+                    </button>
+                    <button onclick="systemAction('backup_db')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-database mr-2"></i>Backup DB
+                    </button>
+                    <button onclick="systemAction('cleanup_files')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-broom mr-2"></i>Cleanup Files
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">System Health</h2>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Database</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>Healthy
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Redis Cache</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>Connected
+                        </span>
+                    </div>
+                       <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Background Workers</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <span class="w-1.5 h-1.5 bg-yellow-400 rounded-full mr-1"></span>{{ worker_count | default(1) }} Active
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Disk Space</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>{{ disk_usage | default('15%') }} Used
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">Recent Users</h2>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    {% if recent_users %}
+                        {% for user in recent_users %}
+                        <div class="flex items-center justify-between">
                             <div class="flex items-center">
-                                <span class="service-status service-{{ service.status }}"></span>
-                                <span class="font-medium text-sm">{{ service.name }}</span>
+                                <div class="h-8 w-8 bg-gray-300 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-user text-gray-600"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-gray-900">{{ user.username }}</p>
+                                    <p class="text-xs text-gray-500">{{ user.email }}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-500">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at }}</p>
+                                {% if user.is_admin %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Admin</span>
+                                {% endif %}
                             </div>
                         </div>
-                        <div class="text-xs text-gray-500">
-                            CPU: {{ service.cpu_usage }}% | Mem: {{ service.memory_usage }}MB
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            Uptime: {{ service.uptime }}
-                        </div>
-                        <div class="mt-2">
-                            <span class="status-badge {% if service.status == 'online' %}status-healthy{% elif service.status == 'degraded' %}status-warning{% else %}status-critical{% endif %}">
-                                {{ service.status.title() }}
-                            </span>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Performance Metrics -->
-            <div class="log-sidebar">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h3>
-                <canvas id="performanceChart" class="performance-chart"></canvas>
-                <div class="mt-4 space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Avg Response Time:</span>
-                        <span class="font-medium">{{ performance_metrics.avg_response_time }}ms</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Requests/min:</span>
-                        <span class="font-medium">{{ performance_metrics.requests_per_minute }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Error Rate:</span>
-                        <span class="font-medium">{{ performance_metrics.error_rate }}%</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Errors -->
-            <div class="log-sidebar">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Errors</h3>
-                <div class="space-y-3">
-                    {% for error in recent_errors %}
-                    <div class="bg-red-50 border border-red-200 rounded p-3">
-                        <div class="text-sm font-medium text-red-900">{{ error.type }}</div>
-                        <div class="text-xs text-red-700 mt-1">{{ error.message[:50] }}...</div>
-                        <div class="text-xs text-red-500 mt-1">{{ error.timestamp.strftime('%H:%M:%S') }}</div>
-                    </div>
-                    {% endfor %}
-                    
-                    {% if not recent_errors %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
-                        <div class="text-sm text-gray-500">No recent errors</div>
-                    </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-gray-500 text-center">No recent users</p>
                     {% endif %}
                 </div>
-            </div>
-
-            <!-- Log Files -->
-            <div class="log-sidebar">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Log Files</h3>
-                <div class="space-y-2">
-                    {% for log_file in log_files %}
-                    <div class="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
-                         onclick="loadLogFile('{{ log_file.name }}')">
-                        <div>
-                            <div class="text-sm font-medium">{{ log_file.name }}</div>
-                            <div class="text-xs text-gray-500">{{ log_file.size|filesizeformat }}</div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button onclick="downloadLogFile('{{ log_file.name }}')" 
-                                    class="text-blue-600 hover:text-blue-800" title="Download">
-                                <i class="fas fa-download"></i>
-                            </button>
-                            <span class="status-badge {% if log_file.is_active %}status-healthy{% else %}status-warning{% endif %}">
-                                {% if log_file.is_active %}Active{% else %}Archived{% endif %}
-                            </span>
-                        </div>
-                    </div>
-                    {% endfor %}
+                <div class="mt-4">
+                    <a href="{{ url_for('admin.users') }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        View all users →
+                    </a>
                 </div>
             </div>
+        </div>
 
-            <!-- Quick Actions -->
-            <div class="log-sidebar">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div class="space-y-2">
-                    <button onclick="restartService('web')" 
-                            class="w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded">
-                        <i class="fas fa-refresh mr-2"></i>Restart Web Server
-                    </button>
-                    <button onclick="restartService('worker')" 
-                            class="w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 rounded">
-                        <i class="fas fa-cogs mr-2"></i>Restart Workers
-                    </button>
-                    <button onclick="flushLogs()" 
-                            class="w-full text-left px-3 py-2 text-sm bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded">
-                        <i class="fas fa-broom mr-2"></i>Flush Log Buffers
-                    </button>
-                    <button onclick="generateReport()" 
-                            class="w-full text-left px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 rounded">
-                        <i class="fas fa-file-alt mr-2"></i>Generate Report
-                    </button>
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">System Logs</h2>
+            </div>
+            <div class="p-6">
+                <div class="space-y-3">
+                    {% if system_logs %}
+                        {% for log in system_logs[:5] %}
+                        <div class="flex items-start space-x-3">
+                            <div class="flex-shrink-0">
+                                {% if log.level == 'ERROR' %}
+                                    <i class="fas fa-exclamation-circle text-red-500"></i>
+                                {% elif log.level == 'WARNING' %}
+                                    <i class="fas fa-exclamation-triangle text-yellow-500"></i>
+                                {% else %}
+                                    <i class="fas fa-info-circle text-blue-500"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-gray-900 truncate">{{ log.message }}</p>
+                                <p class="text-xs text-gray-500">{{ log.timestamp.strftime('%Y-%m-%d %H:%M') if log.timestamp }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-gray-500 text-center">No recent logs</p>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <a href="{{ url_for('admin.logs') }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        View all logs →
+                    </a>
                 </div>
             </div>
         </div>
@@ -517,356 +353,43 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-let autoRefreshInterval = null;
-let followLogs = true;
-let activeFilters = ['all'];
-let searchQuery = '';
+function systemAction(action) {
+    if (confirm(`Are you sure you want to ${action.replace('_', ' ')}?`)) {
+        showLoading(document.querySelector('main'));
 
-// Initialize
-document.addEventListener('DOMContentLoaded', function() {
-    initializePerformanceChart();
-    startAutoRefresh();
-    
-    // Setup search functionality
-    document.getElementById('log-search').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            searchLogs();
-        }
-    });
-    
-    // Auto-scroll to bottom if following logs
-    if (followLogs) {
-        scrollToBottom();
-    }
-});
-
-function initializePerformanceChart() {
-    const ctx = document.getElementById('performanceChart').getContext('2d');
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{ performance_data.timestamps|tojson }},
-            datasets: [{
-                label: 'CPU %',
-                data: {{ performance_data.cpu|tojson }},
-                borderColor: '#ef4444',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                tension: 0.4
-            }, {
-                label: 'Memory %',
-                data: {{ performance_data.memory|tojson }},
-                borderColor: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true, max: 100 }
-            },
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
-    });
-}
-
-// Auto-refresh functionality
-function startAutoRefresh() {
-    autoRefreshInterval = setInterval(refreshLogs, 5000); // Refresh every 5 seconds
-}
-
-function stopAutoRefresh() {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-    }
-}
-
-function toggleAutoRefresh() {
-    const btn = document.getElementById('auto-refresh-btn');
-    
-    if (autoRefreshInterval) {
-        stopAutoRefresh();
-        btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Auto Refresh: OFF';
-        btn.className = 'bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md';
-    } else {
-        startAutoRefresh();
-        btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Auto Refresh: ON';
-        btn.className = 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md';
-    }
-}
-
-function refreshLogs() {
-    fetch('/admin/logs/refresh', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCSRFToken(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            lines: document.getElementById('log-lines').value,
-            filters: activeFilters,
-            search: searchQuery
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            updateLogDisplay(data.logs);
-            updateSystemMetrics(data.metrics);
-        }
-    })
-    .catch(error => console.log('Auto-refresh failed:', error));
-}
-
-function updateLogDisplay(logs) {
-    const logDisplay = document.getElementById('log-display');
-    const shouldScroll = followLogs && (logDisplay.scrollTop + logDisplay.clientHeight >= logDisplay.scrollHeight - 10);
-    
-    // Clear existing logs
-    logDisplay.innerHTML = '';
-    
-    // Add new logs
-    logs.forEach(log => {
-        const logLine = document.createElement('div');
-        logLine.className = `log-line ${log.level.toLowerCase()}`;
-        logLine.setAttribute('data-level', log.level);
-        
-        logLine.innerHTML = `
-            <span class="log-timestamp">${log.timestamp}</span>
-            <span class="log-level ${log.level}">${log.level}</span>
-            <span class="log-message">${highlightSearchTerms(log.message)}</span>
-            ${log.context ? `<span class="text-gray-400"> | ${log.context}</span>` : ''}
-        `;
-        
-        logDisplay.appendChild(logLine);
-    });
-    
-    // Apply current filters
-    applyLogFilters();
-    
-    // Auto-scroll if following
-    if (shouldScroll) {
-        logDisplay.classList.add('auto-scroll');
-        scrollToBottom();
-        setTimeout(() => logDisplay.classList.remove('auto-scroll'), 300);
-    }
-}
-
-function updateSystemMetrics(metrics) {
-    // Update metric cards if provided
-    if (metrics) {
-        // Update CPU, memory, etc. in the metric cards
-    }
-}
-
-// Log filtering
-function toggleLogFilter(level) {
-    const filterChips = document.querySelectorAll('.log-filter-chip');
-    
-    if (level === 'all') {
-        activeFilters = ['all'];
-        filterChips.forEach(chip => {
-            chip.classList.remove('active');
-            if (chip.dataset.level === 'all') {
-                chip.classList.add('active');
-            }
-        });
-    } else {
-        // Remove 'all' if selecting specific levels
-        if (activeFilters.includes('all')) {
-            activeFilters = [];
-            document.querySelector('[data-level="all"]').classList.remove('active');
-        }
-        
-        const chip = document.querySelector(`[data-level="${level}"]`);
-        if (activeFilters.includes(level)) {
-            activeFilters = activeFilters.filter(f => f !== level);
-            chip.classList.remove('active');
-        } else {
-            activeFilters.push(level);
-            chip.classList.add('active');
-        }
-        
-        // If no filters selected, default to 'all'
-        if (activeFilters.length === 0) {
-            activeFilters = ['all'];
-            document.querySelector('[data-level="all"]').classList.add('active');
-        }
-    }
-    
-    applyLogFilters();
-}
-
-function applyLogFilters() {
-    const logLines = document.querySelectorAll('.log-line');
-    
-    logLines.forEach(line => {
-        const level = line.dataset.level;
-        if (activeFilters.includes('all') || activeFilters.includes(level)) {
-            line.style.display = 'block';
-        } else {
-            line.style.display = 'none';
-        }
-    });
-}
-
-// Search functionality
-function searchLogs() {
-    searchQuery = document.getElementById('log-search').value;
-    refreshLogs();
-}
-
-function clearSearch() {
-    document.getElementById('log-search').value = '';
-    searchQuery = '';
-    refreshLogs();
-}
-
-function highlightSearchTerms(text) {
-    if (!searchQuery) return text;
-    
-    const regex = new RegExp(`(${searchQuery})`, 'gi');
-    return text.replace(regex, '<span class="search-highlight">$1</span>');
-}
-
-// Log controls
-function updateLogLines() {
-    refreshLogs();
-}
-
-function toggleFollowLogs() {
-    followLogs = document.getElementById('follow-logs').checked;
-    if (followLogs) {
-        scrollToBottom();
-    }
-}
-
-function scrollToBottom() {
-    const logDisplay = document.getElementById('log-display');
-    logDisplay.scrollTop = logDisplay.scrollHeight;
-}
-
-// Log file management
-function loadLogFile(filename) {
-    fetch(`/admin/logs/file/${filename}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateLogDisplay(data.logs);
-            } else {
-                showNotification('Error loading log file', 'error');
-            }
-        })
-        .catch(error => {
-            showNotification('Error loading log file', 'error');
-        });
-}
-
-function downloadLogFile(filename) {
-    window.open(`/admin/logs/download/${filename}`, '_blank');
-}
-
-function downloadLogs() {
-    const params = new URLSearchParams({
-        filters: activeFilters.join(','),
-        search: searchQuery,
-        lines: document.getElementById('log-lines').value
-    });
-    
-    window.open(`/admin/logs/export?${params.toString()}`, '_blank');
-}
-
-function clearLogs() {
-    if (confirm('Clear all current logs from display? This will not delete log files.')) {
-        document.getElementById('log-display').innerHTML = '';
-        showNotification('Log display cleared', 'success');
-    }
-}
-
-// System actions
-function restartService(serviceName) {
-    if (confirm(`Restart ${serviceName} service? This may cause temporary downtime.`)) {
-        fetch(`/admin/services/${serviceName}/restart`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCSRFToken() }
+        makeRequest(`/admin/api/system/${action}`, {
+            method: 'POST'
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showNotification(`${serviceName} service restarted successfully`, 'success');
+                showNotification(data.message, 'success');
             } else {
-                showNotification(`Error restarting ${serviceName} service`, 'error');
+                showNotification(data.message || 'Action failed', 'error');
             }
         })
         .catch(error => {
-            showNotification(`Error restarting ${serviceName} service`, 'error');
+            console.error('System action error:', error);
+            showNotification('Action failed', 'error');
+        })
+        .finally(() => {
+            hideLoading();
         });
     }
 }
 
-function flushLogs() {
-    if (confirm('Flush all log buffers to disk?')) {
-        fetch('/admin/logs/flush', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCSRFToken() }
-        })
+// Auto-refresh stats every 30 seconds
+setInterval(() => {
+    fetch('/admin/api/stats')
         .then(response => response.json())
         .then(data => {
+            // Update stats without page reload
             if (data.success) {
-                showNotification('Log buffers flushed successfully', 'success');
-            } else {
-                showNotification('Error flushing log buffers', 'error');
+                // Update values in DOM
             }
         })
-        .catch(error => {
-            showNotification('Error flushing log buffers', 'error');
-        });
-    }
-}
-
-function generateReport() {
-    const startDate = prompt('Enter start date (YYYY-MM-DD):');
-    const endDate = prompt('Enter end date (YYYY-MM-DD):');
-    
-    if (startDate && endDate) {
-        fetch('/admin/logs/report', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({
-                start_date: startDate,
-                end_date: endDate
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Report generated successfully', 'success');
-                window.open(data.download_url, '_blank');
-            } else {
-                showNotification('Error generating report', 'error');
-            }
-        })
-        .catch(error => {
-            showNotification('Error generating report', 'error');
-        });
-    }
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-    }
-});
+        .catch(error => console.error('Stats refresh error:', error));
+}, 30000);
 </script>
 {% endblock %}

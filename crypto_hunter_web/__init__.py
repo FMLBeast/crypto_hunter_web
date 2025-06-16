@@ -50,7 +50,9 @@ def create_app(config_name=None, database_url=None):
 
     # Register blueprints
     from crypto_hunter_web.routes.main import main_bp
+    from crypto_hunter_web.routes.agents import agents_bp
     app.register_blueprint(main_bp)
+    app.register_blueprint(agents_bp)
 
     from crypto_hunter_web.routes.auth import auth_bp
     app.register_blueprint(auth_bp)
@@ -139,3 +141,16 @@ def register_ai_routes(app):
 
 # Call this in your create_app function:
 # register_ai_routes(app)
+
+# Agent system integration (add this to your create_app function)
+def setup_agent_system(app):
+    """Setup the agent system"""
+    try:
+        from crypto_hunter_web.services.agent_integration import setup_agent_integration
+        if app.config.get('AGENT_SYSTEM_ENABLED', True):
+            setup_agent_integration(app)
+            app.logger.info("✅ Agent system integrated successfully")
+    except Exception as e:
+        app.logger.warning(f"⚠️ Agent system not available: {e}")
+
+# Call this in your create_app function after all other initialization

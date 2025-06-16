@@ -1,0 +1,300 @@
+<!-- search/index.html -->
+{% extends "base.html" %}
+
+{% block title %}Search - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Search Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Search</h1>
+        <p class="mt-2 text-sm text-gray-600">Search across files, findings, and analysis results</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="bg-white rounded-lg shadow mb-8">
+        <div class="p-6">
+            <form method="GET" action="{{ url_for('search.index') }}">
+                <div class="space-y-4">
+                    <!-- Main Search -->
+                    <div>
+                        <label for="q" class="block text-sm font-medium text-gray-700 mb-2">Search Query</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-400"></i>
+                            </div>
+                            <input type="text" 
+                                   id="q" 
+                                   name="q" 
+                                   value="{{ request.args.get('q', '') }}"
+                                   placeholder="Search files, hashes, findings, content..."
+                                   class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg">
+                        </div>
+                    </div>
+
+                    <!-- Search Filters -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Search Type</label>
+                            <select name="type" id="type" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="all" {% if request.args.get('type') == 'all' %}selected{% endif %}>All Results</option>
+                                <option value="files" {% if request.args.get('type') == 'files' %}selected{% endif %}>Files Only</option>
+                                <option value="findings" {% if request.args.get('type') == 'findings' %}selected{% endif %}>Findings Only</option>
+                                <option value="content" {% if request.args.get('type') == 'content' %}selected{% endif %}>File Content</option>
+                                <option value="hashes" {% if request.args.get('type') == 'hashes' %}selected{% endif %}>Hash Values</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="file_type" class="block text-sm font-medium text-gray-700 mb-1">File Type</label>
+                            <select name="file_type" id="file_type" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">All Types</option>
+                                <option value="image" {% if request.args.get('file_type') == 'image' %}selected{% endif %}>Images</option>
+                                <option value="audio" {% if request.args.get('file_type') == 'audio' %}selected{% endif %}>Audio</option>
+                                <option value="video" {% if request.args.get('file_type') == 'video' %}selected{% endif %}>Video</option>
+                                <option value="document" {% if request.args.get('file_type') == 'document' %}selected{% endif %}>Documents</option>
+                                <option value="archive" {% if request.args.get('file_type') == 'archive' %}selected{% endif %}>Archives</option>
+                                <option value="executable" {% if request.args.get('file_type') == 'executable' %}selected{% endif %}>Executables</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="date_range" class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                            <select name="date_range" id="date_range" class="block w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Any Time</option>
+                                <option value="today" {% if request.args.get('date_range') == 'today' %}selected{% endif %}>Today</option>
+                                <option value="week" {% if request.args.get('date_range') == 'week' %}selected{% endif %}>Past Week</option>
+                                <option value="month" {% if request.args.get('date_range') == 'month' %}selected{% endif %}>Past Month</option>
+                                <option value="year" {% if request.args.get('date_range') == 'year' %}selected{% endif %}>Past Year</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-search mr-2"></i>Search
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Options -->
+                    <div class="pt-4 border-t border-gray-200">
+                        <button type="button" onclick="toggleAdvanced()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                            <i class="fas fa-chevron-down mr-1" id="advanced-chevron"></i>Advanced Options
+                        </button>
+                        
+                        <div id="advanced-options" class="hidden mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="case_sensitive" {% if request.args.get('case_sensitive') %}checked{% endif %} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="ml-2 text-sm text-gray-700">Case sensitive</span>
+                                </label>
+                            </div>
+                            <div>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="exact_match" {% if request.args.get('exact_match') %}checked{% endif %} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="ml-2 text-sm text-gray-700">Exact match</span>
+                                </label>
+                            </div>
+                            <div>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="regex" {% if request.args.get('regex') %}checked{% endif %} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="ml-2 text-sm text-gray-700">Regular expression</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if request.args.get('q') %}
+    <!-- Search Results -->
+    <div class="space-y-6">
+        <!-- Results Summary -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-medium text-gray-900">Search Results</h2>
+                    <p class="text-sm text-gray-600">
+                        Found {{ total_results | default(0) }} results for "{{ request.args.get('q') }}"
+                        {% if search_time %}in {{ "%.2f"|format(search_time) }} seconds{% endif %}
+                    </p>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="exportResults()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                        <i class="fas fa-download mr-1"></i>Export Results
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Tabs -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8 px-6">
+                    <button onclick="showResultTab('all')" id="tab-all" class="result-tab active border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        All Results ({{ total_results | default(0) }})
+                    </button>
+                    {% if file_results %}
+                    <button onclick="showResultTab('files')" id="tab-files" class="result-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Files ({{ file_results|length }})
+                    </button>
+                    {% endif %}
+                    {% if finding_results %}
+                    <button onclick="showResultTab('findings')" id="tab-findings" class="result-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Findings ({{ finding_results|length }})
+                    </button>
+                    {% endif %}
+                    {% if content_results %}
+                    <button onclick="showResultTab('content')" id="tab-content" class="result-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Content ({{ content_results|length }})
+                    </button>
+                    {% endif %}
+                </nav>
+            </div>
+
+            <!-- All Results -->
+            <div id="results-all" class="result-content p-6">
+                {% if file_results or finding_results or content_results %}
+                    <div class="space-y-6">
+                        <!-- File Results -->
+                        {% if file_results %}
+                        <div>
+                            <h3 class="text-md font-medium text-gray-900 mb-4">Files</h3>
+                            <div class="space-y-3">
+                                {% for file in file_results[:5] %}
+                                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex-1">
+                                            <h4 class="text-sm font-medium text-gray-900">
+                                                <a href="{{ url_for('analysis.file_detail', file_id=file.id) }}" class="text-indigo-600 hover:text-indigo-800">
+                                                    {{ file.filename | highlight(request.args.get('q')) | safe }}
+                                                </a>
+                                            </h4>
+                                            <p class="text-xs text-gray-500 mt-1">
+                                                {{ file.file_size | filesizeformat }} • {{ file.mime_type or 'Unknown type' }} • 
+                                                {{ file.created_at.strftime('%Y-%m-%d %H:%M') if file.created_at else 'Unknown date' }}
+                                            </p>
+                                            {% if file.sha256_hash and request.args.get('q').lower() in file.sha256_hash.lower() %}
+                                            <p class="text-xs text-gray-500 font-mono mt-1">{{ file.sha256_hash | highlight(request.args.get('q')) | safe }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            {% if file.is_root_file %}
+                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                    <i class="fas fa-star mr-1"></i>Root
+                                                </span>
+                                            {% endif %}
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if file.status.value == 'complete' %}bg-green-100 text-green-800
+                                                {% elif file.status.value == 'processing' %}bg-blue-100 text-blue-800
+                                                {% elif file.status.value == 'error' %}bg-red-100 text-red-800
+                                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                                {{ file.status.value.title() }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% if file_results|length > 5 %}
+                                <p class="text-sm text-gray-500 text-center">
+                                    And {{ file_results|length - 5 }} more files...
+                                    <button onclick="showResultTab('files')" class="text-indigo-600 hover:text-indigo-800 ml-1">View all</button>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Finding Results -->
+                        {% if finding_results %}
+                        <div>
+                            <h3 class="text-md font-medium text-gray-900 mb-4">Findings</h3>
+                            <div class="space-y-3">
+                                {% for finding in finding_results[:5] %}
+                                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <h4 class="text-sm font-medium text-gray-900">
+                                                {{ finding.finding_type | highlight(request.args.get('q')) | safe }}
+                                            </h4>
+                                            <p class="text-sm text-gray-600 mt-1">{{ finding.description | highlight(request.args.get('q')) | safe }}</p>
+                                            <p class="text-xs text-gray-500 mt-1">
+                                                File: <a href="{{ url_for('analysis.file_detail', file_id=finding.file.id) }}" class="text-indigo-600 hover:text-indigo-800">{{ finding.file.filename }}</a>
+                                                {% if finding.vector %} • Vector: {{ finding.vector.name }}{% endif %}
+                                            </p>
+                                        </div>
+                                        <div class="flex-shrink-0 ml-4">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                                {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                {{ (finding.confidence_score * 100)|round }}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% if finding_results|length > 5 %}
+                                <p class="text-sm text-gray-500 text-center">
+                                    And {{ finding_results|length - 5 }} more findings...
+                                    <button onclick="showResultTab('findings')" class="text-indigo-600 hover:text-indigo-800 ml-1">View all</button>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Content Results -->
+                        {% if content_results %}
+                        <div>
+                            <h3 class="text-md font-medium text-gray-900 mb-4">Content Matches</h3>
+                            <div class="space-y-3">
+                                {% for content in content_results[:5] %}
+                                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <h4 class="text-sm font-medium text-gray-900">
+                                                <a href="{{ url_for('analysis.file_detail', file_id=content.file.id) }}" class="text-indigo-600 hover:text-indigo-800">
+                                                    {{ content.file.filename }}
+                                                </a>
+                                            </h4>
+                                            <div class="text-sm text-gray-600 mt-1 font-mono bg-gray-50 p-2 rounded">
+                                                {{ content.context | highlight(request.args.get('q')) | safe }}
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-1">
+                                                Match at position {{ content.position }} • 
+                                                {{ content.match_type.title() }} content
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% if content_results|length > 5 %}
+                                <p class="text-sm text-gray-500 text-center">
+                                    And {{ content_results|length - 5 }} more content matches...
+                                    <button onclick="showResultTab('content')" class="text-indigo-600 hover:text-indigo-800 ml-1">View all</button>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-12">
+                        <i class="fas fa-search text-gray-400 text-6xl mb-4"></i>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">No results found</h3>
+                        <p class="mt-1 text-sm text-gray-500">Try adjusting your search query or filters.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Individual Tab Contents -->
+            {% if file_results %}
+            <div id="results-files" class="result-content hidden p-6">
+                <div class="space-y-3">
+                    {% for file in file_results %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">

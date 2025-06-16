@@ -1,457 +1,409 @@
+<!-- graph/visual_graph.html -->
 {% extends "base.html" %}
 
-{% block title %}Visual Graph - Crypto Hunter{% endblock %}
+{% block title %}File Relationship Graph - Crypto Hunter{% endblock %}
 
 {% block extra_head %}
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-.graph-container {
-    position: relative;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.graph-svg {
-    background: transparent;
-}
-
-.node {
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.node:hover {
-    transform: scale(1.1);
-}
-
-.node.selected {
-    stroke: #ffd700;
-    stroke-width: 3px;
-}
-
-.node.root-file {
-    stroke: #9f7aea;
-    stroke-width: 2px;
-}
-
-.node.has-findings {
-    stroke: #f56565;
-    stroke-width: 2px;
-    stroke-dasharray: 5,5;
-    animation: pulse-finding 2s infinite;
-}
-
-@keyframes pulse-finding {
-    0%, 100% { stroke-opacity: 1; }
-    50% { stroke-opacity: 0.5; }
-}
-
-.link {
-    stroke: rgba(255, 255, 255, 0.6);
-    stroke-width: 1px;
-    fill: none;
-}
-
-.link.extraction {
-    stroke: #48bb78;
-    stroke-width: 2px;
-}
-
-.link.similarity {
-    stroke: #ed8936;
-    stroke-width: 1px;
-    stroke-dasharray: 3,3;
-}
-
-.link.finding-relation {
-    stroke: #f56565;
-    stroke-width: 2px;
-    stroke-dasharray: 5,5;
-}
-
-.node-label {
-    fill: white;
-    font-size: 10px;
-    text-anchor: middle;
-    pointer-events: none;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-}
-
-.tooltip {
-    position: absolute;
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    pointer-events: none;
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.graph-controls {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 100;
-}
-
-.graph-legend {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 12px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.minimap {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    width: 150px;
-    height: 100px;
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-}
-
-.filter-panel {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.stats-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px;
-    padding: 16px;
-}
-
-.finding-marker {
-    fill: #f56565;
-    stroke: #fff;
-    stroke-width: 1px;
-}
-
-.vector-marker {
-    fill: #9f7aea;
-    stroke: #fff;
-    stroke-width: 1px;
-}
+    .graph-container {
+        width: 100%;
+        height: 600px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    
+    .graph-svg {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .node {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .node:hover {
+        stroke-width: 3px;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    }
+    
+    .node-file { fill: #3b82f6; stroke: #1e40af; }
+    .node-extracted { fill: #10b981; stroke: #059669; }
+    .node-finding { fill: #f59e0b; stroke: #d97706; }
+    .node-crypto { fill: #8b5cf6; stroke: #7c3aed; }
+    .node-selected { fill: #ef4444; stroke: #dc2626; stroke-width: 3px; }
+    
+    .link {
+        stroke: #6b7280;
+        stroke-opacity: 0.6;
+        stroke-width: 2px;
+        transition: all 0.3s ease;
+    }
+    
+    .link:hover {
+        stroke-opacity: 1;
+        stroke-width: 3px;
+    }
+    
+    .link-extraction { stroke: #10b981; }
+    .link-finding { stroke: #f59e0b; }
+    .link-cryptographic { stroke: #8b5cf6; }
+    .link-similarity { stroke: #ef4444; stroke-dasharray: 5,5; }
+    
+    .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .node-details {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .legend {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        font-size: 12px;
+        z-index: 10;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    
+    .legend-circle {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 2px solid;
+    }
+    
+    .graph-controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 10;
+    }
+    
+    .control-btn {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .control-btn:hover {
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .minimap {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 150px;
+        height: 100px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        z-index: 10;
+    }
+    
+    .filter-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .analysis-modes {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    
+    .mode-btn {
+        padding: 8px 16px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .mode-btn.active {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    
+    .path-highlight {
+        stroke: #ef4444 !important;
+        stroke-width: 4px !important;
+        animation: pathPulse 1.5s infinite;
+    }
+    
+    @keyframes pathPulse {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+    }
+    
+    .search-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Header -->
-    <div class="mb-6">
+<div class="space-y-6">
+    <!-- Graph Header -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">File Relationship Graph</h1>
-                <p class="mt-1 text-sm text-gray-600">
-                    Interactive visualization of file relationships, findings, and analysis vectors
-                </p>
+                <h1 class="text-2xl font-bold text-gray-900">File Relationship Graph</h1>
+                <p class="text-gray-600 mt-1">Interactive visualization of file relationships and analysis results</p>
             </div>
-            <div class="flex space-x-3">
-                <button onclick="exportGraph()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
+            <div class="flex items-center space-x-3">
+                <div class="text-sm text-gray-600">
+                    <span class="font-medium">{{ graph_data.nodes|length }}</span> nodes, 
+                    <span class="font-medium">{{ graph_data.links|length }}</span> relationships
+                </div>
+                <button onclick="exportGraph()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                     <i class="fas fa-download mr-2"></i>Export
                 </button>
-                <button onclick="resetGraph()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
-                    <i class="fas fa-refresh mr-2"></i>Reset
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="text-2xl font-bold text-blue-600">{{ stats.total_files }}</div>
+            <div class="text-sm text-gray-600">Total Files</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.root_files }} root files</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-2xl font-bold text-green-600">{{ stats.extractions }}</div>
+            <div class="text-sm text-gray-600">Extractions</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.extraction_methods|length }} methods used</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-2xl font-bold text-yellow-600">{{ stats.findings }}</div>
+            <div class="text-sm text-gray-600">Findings</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.high_priority_findings }} high priority</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-2xl font-bold text-purple-600">{{ stats.crypto_elements }}</div>
+            <div class="text-sm text-gray-600">Crypto Elements</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.cipher_types|length }} types detected</div>
+        </div>
+    </div>
+
+    <!-- Controls and Filters -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Search Panel -->
+        <div class="search-panel">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Search & Navigate</h3>
+            <div class="space-y-3">
+                <input type="text" id="node-search" placeholder="Search files, findings..." 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Focus on File</label>
+                    <select id="focus-file" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="">Select a file to focus</option>
+                        {% for file in files %}
+                        <option value="{{ file.sha256_hash }}">{{ file.filename }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button onclick="findShortestPath()" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-sm">
+                    <i class="fas fa-route mr-2"></i>Find Path Between Files
                 </button>
-                <a href="{{ url_for('files.file_list') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">
-                    <i class="fas fa-list mr-2"></i>File List
-                </a>
             </div>
         </div>
-    </div>
 
-    <!-- Graph Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="stats-card">
-            <div class="flex items-center">
-                <i class="fas fa-circle text-2xl mr-3 opacity-80"></i>
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Filters</h3>
+            <div class="space-y-3">
                 <div>
-                    <div class="text-sm opacity-80">Nodes</div>
-                    <div class="text-2xl font-bold">{{ graph_metadata.total_nodes }}</div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Node Types</label>
+                    <div class="space-y-1">
+                        <label class="flex items-center">
+                            <input type="checkbox" checked onchange="toggleNodeType('file')" class="mr-2 rounded">
+                            <span class="text-sm">Files</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked onchange="toggleNodeType('extracted')" class="mr-2 rounded">
+                            <span class="text-sm">Extracted Files</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked onchange="toggleNodeType('finding')" class="mr-2 rounded">
+                            <span class="text-sm">Findings</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked onchange="toggleNodeType('crypto')" class="mr-2 rounded">
+                            <span class="text-sm">Crypto Elements</span>
+                        </label>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="stats-card">
-            <div class="flex items-center">
-                <i class="fas fa-arrows-alt text-2xl mr-3 opacity-80"></i>
+                
                 <div>
-                    <div class="text-sm opacity-80">Connections</div>
-                    <div class="text-2xl font-bold">{{ graph_metadata.total_edges }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="stats-card">
-            <div class="flex items-center">
-                <i class="fas fa-search text-2xl mr-3 opacity-80"></i>
-                <div>
-                    <div class="text-sm opacity-80">Findings</div>
-                    <div class="text-2xl font-bold">{{ graph_stats.finding_count or 0 }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="stats-card">
-            <div class="flex items-center">
-                <i class="fas fa-gem text-2xl mr-3 opacity-80"></i>
-                <div>
-                    <div class="text-sm opacity-80">Root Files</div>
-                    <div class="text-2xl font-bold">{{ graph_stats.root_file_count or 0 }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- Graph Visualization -->
-        <div class="lg:col-span-3">
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="graph-container" style="height: 600px; position: relative;">
-                    <svg id="graph-svg" class="graph-svg" width="100%" height="100%"></svg>
-
-                    <!-- Graph Controls -->
-                    <div class="graph-controls flex flex-col space-y-2">
-                        <button onclick="zoomIn()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <button onclick="zoomOut()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <button onclick="fitToView()" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
-                            <i class="fas fa-expand-arrows-alt"></i>
-                        </button>
-                        <button onclick="togglePhysics()" id="physics-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded">
-                            <i class="fas fa-pause"></i>
-                        </button>
-                    </div>
-
-                    <!-- Legend -->
-                    <div class="graph-legend">
-                        <div class="text-xs font-bold mb-2">Legend</div>
-                        <div class="space-y-1">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                <span>Regular File</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-3 h-3 bg-purple-500 rounded-full border-2 border-white"></div>
-                                <span>Root File</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-3 h-3 bg-red-500 rounded-full border border-dashed border-white"></div>
-                                <span>Has Findings</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-4 h-0.5 bg-green-500"></div>
-                                <span>Extraction</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-4 h-0.5 bg-orange-500 border-dashed"></div>
-                                <span>Similarity</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Minimap -->
-                    <div class="minimap">
-                        <svg id="minimap-svg" width="100%" height="100%"></svg>
-                    </div>
-
-                    <!-- Tooltip -->
-                    <div id="tooltip" class="tooltip"></div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">File Types</label>
+                    <select multiple id="file-type-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-20">
+                        {% for file_type in file_types %}
+                        <option value="{{ file_type }}" selected>{{ file_type }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
         </div>
 
-        <!-- Controls and Filters -->
-        <div class="lg:col-span-1 space-y-6">
-            <!-- Graph Filters -->
-            <div class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium">Filters</h3>
-                </div>
-                <div class="filter-panel p-4 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Layout Type</label>
-                        <select id="layout-type" onchange="changeLayout()" class="w-full border border-gray-300 rounded-md px-3 py-2">
-                            <option value="force" {% if graph_metadata.layout_type == 'force' %}selected{% endif %}>Force-Directed</option>
-                            <option value="hierarchical" {% if graph_metadata.layout_type == 'hierarchical' %}selected{% endif %}>Hierarchical</option>
-                            <option value="circular" {% if graph_metadata.layout_type == 'circular' %}selected{% endif %}>Circular</option>
-                            <option value="tree" {% if graph_metadata.layout_type == 'tree' %}selected{% endif %}>Tree</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Node Size</label>
-                        <select id="node-size" onchange="updateNodeSizes()" class="w-full border border-gray-300 rounded-md px-3 py-2">
-                            <option value="uniform">Uniform</option>
-                            <option value="file-size" selected>By File Size</option>
-                            <option value="findings">By Findings Count</option>
-                            <option value="connections">By Connections</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Show Elements</label>
-                        <div class="space-y-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" id="show-labels" checked onchange="toggleLabels()" class="mr-2">
-                                <span class="text-sm">Node Labels</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" id="show-findings" checked onchange="toggleFindings()" class="mr-2">
-                                <span class="text-sm">Finding Markers</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" id="show-vectors" checked onchange="toggleVectors()" class="mr-2">
-                                <span class="text-sm">Vector Markers</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" id="show-root-only" onchange="filterRootOnly()" class="mr-2">
-                                <span class="text-sm">Root Files Only</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">File Types</label>
-                        <div class="space-y-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByType('image')" class="mr-2">
-                                <span class="text-sm">Images</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByType('archive')" class="mr-2">
-                                <span class="text-sm">Archives</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByType('text')" class="mr-2">
-                                <span class="text-sm">Text Files</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByType('binary')" class="mr-2">
-                                <span class="text-sm">Binary Files</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Analysis Status</label>
-                        <div class="space-y-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByStatus('complete')" class="mr-2">
-                                <span class="text-sm">Complete</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByStatus('pending')" class="mr-2">
-                                <span class="text-sm">Pending</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" checked onchange="filterByStatus('analyzing')" class="mr-2">
-                                <span class="text-sm">Analyzing</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
+        <!-- Analysis Modes -->
+        <div class="filter-panel">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Analysis Mode</h3>
+            <div class="analysis-modes">
+                <button onclick="setAnalysisMode('overview')" class="mode-btn active" data-mode="overview">Overview</button>
+                <button onclick="setAnalysisMode('extraction')" class="mode-btn" data-mode="extraction">Extraction</button>
+                <button onclick="setAnalysisMode('crypto')" class="mode-btn" data-mode="crypto">Crypto</button>
             </div>
-
-            <!-- Selected Node Info -->
-            <div id="node-info" class="bg-white rounded-lg shadow hidden">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium">Node Details</h3>
-                </div>
-                <div id="node-info-content" class="p-4">
-                    <!-- Node details will be populated here -->
-                </div>
-            </div>
-
-            <!-- Graph Statistics -->
-            <div class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium">Graph Statistics</h3>
-                </div>
-                <div class="p-4 space-y-3">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Total Files:</span>
-                        <span class="font-medium">{{ graph_metadata.total_nodes }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Connections:</span>
-                        <span class="font-medium">{{ graph_metadata.total_edges }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Avg Degree:</span>
-                        <span class="font-medium">{{ "%.1f"|format((graph_metadata.total_edges * 2) / graph_metadata.total_nodes) if graph_metadata.total_nodes > 0 else 0 }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Density:</span>
-                        <span class="font-medium">{{ "%.3f"|format(graph_stats.density or 0) }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-500">Clusters:</span>
-                        <span class="font-medium">{{ graph_stats.cluster_count or 0 }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium">Quick Actions</h3>
-                </div>
-                <div class="p-4 space-y-3">
-                    <button onclick="highlightFindings()" class="w-full text-left px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded">
-                        <i class="fas fa-search mr-2"></i>Highlight Files with Findings
-                    </button>
-                    <button onclick="highlightRootFiles()" class="w-full text-left px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 rounded">
-                        <i class="fas fa-gem mr-2"></i>Highlight Root Files
-                    </button>
-                    <button onclick="showShortestPath()" class="w-full text-left px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded">
-                        <i class="fas fa-route mr-2"></i>Find Shortest Path
-                    </button>
-                    <button onclick="analyzeSubgraph()" class="w-full text-left px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 rounded">
-                        <i class="fas fa-microscope mr-2"></i>Analyze Selected Subgraph
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Path Selection Modal -->
-<div id="path-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-lg font-medium mb-4">Find Shortest Path</h3>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">From File</label>
-                <select id="path-source" class="mt-1 block w-full border-gray-300 rounded-md">
-                    <!-- Populated by JavaScript -->
+            
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Layout</label>
+                <select id="layout-type" onchange="changeLayout(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="force">Force Directed</option>
+                    <option value="hierarchical">Hierarchical</option>
+                    <option value="circular">Circular</option>
+                    <option value="timeline">Timeline</option>
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">To File</label>
-                <select id="path-target" class="mt-1 block w-full border-gray-300 rounded-md">
-                    <!-- Populated by JavaScript -->
-                </select>
+            
+            <div class="mt-4">
+                <button onclick="resetZoom()" class="w-full bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm">
+                    <i class="fas fa-search-minus mr-2"></i>Reset View
+                </button>
             </div>
         </div>
-        <div class="mt-6 flex justify-end space-x-3">
-            <button onclick="closePathModal()" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md">
-                Cancel
+    </div>
+
+    <!-- Main Graph Container -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 relative">
+        <div class="graph-container">
+            <svg class="graph-svg" id="graph-svg"></svg>
+            
+            <!-- Graph Controls -->
+            <div class="graph-controls">
+                <button class="control-btn" onclick="zoomIn()" title="Zoom In">
+                    <i class="fas fa-plus text-gray-600"></i>
+                </button>
+                <button class="control-btn" onclick="zoomOut()" title="Zoom Out">
+                    <i class="fas fa-minus text-gray-600"></i>
+                </button>
+                <button class="control-btn" onclick="centerGraph()" title="Center Graph">
+                    <i class="fas fa-crosshairs text-gray-600"></i>
+                </button>
+                <button class="control-btn" onclick="toggleFullscreen()" title="Fullscreen">
+                    <i class="fas fa-expand text-gray-600"></i>
+                </button>
+            </div>
+            
+            <!-- Legend -->
+            <div class="legend">
+                <div class="font-medium text-gray-900 mb-2">Legend</div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background: #3b82f6; border-color: #1e40af;"></div>
+                    <span>Files</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background: #10b981; border-color: #059669;"></div>
+                    <span>Extracted</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background: #f59e0b; border-color: #d97706;"></div>
+                    <span>Findings</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background: #8b5cf6; border-color: #7c3aed;"></div>
+                    <span>Crypto</span>
+                </div>
+            </div>
+            
+            <!-- Minimap -->
+            <div class="minimap">
+                <svg width="100%" height="100%" id="minimap-svg"></svg>
+            </div>
+            
+            <!-- Tooltip -->
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+    </div>
+
+    <!-- Node Details Panel -->
+    <div id="node-details" class="node-details hidden">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Node Details</h3>
+            <button onclick="closeNodeDetails()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
             </button>
-            <button onclick="findPath()" class="px-4 py-2 bg-blue-600 text-white rounded-md">
-                Find Path
-            </button>
+        </div>
+        <div id="node-details-content">
+            <!-- Dynamic content loaded here -->
         </div>
     </div>
 </div>
@@ -459,233 +411,99 @@
 
 {% block extra_scripts %}
 <script>
-// Graph data from backend
-const graphData = {
-    nodes: {{ nodes|safe }},
-    edges: {{ edges|safe }}
-};
+// Graph data from server
+const graphData = {{ graph_data | tojsonfilter | safe }};
+const files = {{ files | tojsonfilter | safe }};
 
-// Graph state
-let svg, simulation, g, zoom;
-let selectedNode = null;
-let physicsEnabled = true;
-let filteredNodes = new Set();
-let filteredEdges = new Set();
+// D3 graph setup
+let svg, g, simulation, link, node, zoom;
+let selectedNodes = new Set();
+let currentAnalysisMode = 'overview';
 
-// Initialize graph
-document.addEventListener('DOMContentLoaded', function() {
-    initializeGraph();
-    updateStatistics();
-});
-
-function initializeGraph() {
-    // Setup SVG
-    svg = d3.select("#graph-svg");
-    const container = svg.node().parentNode;
-    const rect = container.getBoundingClientRect();
-
-    svg.attr("width", rect.width).attr("height", rect.height);
-
-    // Setup zoom
+// Initialize the graph
+function initGraph() {
+    const container = document.querySelector('.graph-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    svg = d3.select('#graph-svg')
+        .attr('viewBox', [0, 0, width, height]);
+    
+    g = svg.append('g');
+    
+    // Setup zoom behavior
     zoom = d3.zoom()
-        .scaleExtent([0.1, 10])
-        .on("zoom", zoomed);
-
-    svg.call(zoom);
-
-    // Main group for graph elements
-    g = svg.append("g");
-
-    // Setup simulation
-    simulation = d3.forceSimulation(graphData.nodes)
-        .force("link", d3.forceLink(graphData.edges).id(d => d.id).distance(50))
-        .force("charge", d3.forceManyBody().strength(-200))
-        .force("center", d3.forceCenter(rect.width / 2, rect.height / 2))
-        .force("collision", d3.forceCollide().radius(d => Math.max(8, getNodeRadius(d)) + 2));
-
-    // Create graph elements
-    createLinks();
-    createNodes();
-    createLabels();
-
-    // Start simulation
-    simulation.on("tick", ticked);
-
-    // Setup minimap
-    setupMinimap();
-}
-
-function createLinks() {
-    const links = g.append("g")
-        .selectAll("line")
-        .data(graphData.edges)
-        .enter().append("line")
-        .attr("class", d => `link ${d.type || ''}`)
-        .attr("stroke-width", d => d.weight || 1);
-
-    return links;
-}
-
-function createNodes() {
-    const nodes = g.append("g")
-        .selectAll("circle")
-        .data(graphData.nodes)
-        .enter().append("circle")
-        .attr("class", d => {
-            let classes = ["node"];
-            if (d.is_root_file) classes.push("root-file");
-            if (d.finding_count > 0) classes.push("has-findings");
-            return classes.join(" ");
-        })
-        .attr("r", getNodeRadius)
-        .attr("fill", getNodeColor)
-        .call(d3.drag()
-            .on("start", dragStarted)
-            .on("drag", dragged)
-            .on("end", dragEnded))
-        .on("click", nodeClicked)
-        .on("mouseover", showTooltip)
-        .on("mouseout", hideTooltip);
-
-    return nodes;
-}
-
-function createLabels() {
-    const labels = g.append("g")
-        .selectAll("text")
-        .data(graphData.nodes)
-        .enter().append("text")
-        .attr("class", "node-label")
-        .text(d => d.filename.length > 15 ? d.filename.substring(0, 12) + "..." : d.filename);
-
-    return labels;
-}
-
-function getNodeRadius(d) {
-    const sizeBy = document.getElementById('node-size').value;
-    switch(sizeBy) {
-        case 'file-size':
-            return Math.max(5, Math.min(20, Math.log(d.file_size || 1024) / Math.log(2)));
-        case 'findings':
-            return Math.max(5, 5 + (d.finding_count || 0) * 2);
-        case 'connections':
-            return Math.max(5, 5 + (d.degree || 0));
-        default:
-            return 8;
-    }
-}
-
-function getNodeColor(d) {
-    if (d.is_root_file) return "#9f7aea";
-
-    switch(d.file_type) {
-        case 'image': return "#4299e1";
-        case 'archive': return "#ed8936";
-        case 'text': return "#48bb78";
-        case 'binary': return "#718096";
-        default: return "#a0aec0";
-    }
-}
-
-function ticked() {
-    g.selectAll("line")
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
-
-    g.selectAll("circle")
-        .attr("cx", d => d.x)
-        .attr("cy", d => d.y);
-
-    g.selectAll("text")
-        .attr("x", d => d.x)
-        .attr("y", d => d.y + 3);
-}
-
-function zoomed(event) {
-    g.attr("transform", event.transform);
-    updateMinimap(event.transform);
-}
-
-// Node interactions
-function nodeClicked(event, d) {
-    event.stopPropagation();
-
-    // Clear previous selection
-    g.selectAll(".node").classed("selected", false);
-
-    // Select new node
-    d3.select(this).classed("selected", true);
-    selectedNode = d;
-
-    // Show node info
-    showNodeInfo(d);
-
-    // Highlight connected nodes
-    highlightConnectedNodes(d);
-}
-
-function showNodeInfo(d) {
-    const panel = document.getElementById('node-info');
-    const content = document.getElementById('node-info-content');
-
-    content.innerHTML = `
-        <div class="space-y-3">
-            <div>
-                <h4 class="font-medium text-gray-900">${d.filename}</h4>
-                <p class="text-sm text-gray-500">${d.file_type || 'Unknown type'}</p>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                    <span class="text-gray-500">Size:</span>
-                    <span class="font-medium">${formatFileSize(d.file_size)}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Findings:</span>
-                    <span class="font-medium">${d.finding_count || 0}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Status:</span>
-                    <span class="font-medium">${d.status || 'Unknown'}</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Connections:</span>
-                    <span class="font-medium">${d.degree || 0}</span>
-                </div>
-            </div>
-            ${d.is_root_file ? '<div class="text-sm text-purple-600 font-medium">🔹 Root File</div>' : ''}
-            ${d.finding_count > 0 ? '<div class="text-sm text-red-600 font-medium">⚠️ Has Findings</div>' : ''}
-            <div class="pt-2 border-t border-gray-200">
-                <a href="/files/${d.sha256_hash}" class="text-blue-600 hover:text-blue-800 text-sm">
-                    <i class="fas fa-eye mr-1"></i>View Details
-                </a>
-            </div>
-        </div>
-    `;
-
-    panel.classList.remove('hidden');
-}
-
-function highlightConnectedNodes(d) {
-    // Reset all nodes
-    g.selectAll(".node").style("opacity", 0.3);
-    g.selectAll(".link").style("opacity", 0.1);
-
-    // Highlight selected node
-    g.selectAll(".node").filter(n => n.id === d.id).style("opacity", 1);
-
-    // Highlight connected nodes and edges
-    g.selectAll(".link").filter(l => l.source.id === d.id || l.target.id === d.id)
-        .style("opacity", 0.8)
-        .each(function(l) {
-            const connectedNodeId = l.source.id === d.id ? l.target.id : l.source.id;
-            g.selectAll(".node").filter(n => n.id === connectedNodeId).style("opacity", 0.8);
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+            updateMinimap(event.transform);
         });
+    
+    svg.call(zoom);
+    
+    // Create simulation
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(20));
+    
+    // Create links
+    link = g.append('g')
+        .selectAll('line')
+        .data(graphData.links)
+        .join('line')
+        .attr('class', d => `link link-${d.type}`)
+        .attr('stroke-width', d => Math.sqrt(d.value || 1));
+    
+    // Create nodes
+    node = g.append('g')
+        .selectAll('circle')
+        .data(graphData.nodes)
+        .join('circle')
+        .attr('class', d => `node node-${d.type}`)
+        .attr('r', d => d.size || 8)
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended))
+        .on('click', handleNodeClick)
+        .on('mouseover', showTooltip)
+        .on('mouseout', hideTooltip);
+    
+    // Add labels
+    const labels = g.append('g')
+        .selectAll('text')
+        .data(graphData.nodes)
+        .join('text')
+        .text(d => d.label)
+        .attr('font-size', '10px')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '0.3em')
+        .style('pointer-events', 'none');
+    
+    // Update positions on simulation tick
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+        
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+        
+        labels
+            .attr('x', d => d.x)
+            .attr('y', d => d.y + 20);
+    });
+    
+    initMinimap();
 }
 
-// Drag handlers
-function dragStarted(event, d) {
+// Drag functions
+function dragstarted(event, d) {
     if (!event.active) simulation.alphaTarget(0.3).restart();
     d.fx = d.x;
     d.fy = d.y;
@@ -696,322 +514,419 @@ function dragged(event, d) {
     d.fy = event.y;
 }
 
-function dragEnded(event, d) {
+function dragended(event, d) {
     if (!event.active) simulation.alphaTarget(0);
     d.fx = null;
     d.fy = null;
 }
 
-// Tooltip
+// Node interaction
+function handleNodeClick(event, d) {
+    event.stopPropagation();
+    
+    if (event.ctrlKey || event.metaKey) {
+        // Multi-select mode
+        if (selectedNodes.has(d.id)) {
+            selectedNodes.delete(d.id);
+            d3.select(this).classed('node-selected', false);
+        } else {
+            selectedNodes.add(d.id);
+            d3.select(this).classed('node-selected', true);
+        }
+    } else {
+        // Single select mode
+        node.classed('node-selected', false);
+        selectedNodes.clear();
+        selectedNodes.add(d.id);
+        d3.select(this).classed('node-selected', true);
+        
+        showNodeDetails(d);
+        focusOnNode(d);
+    }
+}
+
+// Tooltip functions
 function showTooltip(event, d) {
     const tooltip = document.getElementById('tooltip');
-    tooltip.innerHTML = `
-        <div class="font-medium">${d.filename}</div>
-        <div class="text-xs">${d.file_type || 'Unknown'} • ${formatFileSize(d.file_size)}</div>
-        ${d.finding_count > 0 ? `<div class="text-xs text-red-300">${d.finding_count} findings</div>` : ''}
-    `;
+    tooltip.style.opacity = 1;
     tooltip.style.left = (event.pageX + 10) + 'px';
     tooltip.style.top = (event.pageY - 10) + 'px';
-    tooltip.style.opacity = '1';
+    
+    let content = `<strong>${d.label}</strong><br>`;
+    content += `Type: ${d.type}<br>`;
+    if (d.size) content += `Size: ${d.size}<br>`;
+    if (d.priority) content += `Priority: ${d.priority}<br>`;
+    
+    tooltip.innerHTML = content;
 }
 
 function hideTooltip() {
-    document.getElementById('tooltip').style.opacity = '0';
+    document.getElementById('tooltip').style.opacity = 0;
 }
 
-// Control functions
+// Node details panel
+function showNodeDetails(d) {
+    const panel = document.getElementById('node-details');
+    const content = document.getElementById('node-details-content');
+    
+    let detailsHTML = `
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <span class="text-sm text-gray-500">Name:</span>
+                <p class="font-medium">${d.label}</p>
+            </div>
+            <div>
+                <span class="text-sm text-gray-500">Type:</span>
+                <p class="font-medium">${d.type}</p>
+            </div>
+        </div>
+    `;
+    
+    if (d.type === 'file') {
+        detailsHTML += `
+            <div class="space-y-2 mb-4">
+                <p><span class="text-sm text-gray-500">Size:</span> ${d.file_size || 'Unknown'}</p>
+                <p><span class="text-sm text-gray-500">Type:</span> ${d.mime_type || 'Unknown'}</p>
+                <p><span class="text-sm text-gray-500">Hash:</span> <code class="text-xs">${d.hash || 'Unknown'}</code></p>
+            </div>
+            <div class="flex space-x-2">
+                <a href="/files/${d.hash}/details" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">View Details</a>
+                <a href="/content/${d.hash}" class="bg-gray-600 text-white px-3 py-1 rounded text-sm">View Content</a>
+            </div>
+        `;
+    } else if (d.type === 'finding') {
+        detailsHTML += `
+            <div class="space-y-2 mb-4">
+                <p><span class="text-sm text-gray-500">Priority:</span> 
+                   <span class="px-2 py-1 rounded text-xs ${d.priority === 'high' ? 'bg-red-100 text-red-800' : 
+                                                           d.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">${d.priority}</span></p>
+                <p><span class="text-sm text-gray-500">Description:</span> ${d.description || 'No description'}</p>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = detailsHTML;
+    panel.classList.remove('hidden');
+}
+
+function closeNodeDetails() {
+    document.getElementById('node-details').classList.add('hidden');
+}
+
+// Graph controls
 function zoomIn() {
-    svg.transition().call(zoom.scaleBy, 1.5);
+    svg.transition().duration(300).call(zoom.scaleBy, 1.5);
 }
 
 function zoomOut() {
-    svg.transition().call(zoom.scaleBy, 1 / 1.5);
+    svg.transition().duration(300).call(zoom.scaleBy, 0.75);
 }
 
-function fitToView() {
+function centerGraph() {
     const bounds = g.node().getBBox();
-    const parent = svg.node().parentNode;
+    const parent = svg.node().parentElement;
     const fullWidth = parent.clientWidth;
     const fullHeight = parent.clientHeight;
     const width = bounds.width;
     const height = bounds.height;
     const midX = bounds.x + width / 2;
     const midY = bounds.y + height / 2;
-
-    if (width == 0 || height == 0) return;
-
-    const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
+    
+    const scale = 0.8 / Math.max(width / fullWidth, height / fullHeight);
     const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
-
-    svg.transition()
-        .duration(750)
-        .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+    
+    svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
 }
 
-function togglePhysics() {
-    const btn = document.getElementById('physics-btn');
-    if (physicsEnabled) {
-        simulation.stop();
-        btn.innerHTML = '<i class="fas fa-play"></i>';
-        physicsEnabled = false;
-    } else {
-        simulation.restart();
-        btn.innerHTML = '<i class="fas fa-pause"></i>';
-        physicsEnabled = true;
+function resetZoom() {
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+}
+
+function focusOnNode(d) {
+    const scale = 2;
+    const translate = [svg.attr('width') / 2 - scale * d.x, svg.attr('height') / 2 - scale * d.y];
+    svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+}
+
+// Analysis modes
+function setAnalysisMode(mode) {
+    currentAnalysisMode = mode;
+    
+    // Update button states
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    // Apply mode-specific styling and filtering
+    switch (mode) {
+        case 'extraction':
+            highlightExtractionPaths();
+            break;
+        case 'crypto':
+            highlightCryptoPaths();
+            break;
+        default:
+            resetHighlights();
     }
 }
 
-function resetGraph() {
-    // Clear selections and filters
-    selectedNode = null;
-    filteredNodes.clear();
-    filteredEdges.clear();
+function highlightExtractionPaths() {
+    link.classed('path-highlight', d => d.type === 'extraction');
+    node.style('opacity', d => d.type === 'file' || d.type === 'extracted' ? 1 : 0.3);
+}
 
-    // Reset visual state
-    g.selectAll(".node")
-        .classed("selected", false)
-        .style("opacity", 1);
-    g.selectAll(".link").style("opacity", 1);
+function highlightCryptoPaths() {
+    link.classed('path-highlight', d => d.type === 'cryptographic');
+    node.style('opacity', d => d.type === 'crypto' || d.type === 'file' ? 1 : 0.3);
+}
 
-    // Hide node info
-    document.getElementById('node-info').classList.add('hidden');
-
-    // Reset form controls
-    document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
-    document.getElementById('layout-type').value = 'force';
-    document.getElementById('node-size').value = 'file-size';
-
-    // Restart simulation
-    simulation.alpha(1).restart();
+function resetHighlights() {
+    link.classed('path-highlight', false);
+    node.style('opacity', 1);
 }
 
 // Layout changes
-function changeLayout() {
-    const layoutType = document.getElementById('layout-type').value;
-
-    switch(layoutType) {
+function changeLayout(layoutType) {
+    const width = svg.attr('width');
+    const height = svg.attr('height');
+    
+    simulation.stop();
+    
+    switch (layoutType) {
         case 'hierarchical':
-            applyHierarchicalLayout();
+            // Implement hierarchical layout
+            setupHierarchicalLayout();
             break;
         case 'circular':
-            applyCircularLayout();
+            setupCircularLayout();
             break;
-        case 'tree':
-            applyTreeLayout();
+        case 'timeline':
+            setupTimelineLayout();
             break;
         default:
-            applyForceLayout();
+            setupForceLayout();
     }
+    
+    simulation.restart();
 }
 
-function applyForceLayout() {
-    simulation
-        .force("link", d3.forceLink(graphData.edges).id(d => d.id).distance(50))
-        .force("charge", d3.forceManyBody().strength(-200))
-        .force("center", d3.forceCenter(svg.attr("width") / 2, svg.attr("height") / 2))
-        .alpha(1).restart();
-}
-
-function applyCircularLayout() {
-    const radius = Math.min(svg.attr("width"), svg.attr("height")) / 2 - 50;
-    const centerX = svg.attr("width") / 2;
-    const centerY = svg.attr("height") / 2;
-
-    graphData.nodes.forEach((d, i) => {
-        const angle = (i / graphData.nodes.length) * 2 * Math.PI;
-        d.fx = centerX + radius * Math.cos(angle);
-        d.fy = centerY + radius * Math.sin(angle);
+function setupHierarchicalLayout() {
+    const hierarchy = d3.stratify()
+        .id(d => d.id)
+        .parentId(d => d.parent)
+        (graphData.nodes.filter(d => d.parent !== undefined));
+    
+    const tree = d3.tree().size([svg.attr('width'), svg.attr('height')]);
+    tree(hierarchy);
+    
+    hierarchy.descendants().forEach(d => {
+        const node = graphData.nodes.find(n => n.id === d.id);
+        if (node) {
+            node.fx = d.x;
+            node.fy = d.y;
+        }
     });
-
-    simulation.alpha(0.3).restart();
 }
+
+function setupCircularLayout() {
+    const radius = Math.min(svg.attr('width'), svg.attr('height')) / 2 - 50;
+    const angleStep = (2 * Math.PI) / graphData.nodes.length;
+    
+    graphData.nodes.forEach((d, i) => {
+        const angle = i * angleStep;
+        d.fx = svg.attr('width') / 2 + radius * Math.cos(angle);
+        d.fy = svg.attr('height') / 2 + radius * Math.sin(angle);
+    });
+}
+
+function setupTimelineLayout() {
+    // Sort nodes by creation time
+    const sortedNodes = graphData.nodes.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    const xStep = svg.attr('width') / sortedNodes.length;
+    
+    sortedNodes.forEach((d, i) => {
+        d.fx = i * xStep + 50;
+        d.fy = svg.attr('height') / 2;
+    });
+}
+
+function setupForceLayout() {
+    graphData.nodes.forEach(d => {
+        d.fx = null;
+        d.fy = null;
+    });
+}
+
+// Search functionality
+document.getElementById('node-search').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    
+    node.style('opacity', d => {
+        const matches = d.label.toLowerCase().includes(searchTerm) || 
+                       d.type.toLowerCase().includes(searchTerm);
+        return matches || searchTerm === '' ? 1 : 0.3;
+    });
+    
+    link.style('opacity', d => {
+        const sourceMatches = d.source.label.toLowerCase().includes(searchTerm);
+        const targetMatches = d.target.label.toLowerCase().includes(searchTerm);
+        return sourceMatches || targetMatches || searchTerm === '' ? 0.6 : 0.1;
+    });
+});
+
+// File focus
+document.getElementById('focus-file').addEventListener('change', function(e) {
+    const selectedHash = e.target.value;
+    if (selectedHash) {
+        const targetNode = graphData.nodes.find(n => n.hash === selectedHash);
+        if (targetNode) {
+            focusOnNode(targetNode);
+            handleNodeClick({stopPropagation: () => {}}, targetNode);
+        }
+    }
+});
 
 // Filter functions
-function toggleLabels() {
-    const show = document.getElementById('show-labels').checked;
-    g.selectAll(".node-label").style("display", show ? "block" : "none");
-}
-
-function filterRootOnly() {
-    const rootOnly = document.getElementById('show-root-only').checked;
-
-    if (rootOnly) {
-        g.selectAll(".node").style("display", d => d.is_root_file ? "block" : "none");
-        g.selectAll(".node-label").style("display", d => d.is_root_file ? "block" : "none");
-    } else {
-        g.selectAll(".node").style("display", "block");
-        if (document.getElementById('show-labels').checked) {
-            g.selectAll(".node-label").style("display", "block");
+function toggleNodeType(type) {
+    const visible = event.target.checked;
+    node.style('display', d => {
+        if (d.type === type) {
+            return visible ? 'block' : 'none';
         }
-    }
-}
-
-// Quick actions
-function highlightFindings() {
-    g.selectAll(".node").style("opacity", d => d.finding_count > 0 ? 1 : 0.2);
-}
-
-function highlightRootFiles() {
-    g.selectAll(".node").style("opacity", d => d.is_root_file ? 1 : 0.2);
-}
-
-function showShortestPath() {
-    // Populate file selectors
-    const sourceSelect = document.getElementById('path-source');
-    const targetSelect = document.getElementById('path-target');
-
-    sourceSelect.innerHTML = '';
-    targetSelect.innerHTML = '';
-
-    graphData.nodes.forEach(node => {
-        sourceSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
-        targetSelect.innerHTML += `<option value="${node.id}">${node.filename}</option>`;
+        return d3.select(this).style('display');
     });
-
-    document.getElementById('path-modal').classList.remove('hidden');
-    document.getElementById('path-modal').classList.add('flex');
 }
 
-function closePathModal() {
-    document.getElementById('path-modal').classList.add('hidden');
-    document.getElementById('path-modal').classList.remove('flex');
-}
-
-function findPath() {
-    const sourceId = document.getElementById('path-source').value;
-    const targetId = document.getElementById('path-target').value;
-
-    if (sourceId === targetId) {
-        showNotification('Source and target must be different', 'warning');
+// Path finding
+function findShortestPath() {
+    if (selectedNodes.size !== 2) {
+        alert('Please select exactly 2 nodes to find path between them');
         return;
     }
-
-    // Find shortest path using Dijkstra's algorithm
-    const path = findShortestPath(sourceId, targetId);
-
-    if (path.length === 0) {
-        showNotification('No path found between selected files', 'error');
-    } else {
+    
+    const nodeIds = Array.from(selectedNodes);
+    const path = findPath(nodeIds[0], nodeIds[1]);
+    
+    if (path.length > 0) {
         highlightPath(path);
-        showNotification(`Path found with ${path.length - 1} hops`, 'success');
+    } else {
+        alert('No path found between selected nodes');
     }
-
-    closePathModal();
 }
 
-function findShortestPath(sourceId, targetId) {
-    // Simple BFS implementation
-    const visited = new Set();
-    const queue = [[sourceId, [sourceId]]];
-
+function findPath(startId, endId) {
+    // Simple BFS pathfinding
+    const queue = [[startId]];
+    const visited = new Set([startId]);
+    
     while (queue.length > 0) {
-        const [currentId, path] = queue.shift();
-
-        if (currentId === targetId) {
+        const path = queue.shift();
+        const currentId = path[path.length - 1];
+        
+        if (currentId === endId) {
             return path;
         }
-
-        if (visited.has(currentId)) continue;
-        visited.add(currentId);
-
-        // Find connected nodes
-        graphData.edges.forEach(edge => {
-            if (edge.source.id === currentId && !visited.has(edge.target.id)) {
-                queue.push([edge.target.id, [...path, edge.target.id]]);
-            } else if (edge.target.id === currentId && !visited.has(edge.source.id)) {
-                queue.push([edge.source.id, [...path, edge.source.id]]);
+        
+        const neighbors = graphData.links
+            .filter(l => l.source.id === currentId || l.target.id === currentId)
+            .map(l => l.source.id === currentId ? l.target.id : l.source.id);
+        
+        for (const neighborId of neighbors) {
+            if (!visited.has(neighborId)) {
+                visited.add(neighborId);
+                queue.push([...path, neighborId]);
             }
-        });
+        }
     }
-
+    
     return [];
 }
 
 function highlightPath(path) {
-    // Reset all nodes and edges
-    g.selectAll(".node").style("opacity", 0.2);
-    g.selectAll(".link").style("opacity", 0.1);
-
+    resetHighlights();
+    
+    // Highlight path links
+    link.classed('path-highlight', d => {
+        for (let i = 0; i < path.length - 1; i++) {
+            if ((d.source.id === path[i] && d.target.id === path[i + 1]) ||
+                (d.source.id === path[i + 1] && d.target.id === path[i])) {
+                return true;
+            }
+        }
+        return false;
+    });
+    
     // Highlight path nodes
-    g.selectAll(".node").filter(d => path.includes(d.id)).style("opacity", 1);
+    node.style('stroke-width', d => path.includes(d.id) ? '4px' : '2px');
+}
 
-    // Highlight path edges
-    for (let i = 0; i < path.length - 1; i++) {
-        g.selectAll(".link").filter(d =>
-            (d.source.id === path[i] && d.target.id === path[i + 1]) ||
-            (d.source.id === path[i + 1] && d.target.id === path[i])
-        ).style("opacity", 1).style("stroke", "#ffd700").style("stroke-width", 3);
-    }
+// Minimap
+function initMinimap() {
+    const minimapSvg = d3.select('#minimap-svg');
+    const minimapScale = 0.1;
+    
+    // Create minimap visualization
+    const minimapG = minimapSvg.append('g');
+    
+    minimapG.selectAll('circle')
+        .data(graphData.nodes)
+        .join('circle')
+        .attr('r', 2)
+        .attr('fill', d => d3.select(`.node-${d.type}`).style('fill'));
+}
+
+function updateMinimap(transform) {
+    // Update minimap viewport indicator
+    const minimapSvg = d3.select('#minimap-svg');
+    // Implementation for viewport rectangle
 }
 
 // Export functionality
 function exportGraph() {
-    const exportData = {
-        nodes: graphData.nodes,
-        edges: graphData.edges,
-        metadata: {{ graph_metadata|tojson }},
-        timestamp: new Date().toISOString()
+    const svgElement = document.getElementById('graph-svg');
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = function() {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        
+        const link = document.createElement('a');
+        link.download = 'crypto-hunter-graph.png';
+        link.href = canvas.toDataURL();
+        link.click();
     };
-
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-
-    const exportFileDefaultName = `crypto_hunter_graph_${new Date().toISOString().split('T')[0]}.json`;
-
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
 }
 
-// Utility functions
-function setupMinimap() {
-    // Simple minimap implementation
-    const minimapSvg = d3.select("#minimap-svg");
-    // Implementation would go here
-}
-
-function updateMinimap(transform) {
-    // Update minimap viewport
-}
-
-function updateNodeSizes() {
-    g.selectAll("circle").attr("r", getNodeRadius);
-}
-
-function updateStatistics() {
-    // Update real-time statistics if needed
-}
-
-function formatFileSize(bytes) {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-}
-
-// Clear selections when clicking on empty space
-svg.on("click", function(event) {
-    if (event.target === this) {
-        selectedNode = null;
-        g.selectAll(".node").classed("selected", false).style("opacity", 1);
-        g.selectAll(".link").style("opacity", 1);
-        document.getElementById('node-info').classList.add('hidden');
+// Fullscreen toggle
+function toggleFullscreen() {
+    const container = document.querySelector('.graph-container');
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        container.requestFullscreen();
     }
-});
+}
 
-// Auto-refresh graph data every 30 seconds
-setInterval(function() {
-    fetch(`{{ url_for('graph.graph_data') }}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.nodes.length !== graphData.nodes.length) {
-                // Nodes changed, reload the page
-                location.reload();
-            }
-        })
-        .catch(error => console.log('Auto-refresh failed:', error));
-}, 30000);
+// Initialize graph when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initGraph();
+    
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        const container = document.querySelector('.graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        svg.attr('viewBox', [0, 0, width, height]);
+        simulation.force('center', d3.forceCenter(width / 2, height / 2));
+        simulation.restart();
+    });
+});
 </script>
 {% endblock %}

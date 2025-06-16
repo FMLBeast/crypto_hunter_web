@@ -1,1322 +1,1133 @@
-{ % extends
-"base.html" %}
-
-{ % block
-title %}Analysis
-Results - {{file.filename}}
-{ % endblock %}
-
-{ % block
-content %}
-< div
-
-
-class ="space-y-6" >
-
-< !-- File
-Header -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center justify-between" >
-
-< div >
-< h1
-
-
-class ="text-2xl font-bold text-gray-900" > {{file.filename}} < / h1 >
-
-< div
-
-
-class ="mt-2 flex items-center space-x-4 text-sm text-gray-600" >
-
-< span > {{file.file_size_human}} < / span >
-< span >• < / span >
-< span > {{file.file_type or file.mime_type}} < / span >
-< span >• < / span >
-< span > {{file.created_at.strftime('%Y-%m-%d %H:%M')}} < / span >
-< / div >
-< / div >
-< div
-
-
-class ="flex items-center space-x-3" >
-
-< span
-
-
-class ="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-
-
-{ % if file.status.value == 'complete' %}bg - green - 100
-text - green - 800
-{ % elif file.status.value == 'analyzing' %}bg - blue - 100
-text - blue - 800
-{ % else %}bg - yellow - 100
-text - yellow - 800
-{ % endif %}">
-{{file.status.value.title()}}
-< / span >
-< div
-
-
-class ="flex space-x-2" >
-
-< a
-href = "{{ url_for('content.file_content', sha=file.sha256_hash) }}"
-
-
-class ="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-file-alt mr-1" > < / i > View Content
-
-< / a >
-< a
-href = "{{ url_for('graph.graph_focus', sha=file.sha256_hash) }}"
-
-
-class ="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-project-diagram mr-1" > < / i > Graph
-
-< / a >
-< / div >
-< / div >
-< / div >
-< / div >
-
-< !-- Real - time
-Analysis
-Status -->
-{ % if file.status.value in ['pending', 'analyzing'] %}
-< div
-id = "analysis-progress"
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center justify-between mb-4" >
-
-< h3
-
-
-class ="text-lg font-semibold text-gray-900" >
-
-< i
-
-
-class ="fas fa-cogs mr-2 text-indigo-600" > < / i > Analysis in Progress
-
-< / h3 >
-< div
-
-
-class ="flex items-center space-x-2" >
-
-< div
-
-
-class ="w-3 h-3 bg-blue-500 rounded-full animate-pulse" > < / div >
-
-< span
-
-
-class ="text-sm text-blue-600" > Active < / span >
-
-< / div >
-< / div >
-
-< div
-
-
-class ="space-y-4" >
-
-< !-- Background
-Tasks
-Status -->
-< div
-id = "background-tasks"
-
-
-class ="grid grid-cols-1 md:grid-cols-3 gap-4" >
-
-< !-- Will
-be
-populated
-by
-JavaScript -->
-< / div >
-
-< !-- LLM
-Analysis
-Status -->
-< div
-id = "llm-status"
-
-
-class ="bg-purple-50 rounded-lg p-4 hidden" >
-
-< div
-
-
-class ="flex items-center justify-between mb-2" >
-
-< span
-
-
-class ="text-sm font-medium text-purple-800" > AI Analysis < / span >
-
-< div
-
-
-class ="flex items-center space-x-2" >
-
-< span
-id = "llm-cost"
-
-
-class ="text-xs text-purple-600" > $0.00 < / span >
-
-< i
-
-
-class ="fas fa-brain text-purple-600" > < / i >
-
-< / div >
-< / div >
-< div
-
-
-class ="text-xs text-purple-700" id="llm-stage" > Initializing...< / div >
-
-< / div >
-< / div >
-< / div >
-{ % endif %}
-
-< !-- Analysis
-Results
-Grid -->
-< div
-
-
-class ="grid grid-cols-1 lg:grid-cols-3 gap-6" >
-
-< !-- Findings
-Column -->
-< div
-
-
-class ="lg:col-span-2 space-y-6" >
-
-< !-- LLM
-AI
-Insights -->
-{ % set
-llm_content = file.content_entries.filter_by(content_type='llm_analysis_complete').first() %}
-{ % if llm_content %}
-< div
-
-
-class ="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-6" >
-
-< div
-
-
-class ="flex items-center justify-between mb-4" >
-
-< h3
-
-
-class ="text-lg font-semibold text-gray-900" >
-
-< i
-
-
-class ="fas fa-brain mr-2 text-purple-600" > < / i > AI Analysis Results
-
-< / h3 >
-< div
-
-
-class ="flex items-center space-x-2" >
-
-
-{ % set
-llm_data = llm_content.content_json %}
-< span
-
-
-class ="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full" >
-
-
-Confidence: {{(llm_data.overall_confidence * 100) | round}} %
-< / span >
-< span
-
-
-class ="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full" >
-
-
-Cost: ${{"%.2f" | format(llm_data.analysis_cost or 0)}}
-< / span >
-< / div >
-< / div >
-
-< !-- AI
-Summary -->
-{ % if llm_data.summary %}
-< div
-
-
-class ="bg-white rounded-lg p-4 mb-4" >
-
-< h4
-
-
-class ="font-medium text-gray-900 mb-2" > AI Summary < / h4 >
-
-< p
-
-
-class ="text-gray-700 text-sm leading-relaxed" > {{llm_data.summary}} < / p >
-
-< / div >
-{ % endif %}
-
-< !-- AI
-Recommendations -->
-{ % if llm_data.recommendations %}
-< div
-
-
-class ="bg-white rounded-lg p-4" >
-
-< h4
-
-
-class ="font-medium text-gray-900 mb-3" > AI Recommendations < / h4 >
-
-< div
-
-
-class ="space-y-2" >
-
-
-{ %
-for rec in llm_data.recommendations[:5] %}
-< div
-
-
-class ="flex items-start" >
-
-< i
-
-
-class ="fas fa-lightbulb text-yellow-500 mr-2 mt-0.5 text-sm" > < / i >
-
-< span
-
-
-class ="text-sm text-gray-700" > {{rec}} < / span >
-
-< / div >
-{ % endfor %}
-< / div >
-< / div >
-{ % endif %}
-< / div >
-{ % endif %}
-
-< !-- Findings
-by
-Category -->
-{ % set
-crypto_findings = file.findings.filter_by(category='crypto').all() %}
-{ % set
-technical_findings = file.findings.filter_by(category='technical').all() %}
-{ % set
-string_findings = file.findings.filter_by(category='strings').all() %}
-
-< !-- Crypto
-Findings -->
-{ % if crypto_findings %}
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200" >
-
-< div
-
-
-class ="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-t-lg" >
-
-< div
-
-
-class ="flex items-center justify-between" >
-
-< h4
-
-
-class ="font-semibold flex items-center" >
-
-< i
-
-
-class ="fas fa-coins mr-2" > < / i > Cryptocurrency Findings
-
-< / h4 >
-< span
-
-
-class ="bg-white bg-opacity-20 px-2 py-1 rounded text-sm" >
-
-
-{{crypto_findings | length}}
-found
-< / span >
-< / div >
-< / div >
-< div
-
-
-class ="p-4 space-y-3" >
-
-
-{ %
-for finding in crypto_findings[:5] %}
-< div
-
-
-class ="finding-item p-3 bg-blue-50 rounded-lg border border-blue-200" >
-
-< div
-
-
-class ="flex items-start justify-between" >
-
-< div
-
-
-class ="flex-1" >
-
-< div
-
-
-class ="flex items-center mb-2" >
-
-
-{ % if 'bitcoin' in finding.finding_type.lower() %}
-< i
-
-
-class ="fab fa-bitcoin text-orange-500 mr-2" > < / i >
-
-
-{ % elif 'ethereum' in finding.finding_type.lower() %}
-< i
-
-
-class ="fab fa-ethereum text-purple-600 mr-2" > < / i >
-
-
-{ % else %}
-< i
-
-
-class ="fas fa-key text-blue-600 mr-2" > < / i >
-
-
-{ % endif %}
-< span
-
-
-class ="font-medium text-gray-900" > {{finding.title}} < / span >
-
-< span
-
-
-class ="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded" >
-
-
-{{finding.confidence_level * 10}} %
-< / span >
-< / div >
-{ % if finding.raw_data %}
-< div
-
-
-class ="text-sm text-gray-700 font-mono bg-gray-100 p-2 rounded" >
-
-
-{{finding.raw_data[:50]}}
-{ % if finding.raw_data | length > 50 %}...
-{ % endif %}
-< / div >
-{ % endif %}
-< div
-
-
-class ="mt-2 text-xs text-gray-500" >
-
-
-{ % if finding.line_number %}Line
-{{finding.line_number}}
-{ % endif %}
-{ % if finding.byte_offset %}Offset
-0
-x
-{{"%X" | format(finding.byte_offset)}}
-{ % endif %}
-• {{finding.analysis_method or 'Auto-detected'}}
-< / div >
-{ % if finding.description %}
-< div
-
-
-class ="mt-1 text-xs text-gray-600" > {{finding.description}} < / div >
-
-
-{ % endif %}
-< / div >
-< div
-
-
-class ="ml-3 flex flex-col space-y-1" >
-
-< button
-onclick = "verifyFinding('{{ finding.public_id }}')"
-
-
-class ="text-blue-600 hover:text-blue-800 text-xs" >
-
-< i
-
-
-class ="fas fa-external-link-alt mr-1" > < / i > Verify
-
-< / button >
-< button
-onclick = "collectFinding('{{ finding.public_id }}')"
-
-
-class ="text-green-600 hover:text-green-800 text-xs" >
-
-< i
-
-
-class ="fas fa-plus mr-1" > < / i > Collect
-
-< / button >
-< / div >
-< / div >
-< / div >
-{ % endfor %}
-
-{ % if crypto_findings | length > 5 %}
-< div
-
-
-class ="text-center pt-2" >
-
-< button
-onclick = "showAllFindings('crypto')"
-
-
-class ="text-blue-600 hover:text-blue-800 text-sm font-medium" >
-
-
-View
-all
-{{crypto_findings | length}}
-crypto
-findings →
-< / button >
-< / div >
-{ % endif %}
-< / div >
-< / div >
-{ % endif %}
-
-< !-- Technical
-Findings -->
-{ % if technical_findings %}
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200" >
-
-< div
-
-
-class ="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-t-lg" >
-
-< div
-
-
-class ="flex items-center justify-between" >
-
-< h4
-
-
-class ="font-semibold flex items-center" >
-
-< i
-
-
-class ="fas fa-code mr-2" > < / i > Technical Analysis
-
-< / h4 >
-< span
-
-
-class ="bg-white bg-opacity-20 px-2 py-1 rounded text-sm" >
-
-
-{{technical_findings | length}}
-found
-< / span >
-< / div >
-< / div >
-< div
-
-
-class ="p-4 space-y-3" >
-
-
-{ %
-for finding in technical_findings[:3] %}
-< div
-
-
-class ="finding-item p-3 bg-green-50 rounded-lg border border-green-200" >
-
-< div
-
-
-class ="flex items-start justify-between" >
-
-< div
-
-
-class ="flex-1" >
-
-< div
-
-
-class ="flex items-center mb-2" >
-
-< i
-
-
-class ="fas fa-cog text-green-600 mr-2" > < / i >
-
-< span
-
-
-class ="font-medium text-gray-900" > {{finding.title}} < / span >
-
-< span
-
-
-class ="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded" >
-
-
-{{finding.confidence_level * 10}} %
-< / span >
-< / div >
-< div
-
-
-class ="text-sm text-gray-700" > {{finding.description}} < / div >
-
-< div
-
-
-class ="mt-2 text-xs text-gray-500" >
-
-
-Method: {{finding.analysis_method or 'Unknown'}}
-< / div >
-< / div >
-< button
-onclick = "showFindingDetails('{{ finding.public_id }}')"
-
-
-class ="text-green-600 hover:text-green-800 text-xs" >
-
-< i
-
-
-class ="fas fa-info-circle mr-1" > < / i > Details
-
-< / button >
-< / div >
-< / div >
-{ % endfor %}
-< / div >
-< / div >
-{ % endif %}
-
-< !-- Empty
-State -->
-{ % if not crypto_findings and not technical_findings and file.status.value == 'complete' %}
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center" >
-
-< i
-
-
-class ="fas fa-search text-gray-400 text-4xl mb-4" > < / i >
-
-< h3
-
-
-class ="text-lg font-medium text-gray-900 mb-2" > No Findings Detected < / h3 >
-
-< p
-
-
-class ="text-gray-500 mb-4" >
-
-
-Analysis
-completed
-but
-no
-cryptocurrency or technical
-patterns
-were
-found.
-< / p >
-< button
-onclick = "rerunAnalysis()"
-
-
-class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-redo mr-2" > < / i > Re-run Analysis
-
-< / button >
-< / div >
-{ % endif %}
-< / div >
-
-< !-- Sidebar
-Column -->
-< div
-
-
-class ="space-y-6" >
-
-< !-- Analysis
-Summary -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200 p-4" >
-
-< h3
-
-
-class ="font-semibold text-gray-900 mb-3" > Analysis Summary < / h3 >
-
-< div
-
-
-class ="space-y-3" >
-
-< div
-
-
-class ="flex justify-between text-sm" >
-
-< span
-
-
-class ="text-gray-500" > Total Findings:<
-
-    / span >
-< span
-
-
-class ="font-medium" > {{file.findings.count()}} < / span >
-
-< / div >
-< div
-
-
-class ="flex justify-between text-sm" >
-
-< span
-
-
-class ="text-gray-500" > Crypto Patterns:<
-
-    / span >
-< span
-
-
-class ="font-medium text-blue-600" > {{crypto_findings | length}} < / span >
-
-< / div >
-< div
-
-
-class ="flex justify-between text-sm" >
-
-< span
-
-
-class ="text-gray-500" > Technical:<
-
-    / span >
-< span
-
-
-class ="font-medium text-green-600" > {{technical_findings | length}} < / span >
-
-< / div >
-< div
-
-
-class ="flex justify-between text-sm" >
-
-< span
-
-
-class ="text-gray-500" > Confidence:<
-
-    / span >
-< span
-
-
-class ="font-medium" > {{(file.confidence_score * 100) | round}} % < / span >
-
-< / div >
-{ % if file.analyzed_at %}
-< div
-
-
-class ="flex justify-between text-sm" >
-
-< span
-
-
-class ="text-gray-500" > Analyzed:<
-
-    / span >
-< span
-
-
-class ="font-medium" > {{file.analyzed_at.strftime('%H:%M')}} < / span >
-
-< / div >
-{ % endif %}
-< / div >
-< / div >
-
-< !-- Background
-Tasks -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200 p-4" >
-
-< h3
-
-
-class ="font-semibold text-gray-900 mb-3" > Background Tasks < / h3 >
-
-< div
-id = "task-status"
-
-
-class ="space-y-2" >
-
-< !-- Will
-be
-populated
-by
-JavaScript -->
-< / div >
-< / div >
-
-< !-- File
-Relationships -->
-{ % set
-parent_files = file.source_relationships %}
-{ % set
-child_files = file.extracted_relationships %}
-{ % if parent_files or child_files %}
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200 p-4" >
-
-< h3
-
-
-class ="font-semibold text-gray-900 mb-3" > Relationships < / h3 >
-
-< div
-
-
-class ="space-y-3" >
-
-
-{ % if parent_files %}
-< div >
-< span
-
-
-class ="text-sm text-gray-500" > Parent Files:<
-
-    / span >
-{ %
-for rel in parent_files[:3] %}
-< div
-
-
-class ="mt-1" >
-
-< a
-href = "{{ url_for('analysis.file_results', sha=rel.source_file.sha256_hash) }}"
-
-
-class ="text-sm text-blue-600 hover:text-blue-800 truncate block" >
-
-
-{{rel.source_file.filename}}
-< / a >
-< / div >
-{ % endfor %}
-< / div >
-{ % endif %}
-
-{ % if child_files %}
-< div >
-< span
-
-
-class ="text-sm text-gray-500" > Extracted Files:<
-
-    / span >
-{ %
-for rel in child_files[:3] %}
-< div
-
-
-class ="mt-1" >
-
-< a
-href = "{{ url_for('analysis.file_results', sha=rel.extracted_file.sha256_hash) }}"
-
-
-class ="text-sm text-blue-600 hover:text-blue-800 truncate block" >
-
-
-{{rel.extracted_file.filename}}
-< / a >
-< / div >
-{ % endfor %}
-< / div >
-{ % endif %}
-< / div >
-< / div >
-{ % endif %}
-
-< !-- Actions -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm border border-gray-200 p-4" >
-
-< h3
-
-
-class ="font-semibold text-gray-900 mb-3" > Actions < / h3 >
-
-< div
-
-
-class ="space-y-2" >
-
-< button
-onclick = "exportResults()"
-
-
-class ="w-full text-left px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-download mr-2" > < / i > Export Results
-
-< / button >
-{ % if not llm_content %}
-< button
-onclick = "runLLMAnalysis()"
-
-
-class ="w-full text-left px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-brain mr-2" > < / i > AI Analysis
-
-< / button >
-{ % endif %}
-< button
-onclick = "shareResults()"
-
-
-class ="w-full text-left px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded text-sm" >
-
-< i
-
-
-class ="fas fa-share mr-2" > < / i > Share Results
-
-< / button >
-< / div >
-< / div >
-< / div >
-< / div >
-< / div >
-
-< !-- JavaScript
-for real - time updates -->
-< script >
-window.fileId = {{file.id}};
-window.fileSha = '{{ file.sha256_hash }}';
-
-
-class FileAnalysisPage {
-constructor() {
-this.init();
+<!-- analysis/results.html -->
+{% extends "base.html" %}
+
+{% block title %}Analysis Results - {{ file.filename }} - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<style>
+    .results-container {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 24px;
+        min-height: calc(100vh - 200px);
+    }
+    
+    .main-results {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .sidebar-panel {
+        position: sticky;
+        top: 120px;
+        height: fit-content;
+    }
+    
+    .finding-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: white;
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .finding-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    .finding-priority-high {
+        border-left: 4px solid #ef4444;
+        background: linear-gradient(90deg, #fef2f2 0%, #ffffff 20%);
+    }
+    
+    .finding-priority-medium {
+        border-left: 4px solid #f59e0b;
+        background: linear-gradient(90deg, #fffbeb 0%, #ffffff 20%);
+    }
+    
+    .finding-priority-low {
+        border-left: 4px solid #3b82f6;
+        background: linear-gradient(90deg, #eff6ff 0%, #ffffff 20%);
+    }
+    
+    .finding-priority-info {
+        border-left: 4px solid #6b7280;
+        background: linear-gradient(90deg, #f9fafb 0%, #ffffff 20%);
+    }
+    
+    .finding-header {
+        padding: 16px;
+        border-bottom: 1px solid #f3f4f6;
+        background: #fafafa;
+    }
+    
+    .finding-content {
+        padding: 16px;
+    }
+    
+    .finding-actions {
+        padding: 12px 16px;
+        background: #f9fafb;
+        border-top: 1px solid #f3f4f6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .extraction-tree {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .tree-node {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #f3f4f6;
+        position: relative;
+    }
+    
+    .tree-node:last-child {
+        border-bottom: none;
+    }
+    
+    .tree-indent {
+        width: 20px;
+        height: 1px;
+        background: #d1d5db;
+        margin-right: 8px;
+    }
+    
+    .tree-connector {
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 50%;
+        width: 1px;
+        background: #d1d5db;
+    }
+    
+    .analysis-timeline {
+        position: relative;
+        padding-left: 24px;
+    }
+    
+    .analysis-timeline::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e5e7eb;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: -20px;
+        top: 4px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid white;
+        background: #3b82f6;
+        z-index: 1;
+    }
+    
+    .timeline-marker.completed {
+        background: #10b981;
+    }
+    
+    .timeline-marker.error {
+        background: #ef4444;
+    }
+    
+    .timeline-marker.processing {
+        background: #f59e0b;
+        animation: pulse 2s infinite;
+    }
+    
+    .confidence-bar {
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+        transition: width 0.5s ease;
+    }
+    
+    .metadata-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+    }
+    
+    .metadata-item {
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .hex-viewer {
+        background: #1f2937;
+        color: #e5e7eb;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        padding: 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+        max-height: 300px;
+        margin: 12px 0;
+    }
+    
+    .hex-address {
+        color: #9ca3af;
+        margin-right: 16px;
+    }
+    
+    .hex-data {
+        color: #60a5fa;
+        margin-right: 16px;
+    }
+    
+    .hex-ascii {
+        color: #34d399;
+    }
+    
+    .quick-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+    
+    .stat-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .analysis-methods {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 16px 0;
+    }
+    
+    .method-badge {
+        display: inline-block;
+        background: #e5e7eb;
+        color: #374151;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        margin: 2px;
+        border: 1px solid #d1d5db;
+    }
+    
+    .method-badge.success {
+        background: #d1fae5;
+        color: #065f46;
+        border-color: #a7f3d0;
+    }
+    
+    .method-badge.warning {
+        background: #fef3c7;
+        color: #92400e;
+        border-color: #fde68a;
+    }
+    
+    .method-badge.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fecaca;
+    }
+    
+    .filter-tabs {
+        display: flex;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 20px;
+        background: white;
+        border-radius: 8px 8px 0 0;
+        overflow: hidden;
+    }
+    
+    .filter-tab {
+        flex: 1;
+        padding: 12px 16px;
+        text-align: center;
+        background: #f9fafb;
+        border-right: 1px solid #e5e7eb;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .filter-tab:last-child {
+        border-right: none;
+    }
+    
+    .filter-tab.active {
+        background: white;
+        color: #3b82f6;
+        border-bottom: 2px solid #3b82f6;
+    }
+    
+    .filter-tab:hover:not(.active) {
+        background: #f3f4f6;
+    }
+    
+    .export-options {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+    }
+    
+    .floating-actions {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 20;
+    }
+    
+    .floating-btn {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+    
+    .floating-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+    }
+    
+    .progress-indicator {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: #f3f4f6;
+        z-index: 50;
+    }
+    
+    .progress-bar-indicator {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ef4444);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    .collapsible-section {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    
+    .collapsible-header {
+        background: #f9fafb;
+        padding: 12px 16px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 500;
+    }
+    
+    .collapsible-content {
+        padding: 16px;
+        display: none;
+    }
+    
+    .collapsible-content.active {
+        display: block;
+    }
+    
+    .highlight-code {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Progress Indicator -->
+    <div class="progress-indicator" id="analysis-progress">
+        <div class="progress-bar-indicator" style="width: {{ analysis_progress }}%"></div>
+    </div>
+
+    <!-- Header Section -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="text-4xl">
+                    {% if file.mime_type and 'image' in file.mime_type %}🖼️
+                    {% elif file.mime_type and 'audio' in file.mime_type %}🎵
+                    {% elif file.mime_type and 'video' in file.mime_type %}🎬
+                    {% elif file.mime_type and 'archive' in file.mime_type %}📦
+                    {% else %}📄{% endif %}
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Analysis Results</h1>
+                    <p class="text-gray-600">{{ file.filename }}</p>
+                    <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                        <span>{{ file.file_size | filesizeformat }}</span>
+                        <span>•</span>
+                        <span>{{ file.mime_type or 'Unknown type' }}</span>
+                        <span>•</span>
+                        <span>{{ analysis_duration }} seconds</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <div class="text-right">
+                    <div class="text-sm text-gray-500">Analysis Score</div>
+                    <div class="text-2xl font-bold text-green-600">{{ overall_score }}/100</div>
+                </div>
+                <div class="export-options">
+                    <button onclick="exportResults('pdf')" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm">
+                        <i class="fas fa-file-pdf mr-1"></i>PDF
+                    </button>
+                    <button onclick="exportResults('json')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">
+                        <i class="fas fa-code mr-1"></i>JSON
+                    </button>
+                    <button onclick="shareResults()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm">
+                        <i class="fas fa-share mr-1"></i>Share
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Statistics -->
+    <div class="quick-stats">
+        <div class="stat-card">
+            <div class="stat-value text-blue-600">{{ findings|length }}</div>
+            <div class="stat-label">Total Findings</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-red-600">{{ high_priority_findings }}</div>
+            <div class="stat-label">High Priority</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-green-600">{{ extracted_files|length }}</div>
+            <div class="stat-label">Extracted Files</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-purple-600">{{ crypto_elements|length }}</div>
+            <div class="stat-label">Crypto Elements</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-yellow-600">{{ "%.2f"|format(entropy_score) }}</div>
+            <div class="stat-label">Entropy Score</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-indigo-600">{{ methods_used|length }}</div>
+            <div class="stat-label">Methods Used</div>
+        </div>
+    </div>
+
+    <!-- Main Results Container -->
+    <div class="results-container">
+        <!-- Main Results Panel -->
+        <div class="main-results">
+            <!-- Filter Tabs -->
+            <div class="filter-tabs">
+                <div class="filter-tab active" onclick="switchTab('overview')" data-tab="overview">
+                    <i class="fas fa-chart-pie mr-2"></i>Overview
+                </div>
+                <div class="filter-tab" onclick="switchTab('findings')" data-tab="findings">
+                    <i class="fas fa-search mr-2"></i>Findings ({{ findings|length }})
+                </div>
+                <div class="filter-tab" onclick="switchTab('extractions')" data-tab="extractions">
+                    <i class="fas fa-boxes mr-2"></i>Extractions ({{ extracted_files|length }})
+                </div>
+                <div class="filter-tab" onclick="switchTab('crypto')" data-tab="crypto">
+                    <i class="fas fa-key mr-2"></i>Cryptography
+                </div>
+                <div class="filter-tab" onclick="switchTab('metadata')" data-tab="metadata">
+                    <i class="fas fa-info-circle mr-2"></i>Metadata
+                </div>
+            </div>
+
+            <!-- Overview Tab -->
+            <div id="overview-tab" class="tab-content active">
+                <div class="p-6">
+                    <!-- Analysis Summary -->
+                    <div class="mb-8">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">Analysis Summary</h2>
+                        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h3 class="font-medium text-gray-900 mb-3">Key Discoveries</h3>
+                                    <ul class="space-y-2 text-sm">
+                                        {% for discovery in key_discoveries %}
+                                        <li class="flex items-start space-x-2">
+                                            <i class="fas fa-check-circle text-green-500 mt-1 flex-shrink-0"></i>
+                                            <span>{{ discovery }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900 mb-3">Analysis Methods</h3>
+                                    <div class="analysis-methods">
+                                        {% for method in methods_used %}
+                                        <span class="method-badge {{ method.status }}">
+                                            {{ method.name }}
+                                            {% if method.status == 'success' %}<i class="fas fa-check ml-1"></i>
+                                            {% elif method.status == 'warning' %}<i class="fas fa-exclamation ml-1"></i>
+                                            {% elif method.status == 'error' %}<i class="fas fa-times ml-1"></i>
+                                            {% endif %}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Timeline -->
+                    <div class="mb-8">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">Analysis Timeline</h2>
+                        <div class="analysis-timeline">
+                            {% for event in analysis_timeline %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker {{ event.status }}"></div>
+                                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h3 class="font-medium text-gray-900">{{ event.title }}</h3>
+                                        <span class="text-xs text-gray-500">{{ event.timestamp.strftime('%H:%M:%S') if event.timestamp else 'Unknown' }}</span>
+                                    </div>
+                                    <p class="text-sm text-gray-600">{{ event.description }}</p>
+                                    {% if event.duration %}
+                                    <div class="text-xs text-gray-400 mt-1">Duration: {{ event.duration }}ms</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- File Structure -->
+                    {% if extracted_files %}
+                    <div class="mb-8">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">Extraction Tree</h2>
+                        <div class="extraction-tree">
+                            <div class="tree-node">
+                                <i class="fas fa-file text-blue-500 mr-2"></i>
+                                <span class="font-medium">{{ file.filename }}</span>
+                                <span class="text-xs text-gray-500 ml-2">({{ file.file_size | filesizeformat }})</span>
+                            </div>
+                            {% for extracted in extracted_files %}
+                            <div class="tree-node" style="padding-left: 20px;">
+                                <div class="tree-connector"></div>
+                                <div class="tree-indent"></div>
+                                <i class="fas fa-file-alt text-green-500 mr-2"></i>
+                                <a href="{{ url_for('files.file_detail', sha=extracted.sha256_hash) }}" 
+                                   class="text-indigo-600 hover:text-indigo-800 font-medium">
+                                    {{ extracted.filename }}
+                                </a>
+                                <span class="text-xs text-gray-500 ml-2">({{ extracted.file_size | filesizeformat }})</span>
+                                {% if extracted.extraction_method %}
+                                <span class="ml-2 px-2 py-1 bg-gray-100 text-xs rounded">{{ extracted.extraction_method }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Findings Tab -->
+            <div id="findings-tab" class="tab-content">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-semibold text-gray-900">Detailed Findings</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="filterFindings('all')" class="finding-filter-btn active px-3 py-1 text-sm rounded-full bg-gray-100">All</button>
+                            <button onclick="filterFindings('high')" class="finding-filter-btn px-3 py-1 text-sm rounded-full bg-red-100 text-red-700">High</button>
+                            <button onclick="filterFindings('medium')" class="finding-filter-btn px-3 py-1 text-sm rounded-full bg-yellow-100 text-yellow-700">Medium</button>
+                            <button onclick="filterFindings('low')" class="finding-filter-btn px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700">Low</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        {% for finding in findings %}
+                        <div class="finding-card finding-priority-{{ finding.priority }}" data-priority="{{ finding.priority }}">
+                            <div class="finding-header">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <h3 class="font-semibold text-gray-900">{{ finding.finding_type.replace('_', ' ').title() }}</h3>
+                                        <span class="px-2 py-1 text-xs rounded-full font-medium
+                                            {% if finding.priority == 'high' %}bg-red-100 text-red-800
+                                            {% elif finding.priority == 'medium' %}bg-yellow-100 text-yellow-800
+                                            {% elif finding.priority == 'low' %}bg-blue-100 text-blue-800
+                                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {{ finding.priority.title() }}
+                                        </span>
+                                        {% if finding.confidence %}
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-xs text-gray-500">Confidence:</span>
+                                            <div class="w-16 confidence-bar">
+                                                <div class="confidence-fill" style="width: {{ (finding.confidence * 100)|round }}%"></div>
+                                            </div>
+                                            <span class="text-xs text-gray-600">{{ (finding.confidence * 100)|round }}%</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-xs text-gray-500">{{ finding.created_at.strftime('%H:%M:%S') if finding.created_at else 'Unknown' }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="finding-content">
+                                <p class="text-gray-700 mb-3">{{ finding.description }}</p>
+                                
+                                {% if finding.location %}
+                                <div class="mb-3">
+                                    <span class="text-sm font-medium text-gray-600">Location:</span>
+                                    <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded">{{ finding.location }}</code>
+                                </div>
+                                {% endif %}
+                                
+                                {% if finding.data_sample %}
+                                <div class="mb-3">
+                                    <span class="text-sm font-medium text-gray-600">Data Sample:</span>
+                                    <div class="hex-viewer mt-2">
+                                        <div class="flex">
+                                            <span class="hex-address">0x0000</span>
+                                            <span class="hex-data">{{ finding.data_sample[:32] | join(' ') }}</span>
+                                            <span class="hex-ascii">{{ finding.ascii_sample or '' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if finding.metadata %}
+                                <div class="metadata-grid">
+                                    {% for key, value in finding.metadata.items() %}
+                                    <div class="metadata-item">
+                                        <div class="text-xs font-medium text-gray-500 uppercase">{{ key.replace('_', ' ') }}</div>
+                                        <div class="text-sm text-gray-900 mt-1">{{ value }}</div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="finding-actions">
+                                <div class="flex space-x-4 text-sm">
+                                    {% if finding.source_tool %}
+                                    <span class="text-gray-500">
+                                        <i class="fas fa-tool mr-1"></i>{{ finding.source_tool }}
+                                    </span>
+                                    {% endif %}
+                                    {% if finding.references %}
+                                    <span class="text-blue-600">
+                                        <i class="fas fa-link mr-1"></i>{{ finding.references|length }} reference{{ 's' if finding.references|length != 1 else '' }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button onclick="expandFinding({{ loop.index0 }})" class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-expand-alt mr-1"></i>Details
+                                    </button>
+                                    <button onclick="bookmarkFinding({{ finding.id }})" class="text-yellow-600 hover:text-yellow-800 text-sm">
+                                        <i class="fas fa-bookmark mr-1"></i>Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extractions Tab -->
+            <div id="extractions-tab" class="tab-content">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">Extracted Files and Data</h2>
+                    
+                    {% if extracted_files %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {% for extracted in extracted_files %}
+                        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                            <div class="flex items-start space-x-3">
+                                <div class="text-2xl">
+                                    {% if extracted.mime_type and 'image' in extracted.mime_type %}🖼️
+                                    {% elif extracted.mime_type and 'text' in extracted.mime_type %}📄
+                                    {% elif extracted.mime_type and 'archive' in extracted.mime_type %}📦
+                                    {% else %}📁{% endif %}
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-medium text-gray-900">{{ extracted.filename }}</h3>
+                                    <p class="text-sm text-gray-600">{{ extracted.file_size | filesizeformat }}</p>
+                                    <p class="text-xs text-gray-500">{{ extracted.mime_type or 'Unknown type' }}</p>
+                                    
+                                    {% if extracted.extraction_method %}
+                                    <div class="mt-2">
+                                        <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                                            Extracted via {{ extracted.extraction_method }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="mt-3 flex space-x-2">
+                                        <a href="{{ url_for('files.file_detail', sha=extracted.sha256_hash) }}" 
+                                           class="text-blue-600 hover:text-blue-800 text-sm">
+                                            <i class="fas fa-eye mr-1"></i>Analyze
+                                        </a>
+                                        <a href="{{ url_for('content.file_content', sha=extracted.sha256_hash) }}" 
+                                           class="text-green-600 hover:text-green-800 text-sm">
+                                            <i class="fas fa-download mr-1"></i>Download
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">📦</div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">No Extracted Files</h3>
+                        <p class="text-gray-600">No embedded or hidden files were found in this analysis.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Cryptography Tab -->
+            <div id="crypto-tab" class="tab-content">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">Cryptographic Analysis</h2>
+                    
+                    {% if crypto_elements %}
+                    <div class="space-y-6">
+                        {% for element in crypto_elements %}
+                        <div class="collapsible-section">
+                            <div class="collapsible-header" onclick="toggleSection(this)">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-key text-purple-600"></i>
+                                    <span>{{ element.type.replace('_', ' ').title() }}</span>
+                                    {% if element.confidence %}
+                                    <span class="text-sm text-gray-500">({{ (element.confidence * 100)|round }}% confidence)</span>
+                                    {% endif %}
+                                </div>
+                                <i class="fas fa-chevron-down transform transition-transform"></i>
+                            </div>
+                            <div class="collapsible-content">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <h4 class="font-medium text-gray-900 mb-2">Details</h4>
+                                        <p class="text-sm text-gray-700">{{ element.description }}</p>
+                                        
+                                        {% if element.location %}
+                                        <div class="mt-3">
+                                            <span class="text-sm font-medium text-gray-600">Location:</span>
+                                            <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded">{{ element.location }}</code>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if element.algorithm %}
+                                        <div class="mt-2">
+                                            <span class="text-sm font-medium text-gray-600">Algorithm:</span>
+                                            <span class="ml-2 text-sm">{{ element.algorithm }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if element.data_sample %}
+                                    <div>
+                                        <h4 class="font-medium text-gray-900 mb-2">Data Sample</h4>
+                                        <div class="hex-viewer">
+                                            {{ element.data_sample[:100] }}...
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if element.analysis_notes %}
+                                <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h5 class="font-medium text-blue-900 mb-1">Analysis Notes</h5>
+                                    <p class="text-sm text-blue-800">{{ element.analysis_notes }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">🔐</div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">No Cryptographic Elements</h3>
+                        <p class="text-gray-600">No encryption, signatures, or cryptographic patterns were detected.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Metadata Tab -->
+            <div id="metadata-tab" class="tab-content">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">File Metadata</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Basic Metadata -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-medium text-gray-900">Basic Information</h3>
+                            <div class="metadata-grid">
+                                <div class="metadata-item">
+                                    <div class="text-xs font-medium text-gray-500">File Size</div>
+                                    <div class="text-sm text-gray-900">{{ file.file_size | filesizeformat }}</div>
+                                </div>
+                                <div class="metadata-item">
+                                    <div class="text-xs font-medium text-gray-500">MIME Type</div>
+                                    <div class="text-sm text-gray-900">{{ file.mime_type or 'Unknown' }}</div>
+                                </div>
+                                <div class="metadata-item">
+                                    <div class="text-xs font-medium text-gray-500">Entropy</div>
+                                    <div class="text-sm text-gray-900">{{ "%.4f"|format(entropy_score) }}</div>
+                                </div>
+                                <div class="metadata-item">
+                                    <div class="text-xs font-medium text-gray-500">Magic Bytes</div>
+                                    <div class="text-sm text-gray-900 font-mono">{{ file.magic_bytes or 'N/A' }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Hash Information -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-medium text-gray-900">Hash Information</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="text-xs font-medium text-gray-500">MD5</div>
+                                    <code class="text-sm text-gray-900 bg-gray-100 px-2 py-1 rounded block">{{ file.md5_hash or 'Not computed' }}</code>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-medium text-gray-500">SHA1</div>
+                                    <code class="text-sm text-gray-900 bg-gray-100 px-2 py-1 rounded block">{{ file.sha1_hash or 'Not computed' }}</code>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-medium text-gray-500">SHA256</div>
+                                    <code class="text-sm text-gray-900 bg-gray-100 px-2 py-1 rounded block">{{ file.sha256_hash }}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if file.metadata %}
+                    <div class="mt-8">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Extended Metadata</h3>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ file.metadata | tojson(indent=2) }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Panel -->
+        <div class="sidebar-panel space-y-6">
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 class="font-medium text-gray-900 mb-3">Quick Actions</h3>
+                <div class="space-y-2">
+                    <button onclick="rerunAnalysis()" class="w-full text-left px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+                        <i class="fas fa-redo mr-2"></i>Re-run Analysis
+                    </button>
+                    <button onclick="addToSession()" class="w-full text-left px-3 py-2 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors">
+                        <i class="fas fa-puzzle-piece mr-2"></i>Add to Session
+                    </button>
+                    <button onclick="viewInGraph()" class="w-full text-left px-3 py-2 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                        <i class="fas fa-project-diagram mr-2"></i>View in Graph
+                    </button>
+                    <button onclick="downloadFile()" class="w-full text-left px-3 py-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-download mr-2"></i>Download File
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analysis Summary -->
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 class="font-medium text-gray-900 mb-3">Analysis Summary</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Duration:</span>
+                        <span class="font-medium">{{ analysis_duration }}s</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Methods:</span>
+                        <span class="font-medium">{{ methods_used|length }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Success Rate:</span>
+                        <span class="font-medium text-green-600">{{ success_rate }}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Confidence:</span>
+                        <span class="font-medium">{{ overall_confidence }}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Related Files -->
+            {% if related_files %}
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <h3 class="font-medium text-gray-900 mb-3">Related Files</h3>
+                <div class="space-y-2">
+                    {% for related in related_files[:5] %}
+                    <a href="{{ url_for('files.file_detail', sha=related.sha256_hash) }}" 
+                       class="block p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div class="text-sm font-medium text-gray-900 truncate">{{ related.filename }}</div>
+                        <div class="text-xs text-gray-500">{{ related.similarity_score }}% similar</div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Floating Action Buttons -->
+    <div class="floating-actions">
+        <button class="floating-btn" onclick="scrollToTop()" title="Scroll to Top">
+            <i class="fas fa-chevron-up"></i>
+        </button>
+        <button class="floating-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+            <i class="fas fa-expand"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentTab = 'overview';
+
+// Tab switching
+function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.filter-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    document.getElementById(tabName + '-tab').classList.add('active');
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    
+    currentTab = tabName;
 }
 
-init() {
-// Start monitoring if analysis is in progress
-{% if file.status.value in['pending', 'analyzing'] %}
-this.startProgressMonitoring();
-{%endif %}
-
-// Load current background tasks
-this.loadBackgroundTasks();
-
-// Set up periodic updates
-setInterval(() = > {
-this.loadBackgroundTasks();
-}, 10000); // Every 10 seconds
+// Finding filters
+function filterFindings(priority) {
+    const findings = document.querySelectorAll('.finding-card');
+    const buttons = document.querySelectorAll('.finding-filter-btn');
+    
+    // Update button states
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    findings.forEach(finding => {
+        if (priority === 'all' || finding.dataset.priority === priority) {
+            finding.style.display = 'block';
+        } else {
+            finding.style.display = 'none';
+        }
+    });
 }
 
-async startProgressMonitoring() {
-
-
-try {
-// Check for active tasks for this file
-const response = await fetch(` / api / background / tasks?file_id=${window.fileId}`);
-const data = await response.json();
-
-if (data.success & & data.tasks.length > 0) {
-for (const task of data.tasks) {
-if (task.status == = 'running') {
-this.trackTask(task.task_id);
-}
-}
-}
-} catch (error) {
-console.error('Error starting progress monitoring:', error);
-}
+// Collapsible sections
+function toggleSection(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector('.fa-chevron-down');
+    
+    content.classList.toggle('active');
+    icon.classList.toggle('rotate-180');
 }
 
-async trackTask(taskId)
-{
-const
-checkProgress = async () = > {
-try {
-const response = await fetch(` / api / background / status / ${taskId}`);
-const data = await response.json();
-
-if (data.success) {
-this.updateTaskProgress(taskId, data.status);
-
-if (data.status.state == = 'SUCCESS') {
-this.showNotification('Analysis completed!', 'success');
-setTimeout(() = > location.reload(), 2000);
-} else if (data.status.state == = 'FAILURE') {
-this.showNotification('Analysis failed', 'error');
-} else {
-setTimeout(checkProgress, 3000);
-}
-}
-} catch (error) {
-console.error('Error tracking task:', error);
-}
-};
-
-checkProgress();
+// Export functions
+function exportResults(format) {
+    const fileHash = '{{ file.sha256_hash }}';
+    window.location.href = `/api/analysis/${fileHash}/export/${format}`;
 }
 
-updateTaskProgress(taskId, status)
-{
-// Update
-UI
-based
-on
-task
-progress
-const
-{state, meta} = status;
-
-if (meta & & meta.stage)
-{
-// Update
-LLM
-status if it
-'s an LLM task
-if (meta.stage.includes('llm')) {
-const llmStatus = document.getElementById('llm-status');
-if (llmStatus) {
-llmStatus.classList.remove('hidden');
-document.getElementById('llm-stage').textContent = meta.stage;
-
-if (meta.llm_cost) {
-document.getElementById('llm-cost').textContent = `$${meta.llm_cost.toFixed(2)}`;
-}
-}
-}
-}
+function shareResults() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Crypto Hunter Analysis Results - {{ file.filename }}',
+            url: window.location.href
+        });
+    } else {
+        navigator.clipboard.writeText(window.location.href);
+        alert('Analysis URL copied to clipboard!');
+    }
 }
 
-async loadBackgroundTasks()
-{
-try {
-const response = await fetch(` / api / background / tasks?file_id=${window.fileId}`);
-const data = await response.json();
-
-if (data.success) {
-this.updateTaskDisplay(data.tasks);
-}
-} catch (error) {
-console.error('Error loading background tasks:', error);
-}
-}
-
-updateTaskDisplay(tasks)
-{
-const
-container = document.getElementById('task-status');
-if (!container) return;
-
-container.innerHTML = '';
-
-if (tasks.length === 0) {
-container.innerHTML = '<div class="text-sm text-gray-500">No active tasks</div>';
-return;
+// Quick actions
+function rerunAnalysis() {
+    if (confirm('Re-run the analysis? This may take several minutes.')) {
+        fetch(`/api/files/{{ file.sha256_hash }}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  alert('Analysis started. The page will refresh when complete.');
+                  setTimeout(() => location.reload(), 5000);
+              } else {
+                  alert('Failed to start analysis: ' + data.error);
+              }
+          });
+    }
 }
 
-tasks.forEach(task= > {
-    const
-taskEl = document.createElement('div');
-taskEl.className = 'flex items-center justify-between text-sm';
-
-const
-statusColor = task.status == = 'running' ? 'text-blue-600':
-task.status == = 'completed' ? 'text-green-600': 'text-gray-600';
-
-taskEl.innerHTML = `
-                   < span
-
-
-class ="text-gray-700" > ${task.task_type} < / span >
-
-< span
-
-
-class ="${statusColor}" > ${task.status} < / span >
-
-
-`;
-
-container.appendChild(taskEl);
-});
+function addToSession() {
+    // Open session selection modal
+    alert('Session functionality coming soon!');
 }
 
-showNotification(message, type)
-{
-// Create
-notification
-const
-notification = document.createElement('div');
-notification.className = `fixed
-top - 4
-right - 4
-p - 4
-rounded - lg
-shadow - lg
-z - 50 ${
-    type == = 'success' ? 'bg-green-100 text-green-800': 'bg-red-100 text-red-800'
-}`;
-notification.textContent = message;
-
-document.body.appendChild(notification);
-
-setTimeout(() = > notification.remove(), 5000);
-}
+function viewInGraph() {
+    window.location.href = `/graph/focus/{{ file.sha256_hash }}`;
 }
 
-// Global
-functions
-for button actions
-window.verifyFinding = async (findingId) = > {
-try {
-const response = await fetch(` / api / findings / ${findingId} / verify`, {method: 'POST'});
-const
-data = await response.json();
+function downloadFile() {
+    window.location.href = `/api/files/{{ file.sha256_hash }}/download`;
+}
 
-if (data.success)
-{
-    window.analysisPage.showNotification('Finding verified!', 'success');
+// Finding interactions
+function expandFinding(index) {
+    // Show detailed finding modal
+    alert('Detailed finding view coming soon!');
 }
-} catch(error)
-{
-    window.analysisPage.showNotification('Verification failed', 'error');
-}
-};
 
-window.collectFinding = async (findingId) = > {
-try {
-const response = await fetch(` / api / findings / ${findingId} / collect`, {method: 'POST'});
-const
-data = await response.json();
+function bookmarkFinding(findingId) {
+    fetch(`/api/findings/${findingId}/bookmark`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              alert('Finding bookmarked!');
+          }
+      });
+}
 
-if (data.success)
-{
-    window.analysisPage.showNotification('Finding collected!', 'success');
+// Utility functions
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-} catch(error)
-{
-    window.analysisPage.showNotification('Collection failed', 'error');
-}
-};
 
-window.runLLMAnalysis = async () = > {
-try {
-const response = await fetch(` / api / llm / analyze / ${window.fileSha}`, {method: 'POST'});
-const
-data = await response.json();
+function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.documentElement.requestFullscreen();
+    }
+}
 
-if (data.success)
-{
-    window.analysisPage.showNotification(`AI
-analysis
-started.Cost: ${data.estimated_cost}
-`, 'success');
-window.analysisPage.trackTask(data.task_id);
-}
-} catch(error)
-{
-    window.analysisPage.showNotification('Failed to start AI analysis', 'error');
-}
-};
-
-window.exportResults = async () = > {
-try {
-const response = await fetch(` / api / files / ${window.fileSha} / export`);
-const data = await response.json();
-
-if (data.success) {
-// Download the results
-const blob = new Blob([JSON.stringify(data.export_data, null, 2)],
-{type: 'application/json'});
-const
-url = URL.createObjectURL(blob);
-const
-a = document.createElement('a');
-a.href = url;
-a.download = data.export_filename;
-a.click();
-URL.revokeObjectURL(url);
-}
-} catch(error)
-{
-    window.analysisPage.showNotification('Export failed', 'error');
-}
-};
-
-window.rerunAnalysis = async () = > {
-try {
-const response = await fetch(` / api / files / ${window.fileSha} / analyze`, {method: 'POST'});
-const
-data = await response.json();
-
-if (data.success)
-{
-    window.analysisPage.showNotification('Analysis restarted', 'success');
-setTimeout(() = > location.reload(), 1000);
-}
-} catch(error)
-{
-    window.analysisPage.showNotification('Failed to restart analysis', 'error');
-}
-};
+// Auto-refresh for in-progress analysis
+{% if analysis_in_progress %}
+setInterval(() => {
+    fetch(`/api/files/{{ file.sha256_hash }}/analysis/progress`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.complete) {
+                location.reload();
+            } else {
+                document.querySelector('.progress-bar-indicator').style.width = data.progress + '%';
+            }
+        });
+}, 5000);
+{% endif %}
 
 // Initialize
-when
-page
-loads
-document.addEventListener('DOMContentLoaded', function()
-{
-    window.analysisPage = new
-FileAnalysisPage();
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize collapsible sections
+    document.querySelectorAll('.collapsible-section').forEach(section => {
+        const header = section.querySelector('.collapsible-header');
+        header.addEventListener('click', () => toggleSection(header));
+    });
+    
+    // Auto-scroll to findings if there are high priority ones
+    {% if high_priority_findings > 0 %}
+    setTimeout(() => {
+        switchTab('findings');
+        filterFindings('high');
+    }, 1000);
+    {% endif %}
 });
-< / script >
-
-    < style >
-.finding - item
-{
-transition: all
-0.2
-s
-ease;
-}
-
-.finding - item: hover
-{
-transform: translateY(-1
-px);
-box - shadow: 0
-4
-px
-6
-px - 1
-px
-rgba(0, 0, 0, 0.1);
-}
-< / style >
-    { % endblock %}
+</script>
+{% endblock %}

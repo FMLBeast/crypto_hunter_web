@@ -1,0 +1,1506 @@
+<!-- analysis/create_vector.html -->
+{% extends "base.html" %}
+
+{% block title %}Create Analysis Vector - Crypto Hunter{% endblock %}
+
+{% block extra_head %}
+<style>
+    .vector-wizard {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .wizard-header {
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        color: white;
+        padding: 32px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .wizard-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='3' cy='3' r='3'/%3E%3Ccircle cx='13' cy='13' r='3'/%3E%3C/g%3E%3C/svg%3E") repeat;
+        z-index: 1;
+    }
+    
+    .wizard-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 32px;
+        padding: 0 32px;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step {
+        display: flex;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+    }
+    
+    .step.active {
+        color: white;
+        font-weight: 600;
+    }
+    
+    .step.completed {
+        color: #d1fae5;
+    }
+    
+    .step-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-right: 12px;
+        border: 2px solid transparent;
+    }
+    
+    .step.active .step-number {
+        background: white;
+        color: #3b82f6;
+        border-color: white;
+    }
+    
+    .step.completed .step-number {
+        background: #10b981;
+        color: white;
+    }
+    
+    .step-connector {
+        width: 60px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.3);
+        margin: 0 16px;
+        align-self: center;
+    }
+    
+    .step.completed + .step .step-connector {
+        background: #10b981;
+    }
+    
+    .wizard-body {
+        padding: 40px;
+    }
+    
+    .step-content {
+        display: none;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    .step-content.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .form-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        position: relative;
+    }
+    
+    .form-section-header {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        margin: -24px -24px 20px -24px;
+        padding: 16px 24px;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .form-section-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+    
+    .form-section-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    
+    .template-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin-bottom: 32px;
+    }
+    
+    .template-card {
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 24px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .template-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .template-card.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .template-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 16px;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+    }
+    
+    .template-card.selected .template-icon {
+        background: linear-gradient(135deg, #1e40af, #7c3aed);
+    }
+    
+    .template-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 8px;
+    }
+    
+    .template-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+        line-height: 1.5;
+        margin-bottom: 16px;
+    }
+    
+    .template-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .template-features li {
+        font-size: 0.75rem;
+        color: #6b7280;
+        padding: 2px 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .template-features li::before {
+        content: '✓';
+        color: #10b981;
+        font-weight: bold;
+        margin-right: 8px;
+    }
+    
+    .method-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+    }
+    
+    .method-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .method-card:hover {
+        border-color: #3b82f6;
+        background: #f8fafc;
+    }
+    
+    .method-card.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    
+    .method-checkbox {
+        display: none;
+    }
+    
+    .method-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    
+    .method-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-size: 14px;
+        color: #6b7280;
+    }
+    
+    .method-card.selected .method-icon {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .method-name {
+        font-weight: 600;
+        color: #1f2937;
+        font-size: 0.875rem;
+    }
+    
+    .method-description {
+        font-size: 0.75rem;
+        color: #6b7280;
+        line-height: 1.4;
+    }
+    
+    .priority-selector {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+    }
+    
+    .priority-option {
+        flex: 1;
+        padding: 12px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: white;
+    }
+    
+    .priority-option:hover {
+        border-color: #3b82f6;
+    }
+    
+    .priority-option.selected {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        color: #3b82f6;
+    }
+    
+    .priority-high.selected {
+        border-color: #ef4444;
+        background: #fef2f2;
+        color: #ef4444;
+    }
+    
+    .priority-medium.selected {
+        border-color: #f59e0b;
+        background: #fffbeb;
+        color: #f59e0b;
+    }
+    
+    .priority-low.selected {
+        border-color: #10b981;
+        background: #f0fdf4;
+        color: #10b981;
+    }
+    
+    .config-preview {
+        background: #1f2937;
+        color: #e5e7eb;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .wizard-navigation {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 40px;
+        background: #f9fafb;
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    .nav-button {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    .nav-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .nav-button-secondary {
+        background: white;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+    }
+    
+    .nav-button-secondary:hover:not(:disabled) {
+        background: #f3f4f6;
+        color: #374151;
+    }
+    
+    .nav-button-primary {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .nav-button-primary:hover:not(:disabled) {
+        background: #2563eb;
+    }
+    
+    .nav-button-success {
+        background: #10b981;
+        color: white;
+    }
+    
+    .nav-button-success:hover:not(:disabled) {
+        background: #059669;
+    }
+    
+    .form-group {
+        margin-bottom: 24px;
+    }
+    
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+    }
+    
+    .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        background: white;
+    }
+    
+    .form-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+    
+    .form-help {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+    
+    .checkbox-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+    }
+    
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .checkbox-item:hover {
+        border-color: #3b82f6;
+        background: #f8fafc;
+    }
+    
+    .checkbox-item input[type="checkbox"] {
+        margin-right: 8px;
+        accent-color: #3b82f6;
+    }
+    
+    .range-slider {
+        width: 100%;
+        margin: 16px 0;
+    }
+    
+    .range-output {
+        display: inline-block;
+        background: #3b82f6;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 12px;
+    }
+    
+    .advanced-section {
+        border-top: 1px solid #e5e7eb;
+        margin-top: 32px;
+        padding-top: 24px;
+    }
+    
+    .toggle-button {
+        background: none;
+        border: none;
+        color: #3b82f6;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: underline;
+        margin-bottom: 16px;
+    }
+    
+    .advanced-content {
+        display: none;
+    }
+    
+    .advanced-content.active {
+        display: block;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    .success-animation {
+        text-align: center;
+        padding: 60px 40px;
+    }
+    
+    .success-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+        color: white;
+        font-size: 36px;
+        animation: successPulse 1s ease-in-out;
+    }
+    
+    @keyframes successPulse {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.9);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+    
+    .loading-overlay.active {
+        display: flex;
+    }
+    
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top: 3px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="vector-wizard">
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="text-center">
+                <div class="loading-spinner"></div>
+                <p class="mt-4 text-gray-600">Creating analysis vector...</p>
+            </div>
+        </div>
+
+        <!-- Wizard Header -->
+        <div class="wizard-header">
+            <div class="wizard-content">
+                <h1 class="text-3xl font-bold mb-4">Create Analysis Vector</h1>
+                <p class="text-lg opacity-90">Design a custom analysis workflow for your steganography detection needs</p>
+                
+                <!-- Step Indicator -->
+                <div class="step-indicator">
+                    <div class="step active" data-step="1">
+                        <div class="step-number">1</div>
+                        <span>Template</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step" data-step="2">
+                        <div class="step-number">2</div>
+                        <span>Configuration</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step" data-step="3">
+                        <div class="step-number">3</div>
+                        <span>Methods</span>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step" data-step="4">
+                        <div class="step-number">4</div>
+                        <span>Review</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard Body -->
+        <form id="vector-form" method="POST">
+            {{ csrf_token() }}
+            <div class="wizard-body">
+                <!-- Step 1: Template Selection -->
+                <div class="step-content active" data-step="1">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Choose a Template</h2>
+                    <p class="text-gray-600 mb-8">Start with a pre-configured template or create a custom vector from scratch.</p>
+                    
+                    <div class="template-grid">
+                        <div class="template-card" onclick="selectTemplate('image_stego')" data-template="image_stego">
+                            <div class="template-icon">
+                                <i class="fas fa-image"></i>
+                            </div>
+                            <h3 class="template-title">Image Steganography</h3>
+                            <p class="template-description">Comprehensive analysis for images with embedded hidden data using LSB, DCT, and frequency domain techniques.</p>
+                            <ul class="template-features">
+                                <li>LSB extraction</li>
+                                <li>DCT coefficient analysis</li>
+                                <li>Metadata examination</li>
+                                <li>Entropy calculation</li>
+                                <li>Visual attack detection</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" onclick="selectTemplate('audio_stego')" data-template="audio_stego">
+                            <div class="template-icon">
+                                <i class="fas fa-music"></i>
+                            </div>
+                            <h3 class="template-title">Audio Steganography</h3>
+                            <p class="template-description">Specialized detection for audio files with hidden data using echo hiding, phase coding, and spectral analysis.</p>
+                            <ul class="template-features">
+                                <li>Echo hiding detection</li>
+                                <li>Phase coding analysis</li>
+                                <li>Spectral examination</li>
+                                <li>Amplitude modulation</li>
+                                <li>Frequency masking</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" onclick="selectTemplate('document_stego')" data-template="document_stego">
+                            <div class="template-icon">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <h3 class="template-title">Document Analysis</h3>
+                            <p class="template-description">Text-based steganography detection including whitespace encoding, linguistic patterns, and format manipulation.</p>
+                            <ul class="template-features">
+                                <li>Whitespace analysis</li>
+                                <li>Linguistic steganography</li>
+                                <li>Format manipulation</li>
+                                <li>Hidden text extraction</li>
+                                <li>Structural analysis</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" onclick="selectTemplate('crypto_analysis')" data-template="crypto_analysis">
+                            <div class="template-icon">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <h3 class="template-title">Cryptographic Analysis</h3>
+                            <p class="template-description">Advanced cryptographic pattern detection, cipher identification, and encryption analysis.</p>
+                            <ul class="template-features">
+                                <li>Cipher identification</li>
+                                <li>Entropy analysis</li>
+                                <li>Key pattern detection</li>
+                                <li>Algorithm fingerprinting</li>
+                                <li>Weakness analysis</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" onclick="selectTemplate('forensic_deep')" data-template="forensic_deep">
+                            <div class="template-icon">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <h3 class="template-title">Deep Forensic Scan</h3>
+                            <p class="template-description">Comprehensive multi-vector analysis combining all detection methods for maximum coverage.</p>
+                            <ul class="template-features">
+                                <li>All detection methods</li>
+                                <li>Cross-correlation analysis</li>
+                                <li>Behavioral patterns</li>
+                                <li>AI-powered detection</li>
+                                <li>Anomaly identification</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="template-card" onclick="selectTemplate('custom')" data-template="custom">
+                            <div class="template-icon">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <h3 class="template-title">Custom Vector</h3>
+                            <p class="template-description">Build your own analysis vector from scratch with complete control over methods and parameters.</p>
+                            <ul class="template-features">
+                                <li>Custom method selection</li>
+                                <li>Parameter fine-tuning</li>
+                                <li>Flexible configuration</li>
+                                <li>Specialized workflows</li>
+                                <li>Advanced options</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="template" id="selected-template" value="">
+                </div>
+
+                <!-- Step 2: Basic Configuration -->
+                <div class="step-content" data-step="2">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Configure Your Vector</h2>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Basic Information</h3>
+                            <p class="form-section-description">Set up the basic properties of your analysis vector</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vector-name" class="form-label">Vector Name</label>
+                            <input type="text" id="vector-name" name="name" class="form-input" required
+                                   placeholder="e.g., Advanced Image Steganography Scanner">
+                            <p class="form-help">Choose a descriptive name that reflects the vector's purpose</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vector-description" class="form-label">Description</label>
+                            <textarea id="vector-description" name="description" class="form-input form-textarea"
+                                      placeholder="Describe what this vector analyzes and when to use it..."></textarea>
+                            <p class="form-help">Explain the vector's purpose, target files, and analysis approach</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="form-group">
+                                <label for="vector-category" class="form-label">Category</label>
+                                <select id="vector-category" name="category" class="form-input" required>
+                                    <option value="">Select a category</option>
+                                    <option value="steganography">Steganography</option>
+                                    <option value="cryptography">Cryptography</option>
+                                    <option value="forensics">Digital Forensics</option>
+                                    <option value="malware">Malware Analysis</option>
+                                    <option value="custom">Custom Analysis</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Priority Level</label>
+                                <div class="priority-selector">
+                                    <div class="priority-option priority-low" onclick="selectPriority('low')">
+                                        <div class="font-semibold">Low</div>
+                                        <div class="text-xs">Background</div>
+                                    </div>
+                                    <div class="priority-option priority-medium" onclick="selectPriority('medium')">
+                                        <div class="font-semibold">Medium</div>
+                                        <div class="text-xs">Standard</div>
+                                    </div>
+                                    <div class="priority-option priority-high" onclick="selectPriority('high')">
+                                        <div class="font-semibold">High</div>
+                                        <div class="text-xs">Urgent</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="priority" id="selected-priority" value="medium">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Target Files</h3>
+                            <p class="form-section-description">Specify which file types this vector should analyze</p>
+                        </div>
+                        
+                        <div class="checkbox-list">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="image" checked>
+                                <span>Images (JPG, PNG, GIF, BMP)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="audio">
+                                <span>Audio (MP3, WAV, FLAC)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="video">
+                                <span>Video (MP4, AVI, MOV)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="document">
+                                <span>Documents (PDF, DOC, TXT)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="archive">
+                                <span>Archives (ZIP, RAR, 7Z)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="file_types" value="executable">
+                                <span>Executables (EXE, DLL)</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Execution Settings</h3>
+                            <p class="form-section-description">Configure when and how this vector runs</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="form-group">
+                                <label class="form-label">Auto-run on Upload</label>
+                                <div class="flex items-center space-x-4">
+                                    <label class="flex items-center">
+                                        <input type="radio" name="auto_run" value="always" class="mr-2">
+                                        <span class="text-sm">Always</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="radio" name="auto_run" value="matching" checked class="mr-2">
+                                        <span class="text-sm">Matching files only</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="radio" name="auto_run" value="manual" class="mr-2">
+                                        <span class="text-sm">Manual only</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="timeout" class="form-label">
+                                    Timeout (seconds)
+                                    <span class="range-output" id="timeout-display">300</span>
+                                </label>
+                                <input type="range" id="timeout" name="timeout" 
+                                       class="range-slider" min="30" max="3600" value="300"
+                                       oninput="document.getElementById('timeout-display').textContent = this.value">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Method Selection -->
+                <div class="step-content" data-step="3">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Select Analysis Methods</h2>
+                    <p class="text-gray-600 mb-8">Choose which detection and analysis methods to include in your vector.</p>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Steganography Detection</h3>
+                            <p class="form-section-description">Methods for detecting hidden data in files</p>
+                        </div>
+                        
+                        <div class="method-selector">
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="lsb_extraction" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-layer-group"></i></div>
+                                    <div class="method-name">LSB Extraction</div>
+                                </div>
+                                <div class="method-description">Extract least significant bits from image and audio files to detect hidden data</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="steghide_detection" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-eye-slash"></i></div>
+                                    <div class="method-name">Steghide Detection</div>
+                                </div>
+                                <div class="method-description">Use steghide tool to detect and extract hidden data from supported formats</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="binwalk_analysis" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-search"></i></div>
+                                    <div class="method-name">Binwalk Analysis</div>
+                                </div>
+                                <div class="method-description">Analyze file signatures and embedded objects using binwalk</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="zsteg_scan" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-image"></i></div>
+                                    <div class="method-name">Zsteg Scanning</div>
+                                </div>
+                                <div class="method-description">PNG and BMP steganography detection using zsteg tool</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="exiftool_metadata" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-info-circle"></i></div>
+                                    <div class="method-name">Metadata Analysis</div>
+                                </div>
+                                <div class="method-description">Extract and analyze file metadata for hidden information</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="strings_extraction" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-font"></i></div>
+                                    <div class="method-name">String Extraction</div>
+                                </div>
+                                <div class="method-description">Extract readable strings from binary files for analysis</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Cryptographic Analysis</h3>
+                            <p class="form-section-description">Methods for analyzing cryptographic content and patterns</p>
+                        </div>
+                        
+                        <div class="method-selector">
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="entropy_analysis" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-chart-line"></i></div>
+                                    <div class="method-name">Entropy Analysis</div>
+                                </div>
+                                <div class="method-description">Calculate file entropy to detect encryption and compression</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="cipher_detection" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-key"></i></div>
+                                    <div class="method-name">Cipher Detection</div>
+                                </div>
+                                <div class="method-description">Identify cryptographic ciphers and encryption algorithms</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="frequency_analysis" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-wave-square"></i></div>
+                                    <div class="method-name">Frequency Analysis</div>
+                                </div>
+                                <div class="method-description">Analyze character and byte frequency patterns</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="hash_analysis" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-fingerprint"></i></div>
+                                    <div class="method-name">Hash Analysis</div>
+                                </div>
+                                <div class="method-description">Calculate and analyze cryptographic hashes</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Advanced Analysis</h3>
+                            <p class="form-section-description">Cutting-edge analysis methods and AI-powered detection</p>
+                        </div>
+                        
+                        <div class="method-selector">
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="ai_classification" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-brain"></i></div>
+                                    <div class="method-name">AI Classification</div>
+                                </div>
+                                <div class="method-description">Use machine learning models to classify and detect anomalies</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="pattern_matching" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-puzzle-piece"></i></div>
+                                    <div class="method-name">Pattern Matching</div>
+                                </div>
+                                <div class="method-description">Detect known steganographic and cryptographic patterns</div>
+                            </label>
+                            
+                            <label class="method-card" onclick="toggleMethod(this)">
+                                <input type="checkbox" name="methods" value="behavioral_analysis" class="method-checkbox">
+                                <div class="method-header">
+                                    <div class="method-icon"><i class="fas fa-chart-area"></i></div>
+                                    <div class="method-name">Behavioral Analysis</div>
+                                </div>
+                                <div class="method-description">Analyze file behavior and structural anomalies</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="advanced-section">
+                        <button type="button" class="toggle-button" onclick="toggleAdvanced()">
+                            <i class="fas fa-cog mr-2"></i>Advanced Configuration
+                        </button>
+                        
+                        <div class="advanced-content" id="advanced-config">
+                            <div class="form-group">
+                                <label for="confidence-threshold" class="form-label">
+                                    Confidence Threshold
+                                    <span class="range-output" id="confidence-display">0.7</span>
+                                </label>
+                                <input type="range" id="confidence-threshold" name="confidence_threshold" 
+                                       class="range-slider" min="0.1" max="1.0" step="0.1" value="0.7"
+                                       oninput="document.getElementById('confidence-display').textContent = this.value">
+                                <p class="form-help">Minimum confidence level for reporting findings</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="max-file-size" class="form-label">
+                                    Maximum File Size (MB)
+                                    <span class="range-output" id="filesize-display">100</span>
+                                </label>
+                                <input type="range" id="max-file-size" name="max_file_size" 
+                                       class="range-slider" min="1" max="1000" value="100"
+                                       oninput="document.getElementById('filesize-display').textContent = this.value">
+                                <p class="form-help">Skip files larger than this size</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Additional Options</label>
+                                <div class="checkbox-list">
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="options" value="deep_scan">
+                                        <span>Deep Scan Mode</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="options" value="preserve_originals">
+                                        <span>Preserve Original Files</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="options" value="generate_report">
+                                        <span>Generate Detailed Reports</span>
+                                    </label>
+                                    <label class="checkbox-item">
+                                        <input type="checkbox" name="options" value="parallel_processing">
+                                        <span>Parallel Processing</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review and Create -->
+                <div class="step-content" data-step="4">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Review Configuration</h2>
+                    <p class="text-gray-600 mb-8">Review your vector configuration before creating it.</p>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Vector Summary</h3>
+                            <p class="form-section-description">Configuration overview</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">Name</label>
+                                    <div class="text-gray-900 font-medium" id="review-name">-</div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Category</label>
+                                    <div class="text-gray-900" id="review-category">-</div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Priority</label>
+                                    <div class="text-gray-900" id="review-priority">-</div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">Target File Types</label>
+                                    <div class="text-gray-900" id="review-file-types">-</div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Selected Methods</label>
+                                    <div class="text-gray-900" id="review-methods">-</div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Auto-run</label>
+                                    <div class="text-gray-900" id="review-auto-run">-</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <div class="text-gray-700 bg-gray-50 p-3 rounded-lg" id="review-description">-</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h3 class="form-section-title">Configuration Preview</h3>
+                            <p class="form-section-description">JSON representation of your vector configuration</p>
+                        </div>
+                        
+                        <div class="config-preview" id="config-preview">
+                            <!-- JSON configuration will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success Step -->
+                <div class="step-content" data-step="success">
+                    <div class="success-animation">
+                        <div class="success-icon">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-900 mb-4">Vector Created Successfully!</h2>
+                        <p class="text-gray-600 mb-8">Your analysis vector has been created and is ready to use.</p>
+                        
+                        <div class="flex justify-center space-x-4">
+                            <a href="{{ url_for('analysis.vector_list') }}" class="nav-button nav-button-secondary">
+                                <i class="fas fa-list mr-2"></i>View All Vectors
+                            </a>
+                            <button onclick="testVector()" class="nav-button nav-button-primary">
+                                <i class="fas fa-play mr-2"></i>Test Vector
+                            </button>
+                            <a href="{{ url_for('files.upload_file') }}" class="nav-button nav-button-success">
+                                <i class="fas fa-upload mr-2"></i>Upload Files
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="wizard-navigation">
+                <button type="button" class="nav-button nav-button-secondary" id="prev-button" onclick="previousStep()" disabled>
+                    <i class="fas fa-chevron-left mr-2"></i>Previous
+                </button>
+                
+                <div class="text-sm text-gray-600">
+                    Step <span id="current-step">1</span> of 4
+                </div>
+                
+                <button type="button" class="nav-button nav-button-primary" id="next-button" onclick="nextStep()">
+                    Next<i class="fas fa-chevron-right ml-2"></i>
+                </button>
+                
+                <button type="submit" class="nav-button nav-button-success" id="create-button" style="display: none;">
+                    <i class="fas fa-plus mr-2"></i>Create Vector
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentStep = 1;
+let selectedTemplate = '';
+let vectorConfig = {};
+
+// Template selection
+function selectTemplate(templateId) {
+    // Clear previous selection
+    document.querySelectorAll('.template-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Select new template
+    document.querySelector(`[data-template="${templateId}"]`).classList.add('selected');
+    document.getElementById('selected-template').value = templateId;
+    selectedTemplate = templateId;
+    
+    // Load template configuration
+    loadTemplateConfig(templateId);
+}
+
+function loadTemplateConfig(templateId) {
+    const configs = {
+        'image_stego': {
+            name: 'Advanced Image Steganography Scanner',
+            description: 'Comprehensive analysis for images with embedded hidden data using LSB, DCT, and frequency domain techniques.',
+            category: 'steganography',
+            priority: 'medium',
+            fileTypes: ['image'],
+            methods: ['lsb_extraction', 'zsteg_scan', 'exiftool_metadata', 'entropy_analysis'],
+            autoRun: 'matching'
+        },
+        'audio_stego': {
+            name: 'Audio Steganography Detector',
+            description: 'Specialized detection for audio files with hidden data using echo hiding, phase coding, and spectral analysis.',
+            category: 'steganography',
+            priority: 'medium',
+            fileTypes: ['audio'],
+            methods: ['lsb_extraction', 'strings_extraction', 'frequency_analysis', 'entropy_analysis'],
+            autoRun: 'matching'
+        },
+        'document_stego': {
+            name: 'Document Analysis Vector',
+            description: 'Text-based steganography detection including whitespace encoding, linguistic patterns, and format manipulation.',
+            category: 'steganography',
+            priority: 'low',
+            fileTypes: ['document'],
+            methods: ['strings_extraction', 'exiftool_metadata', 'pattern_matching', 'behavioral_analysis'],
+            autoRun: 'matching'
+        },
+        'crypto_analysis': {
+            name: 'Cryptographic Pattern Analyzer',
+            description: 'Advanced cryptographic pattern detection, cipher identification, and encryption analysis.',
+            category: 'cryptography',
+            priority: 'high',
+            fileTypes: ['image', 'document', 'executable'],
+            methods: ['entropy_analysis', 'cipher_detection', 'frequency_analysis', 'hash_analysis', 'ai_classification'],
+            autoRun: 'always'
+        },
+        'forensic_deep': {
+            name: 'Deep Forensic Scanner',
+            description: 'Comprehensive multi-vector analysis combining all detection methods for maximum coverage.',
+            category: 'forensics',
+            priority: 'medium',
+            fileTypes: ['image', 'audio', 'video', 'document', 'archive', 'executable'],
+            methods: ['lsb_extraction', 'steghide_detection', 'binwalk_analysis', 'zsteg_scan', 'exiftool_metadata', 'strings_extraction', 'entropy_analysis', 'cipher_detection', 'frequency_analysis', 'hash_analysis', 'ai_classification', 'pattern_matching', 'behavioral_analysis'],
+            autoRun: 'matching'
+        },
+        'custom': {
+            name: 'Custom Analysis Vector',
+            description: 'Custom-built analysis vector with user-selected methods and parameters.',
+            category: 'custom',
+            priority: 'medium',
+            fileTypes: ['image'],
+            methods: [],
+            autoRun: 'manual'
+        }
+    };
+    
+    vectorConfig = configs[templateId] || configs['custom'];
+}
+
+// Priority selection
+function selectPriority(priority) {
+    document.querySelectorAll('.priority-option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    
+    document.querySelector(`.priority-${priority}`).classList.add('selected');
+    document.getElementById('selected-priority').value = priority;
+    vectorConfig.priority = priority;
+}
+
+// Method selection
+function toggleMethod(methodCard) {
+    const checkbox = methodCard.querySelector('.method-checkbox');
+    checkbox.checked = !checkbox.checked;
+    
+    if (checkbox.checked) {
+        methodCard.classList.add('selected');
+    } else {
+        methodCard.classList.remove('selected');
+    }
+}
+
+// Advanced configuration toggle
+function toggleAdvanced() {
+    const content = document.getElementById('advanced-config');
+    content.classList.toggle('active');
+    
+    const button = event.target;
+    if (content.classList.contains('active')) {
+        button.innerHTML = '<i class="fas fa-cog mr-2"></i>Hide Advanced Configuration';
+    } else {
+        button.innerHTML = '<i class="fas fa-cog mr-2"></i>Advanced Configuration';
+    }
+}
+
+// Step navigation
+function nextStep() {
+    if (!validateCurrentStep()) {
+        return;
+    }
+    
+    if (currentStep < 4) {
+        // Hide current step
+        document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('completed');
+        
+        // Show next step
+        currentStep++;
+        document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('active');
+        
+        // Update UI
+        updateStepIndicator();
+        updateNavigationButtons();
+        
+        // Pre-fill data if template is selected
+        if (currentStep === 2 && selectedTemplate) {
+            prefillConfiguration();
+        }
+        
+        // Update review if on step 4
+        if (currentStep === 4) {
+            updateReview();
+        }
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        // Hide current step
+        document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
+        
+        // Show previous step
+        currentStep--;
+        document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('completed');
+        
+        // Update UI
+        updateStepIndicator();
+        updateNavigationButtons();
+    }
+}
+
+function updateStepIndicator() {
+    document.getElementById('current-step').textContent = currentStep;
+}
+
+function updateNavigationButtons() {
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const createButton = document.getElementById('create-button');
+    
+    prevButton.disabled = currentStep === 1;
+    
+    if (currentStep === 4) {
+        nextButton.style.display = 'none';
+        createButton.style.display = 'block';
+    } else {
+        nextButton.style.display = 'block';
+        createButton.style.display = 'none';
+    }
+}
+
+function validateCurrentStep() {
+    switch (currentStep) {
+        case 1:
+            if (!selectedTemplate) {
+                alert('Please select a template to continue.');
+                return false;
+            }
+            break;
+        case 2:
+            const name = document.getElementById('vector-name').value;
+            const category = document.getElementById('vector-category').value;
+            const fileTypes = document.querySelectorAll('input[name="file_types"]:checked');
+            
+            if (!name.trim()) {
+                alert('Please enter a vector name.');
+                return false;
+            }
+            if (!category) {
+                alert('Please select a category.');
+                return false;
+            }
+            if (fileTypes.length === 0) {
+                alert('Please select at least one file type.');
+                return false;
+            }
+            break;
+        case 3:
+            const methods = document.querySelectorAll('input[name="methods"]:checked');
+            if (methods.length === 0) {
+                alert('Please select at least one analysis method.');
+                return false;
+            }
+            break;
+    }
+    return true;
+}
+
+function prefillConfiguration() {
+    if (!vectorConfig) return;
+    
+    // Fill basic information
+    document.getElementById('vector-name').value = vectorConfig.name || '';
+    document.getElementById('vector-description').value = vectorConfig.description || '';
+    document.getElementById('vector-category').value = vectorConfig.category || '';
+    
+    // Select priority
+    if (vectorConfig.priority) {
+        selectPriority(vectorConfig.priority);
+    }
+    
+    // Select file types
+    const fileTypeCheckboxes = document.querySelectorAll('input[name="file_types"]');
+    fileTypeCheckboxes.forEach(checkbox => {
+        checkbox.checked = vectorConfig.fileTypes && vectorConfig.fileTypes.includes(checkbox.value);
+    });
+    
+    // Select auto-run option
+    if (vectorConfig.autoRun) {
+        const autoRunRadios = document.querySelectorAll('input[name="auto_run"]');
+        autoRunRadios.forEach(radio => {
+            radio.checked = radio.value === vectorConfig.autoRun;
+        });
+    }
+}
+
+function updateReview() {
+    // Collect current form data
+    const formData = new FormData(document.getElementById('vector-form'));
+    
+    // Update review fields
+    document.getElementById('review-name').textContent = formData.get('name') || '-';
+    document.getElementById('review-category').textContent = formData.get('category') || '-';
+    document.getElementById('review-priority').textContent = formData.get('priority') || '-';
+    document.getElementById('review-description').textContent = formData.get('description') || '-';
+    document.getElementById('review-auto-run').textContent = formData.get('auto_run') || '-';
+    
+    // File types
+    const fileTypes = formData.getAll('file_types');
+    document.getElementById('review-file-types').textContent = fileTypes.length ? fileTypes.join(', ') : 'None selected';
+    
+    // Methods
+    const methods = formData.getAll('methods');
+    document.getElementById('review-methods').textContent = methods.length ? `${methods.length} methods selected` : 'None selected';
+    
+    // Generate configuration preview
+    updateConfigPreview(formData);
+}
+
+function updateConfigPreview(formData) {
+    const config = {
+        template: selectedTemplate,
+        name: formData.get('name'),
+        description: formData.get('description'),
+        category: formData.get('category'),
+        priority: formData.get('priority'),
+        file_types: formData.getAll('file_types'),
+        methods: formData.getAll('methods'),
+        auto_run: formData.get('auto_run'),
+        timeout: parseInt(formData.get('timeout')),
+        confidence_threshold: parseFloat(formData.get('confidence_threshold')),
+        max_file_size: parseInt(formData.get('max_file_size')),
+        options: formData.getAll('options')
+    };
+    
+    document.getElementById('config-preview').textContent = JSON.stringify(config, null, 2);
+}
+
+// Form submission
+document.getElementById('vector-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Show loading
+    document.getElementById('loading-overlay').classList.add('active');
+    
+    // Simulate form submission
+    setTimeout(() => {
+        document.getElementById('loading-overlay').classList.remove('active');
+        
+        // Hide current step
+        document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+        
+        // Show success
+        document.querySelector('[data-step="success"]').classList.add('active');
+        
+        // Hide navigation
+        document.querySelector('.wizard-navigation').style.display = 'none';
+    }, 2000);
+});
+
+// Test vector function
+function testVector() {
+    alert('Test vector functionality would be implemented here.');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    updateNavigationButtons();
+    
+    // Auto-select methods if template is loaded
+    if (vectorConfig.methods) {
+        vectorConfig.methods.forEach(method => {
+            const checkbox = document.querySelector(`input[value="${method}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.closest('.method-card').classList.add('selected');
+            }
+        });
+    }
+});
+</script>
+{% endblock %>

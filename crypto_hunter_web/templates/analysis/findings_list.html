@@ -1,767 +1,726 @@
-{ % extends
-"base.html" %}
-
-{ % block
-title %}Analysis
-Findings - Crypto
-Hunter
-{ % endblock %}
-
-{ % block
-content %}
-< div
-
-
-class ="space-y-6" >
-
-< !-- Header -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center justify-between" >
-
-< div >
-< h1
-
-
-class ="text-2xl font-bold text-gray-900" > Analysis Findings < / h1 >
-
-< p
-
-
-class ="text-gray-600" > Security findings and cryptocurrency analysis results < / p >
-
-< / div >
-< div
-
-
-class ="flex space-x-4" >
-
-< a
-href = "{{ url_for('dashboard.index') }}"
-
-
-class ="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md" >
-
-< i
-
-
-class ="fas fa-arrow-left mr-2" > < / i > Back to Dashboard
-
-< / a >
-< button
-onclick = "refreshFindings()"
-
-
-class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
-
-< i
-
-
-class ="fas fa-sync-alt mr-2" > < / i > Refresh
-
-< / button >
-< / div >
-< / div >
-< / div >
-
-< !-- Stats
-Cards -->
-< div
-
-
-class ="grid grid-cols-1 md:grid-cols-4 gap-6" >
-
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center" >
-
-< div
-
-
-class ="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center" >
-
-< i
-
-
-class ="fas fa-search text-blue-600" > < / i >
-
-< / div >
-< div
-
-
-class ="ml-4" >
-
-< p
-
-
-class ="text-sm font-medium text-gray-500" > Total Findings < / p >
-
-< p
-
-
-class ="text-2xl font-semibold text-gray-900" > {{stats.total_findings if stats else 0}} < / p >
-
-< / div >
-< / div >
-< / div >
-
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center" >
-
-< div
-
-
-class ="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center" >
-
-< i
-
-
-class ="fas fa-coins text-yellow-600" > < / i >
-
-< / div >
-< div
-
-
-class ="ml-4" >
-
-< p
-
-
-class ="text-sm font-medium text-gray-500" > Crypto Findings < / p >
-
-< p
-
-
-class ="text-2xl font-semibold text-gray-900" > {{stats.crypto_findings if stats else 0}} < / p >
-
-< / div >
-< / div >
-< / div >
-
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center" >
-
-< div
-
-
-class ="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center" >
-
-< i
-
-
-class ="fas fa-check-circle text-green-600" > < / i >
-
-< / div >
-< div
-
-
-class ="ml-4" >
-
-< p
-
-
-class ="text-sm font-medium text-gray-500" > High Confidence < / p >
-
-< p
-
-
-class ="text-2xl font-semibold text-gray-900" > {{stats.high_confidence if stats else 0}} < / p >
-
-< / div >
-< / div >
-< / div >
-
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< div
-
-
-class ="flex items-center" >
-
-< div
-
-
-class ="w-8 h-8 bg-red-100 rounded-md flex items-center justify-center" >
-
-< i
-
-
-class ="fas fa-exclamation-triangle text-red-600" > < / i >
-
-< / div >
-< div
-
-
-class ="ml-4" >
-
-< p
-
-
-class ="text-sm font-medium text-gray-500" > Unverified < / p >
-
-< p
-
-
-class ="text-2xl font-semibold text-gray-900" > {{stats.unverified if stats else 0}} < / p >
-
-< / div >
-< / div >
-< / div >
-< / div >
-
-< !-- Filters -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm p-6" >
-
-< form
-method = "GET"
-
-
-class ="space-y-4" >
-
-< div
-
-
-class ="grid grid-cols-1 md:grid-cols-4 gap-4" >
-
-< div >
-< label
-
-
-class ="block text-sm font-medium text-gray-700 mb-2" > Search < / label >
-
-< input
-type = "text"
-name = "search"
-value = "{{ request.args.get('search', '') }}"
-placeholder = "Search findings..."
-
-
-class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
-
-< / div >
-< div >
-< label
-
-
-class ="block text-sm font-medium text-gray-700 mb-2" > Category < / label >
-
-< select
-name = "category"
-
-
-class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
-
-< option
-value = "" > All
-Categories < / option >
-< option
-value = "crypto"
-{ % if request.args.get('category') == 'crypto' %}selected
-{ % endif %} > Cryptocurrency < / option >
-< option
-value = "technical"
-{ % if request.args.get('category') == 'technical' %}selected
-{ % endif %} > Technical < / option >
-< option
-value = "malware"
-{ % if request.args.get('category') == 'malware' %}selected
-{ % endif %} > Malware < / option >
-< option
-value = "steganography"
-{ % if request.args.get('category') == 'steganography' %}selected
-{ % endif %} > Steganography < / option >
-< / select >
-< / div >
-< div >
-< label
-
-
-class ="block text-sm font-medium text-gray-700 mb-2" > Type < / label >
-
-< select
-name = "finding_type"
-
-
-class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
-
-< option
-value = "" > All
-Types < / option >
-< option
-value = "wallet_address"
-{ % if request.args.get('finding_type') == 'wallet_address' %}selected
-{ % endif %} > Wallet
-Address < / option >
-< option
-value = "private_key"
-{ % if request.args.get('finding_type') == 'private_key' %}selected
-{ % endif %} > Private
-Key < / option >
-< option
-value = "seed_phrase"
-{ % if request.args.get('finding_type') == 'seed_phrase' %}selected
-{ % endif %} > Seed
-Phrase < / option >
-< option
-value = "api_key"
-{ % if request.args.get('finding_type') == 'api_key' %}selected
-{ % endif %} > API
-Key < / option >
-< / select >
-< / div >
-< div >
-< label
-
-
-class ="block text-sm font-medium text-gray-700 mb-2" > Status < / label >
-
-< select
-name = "status"
-
-
-class ="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500" >
-
-< option
-value = "" > All
-Statuses < / option >
-< option
-value = "verified"
-{ % if request.args.get('status') == 'verified' %}selected
-{ % endif %} > Verified < / option >
-< option
-value = "unverified"
-{ % if request.args.get('status') == 'unverified' %}selected
-{ % endif %} > Unverified < / option >
-< option
-value = "false_positive"
-{ % if request.args.get('status') == 'false_positive' %}selected
-{ % endif %} > False
-Positive < / option >
-< / select >
-< / div >
-< / div >
-< div
-
-
-class ="flex space-x-4" >
-
-< button
-type = "submit"
-
-
-class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
-
-< i
-
-
-class ="fas fa-filter mr-2" > < / i > Apply Filters
-
-< / button >
-< a
-href = "{{ url_for('analysis.findings_list') }}"
-
-
-class ="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md" >
-
-< i
-
-
-class ="fas fa-times mr-2" > < / i > Clear
-
-< / a >
-< / div >
-< / form >
-< / div >
-
-< !-- Findings
-List -->
-< div
-
-
-class ="bg-white rounded-lg shadow-sm" >
-
-< div
-
-
-class ="px-6 py-4 border-b border-gray-200" >
-
-< h3
-
-
-class ="text-lg font-medium text-gray-900" > Findings Results < / h3 >
-
-< p
-
-
-class ="text-sm text-gray-500 mt-1" >
-
-
-{ % if findings %}
-Showing
-{{findings.items | length}}
-of
-{{findings.total}}
-findings
-{ % else %}
-No
-findings
-found
-{ % endif %}
-< / p >
-< / div >
-
-{ % if findings and findings.items %}
-< div
-
-
-class ="divide-y divide-gray-200" >
-
-
-{ %
-for finding in findings.items %}
-< div
-
-
-class ="p-6 hover:bg-gray-50 transition-colors" >
-
-< div
-
-
-class ="flex items-start justify-between" >
-
-< div
-
-
-class ="flex-1" >
-
-< div
-
-
-class ="flex items-center space-x-3" >
-
-
-{ % if finding.category == 'crypto' %}
-< i
-
-
-class ="fas fa-coins text-yellow-600" > < / i >
-
-
-{ % elif finding.category == 'technical' %}
-< i
-
-
-class ="fas fa-cog text-blue-600" > < / i >
-
-
-{ % elif finding.category == 'malware' %}
-< i
-
-
-class ="fas fa-bug text-red-600" > < / i >
-
-
-{ % else %}
-< i
-
-
-class ="fas fa-search text-gray-600" > < / i >
-
-
-{ % endif %}
-< h4
-
-
-class ="text-lg font-medium text-gray-900" >
-
-< a
-href = "#"
-
-
-class ="hover:text-indigo-600" > {{finding.title}} < / a >
-
-< / h4 >
-< / div >
-
-< p
-
-
-class ="text-gray-600 mt-2" > {{finding.description}} < / p >
-
-< div
-
-
-class ="flex items-center space-x-4 mt-3 text-sm text-gray-500" >
-
-< span > < i
-
-
-class ="fas fa-file mr-1" > < / i > {{finding.file.filename if finding.file else 'Unknown file'}} < / span >
-
-< span > < i
-
-
-class ="fas fa-tag mr-1" > < / i > {{finding.finding_type}} < / span >
-
-< span > < i
-
-
-class ="fas fa-calendar mr-1" > < / i > {{finding.created_at.strftime('%Y-%m-%d %H:%M') if finding.created_at else 'Unknown date'}} < / span >
-
-< / div >
-< / div >
-
-< div
-
-
-class ="flex flex-col items-end space-y-2" >
-
-< !-- Confidence
-Score -->
-< div
-
-
-class ="flex items-center space-x-2" >
-
-< span
-
-
-class ="text-sm text-gray-500" > Confidence:<
-
-    / span >
-< span
-
-
-class ="inline-flex items-center px-2 py-1 rounded text-xs font-medium
-
-
-{ % if finding.confidence_level >= 8 %}bg - green - 100
-text - green - 800
-{ % elif finding.confidence_level >= 6 %}bg - yellow - 100
-text - yellow - 800
-{ % else %}bg - red - 100
-text - red - 800
-{ % endif %}">
-{{(finding.confidence_level * 10) | round}} %
-< / span >
-< / div >
-
-< !-- Status -->
-< span
-
-
-class ="inline-flex items-center px-2 py-1 rounded text-xs font-medium
-
-
-{ % if finding.verified %}bg - green - 100
-text - green - 800
-{ % elif finding.false_positive %}bg - red - 100
-text - red - 800
-{ % else %}bg - gray - 100
-text - gray - 800
-{ % endif %}">
-{ % if finding.verified %}Verified
-{ % elif finding.false_positive %}False
-Positive
-{ % else %}Unverified
-{ % endif %}
-< / span >
-
-< !-- Actions -->
-< div
-
-
-class ="flex space-x-2" >
-
-< button
-onclick = "viewFinding('{{ finding.public_id }}')"
-
-
-class ="text-indigo-600 hover:text-indigo-800 text-sm" >
-
-< i
-
-
-class ="fas fa-eye" > < / i >
-
-< / button >
-< button
-onclick = "verifyFinding('{{ finding.public_id }}')"
-
-
-class ="text-green-600 hover:text-green-800 text-sm" >
-
-< i
-
-
-class ="fas fa-check" > < / i >
-
-< / button >
-< / div >
-< / div >
-< / div >
-< / div >
-{ % endfor %}
-< / div >
-
-< !-- Pagination -->
-{ % if findings and findings.pages > 1 %}
-< div
-
-
-class ="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6" >
-
-< div
-
-
-class ="flex-1 flex justify-between sm:hidden" >
-
-
-{ % if findings.has_prev %}
-< a
-href = "{{ url_for('analysis.findings_list', page=findings.prev_num) }}"
-
-
-class ="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" >
-
-
-Previous
-< / a >
-{ % endif %}
-{ % if findings.has_next %}
-< a
-href = "{{ url_for('analysis.findings_list', page=findings.next_num) }}"
-
-
-class ="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" >
-
-
-Next
-< / a >
-{ % endif %}
-< / div >
-< / div >
-{ % endif %}
-
-{ % else %}
-< !-- Empty
-State -->
-< div
-
-
-class ="text-center py-12" >
-
-< i
-
-
-class ="fas fa-search text-gray-400 text-4xl mb-4" > < / i >
-
-< h3
-
-
-class ="text-lg font-medium text-gray-900 mb-2" > No findings found < / h3 >
-
-< p
-
-
-class ="text-gray-600 mb-6" > Upload and analyze files to see security findings here.< / p >
-
-< a
-href = "{{ url_for('dashboard.index') }}"
-
-
-class ="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md" >
-
-< i
-
-
-class ="fas fa-upload mr-2" > < / i > Upload Files
-
-< / a >
-< / div >
-{ % endif %}
-< / div >
-< / div >
-
-< script >
-function
-refreshFindings()
-{
-    window.location.reload();
+<!-- analysis/findings_list.html -->
+{% extends "base.html" %}
+
+{% block title %}Analysis Findings - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Analysis Findings</h1>
+                <p class="mt-2 text-sm text-gray-600">Review and manage discovered findings from analysis vectors</p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <button onclick="exportFindings()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-download mr-2"></i>Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="p-6">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div class="md:col-span-2">
+                    <input type="text" name="search" placeholder="Search findings..." value="{{ request.args.get('search', '') }}"
+                           class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <select name="confidence" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Confidence Levels</option>
+                        <option value="high" {% if request.args.get('confidence') == 'high' %}selected{% endif %}>High (80%+)</option>
+                        <option value="medium" {% if request.args.get('confidence') == 'medium' %}selected{% endif %}>Medium (50-79%)</option>
+                        <option value="low" {% if request.args.get('confidence') == 'low' %}selected{% endif %}>Low (0-49%)</option>
+                    </select>
+                </div>
+                <div>
+                    <select name="category" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Categories</option>
+                        <option value="steganography" {% if request.args.get('category') == 'steganography' %}selected{% endif %}>Steganography</option>
+                        <option value="cryptography" {% if request.args.get('category') == 'cryptography' %}selected{% endif %}>Cryptography</option>
+                        <option value="forensics" {% if request.args.get('category') == 'forensics' %}selected{% endif %}>Forensics</option>
+                        <option value="metadata" {% if request.args.get('category') == 'metadata' %}selected{% endif %}>Metadata</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
+                        Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Findings Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {% if findings %}
+            {% for finding in findings.items %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <div class="p-6">
+                    <!-- Finding Header -->
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-medium text-gray-900 mb-1">{{ finding.finding_type }}</h3>
+                            <p class="text-sm text-gray-600">{{ finding.file.filename if finding.file else 'Unknown file' }}</p>
+                        </div>
+                        <div class="flex-shrink-0 ml-4">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                {% elif finding.confidence_score >= 0.4 %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ (finding.confidence_score * 100)|round }}%
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Finding Details -->
+                    <div class="space-y-3">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700">Description</h4>
+                            <p class="text-sm text-gray-600 mt-1">{{ finding.description[:150] }}{% if finding.description|length > 150 %}...{% endif %}</p>
+                        </div>
+
+                        {% if finding.location %}
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700">Location</h4>
+                            <p class="text-sm text-gray-600 mt-1 font-mono">{{ finding.location }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if finding.metadata %}
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700">Metadata</h4>
+                            <div class="text-xs text-gray-600 mt-1 font-mono bg-gray-50 p-2 rounded max-h-20 overflow-y-auto">
+                                {{ finding.metadata if finding.metadata|length < 200 else (finding.metadata[:200] + '...') }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Timestamps -->
+                        <div class="text-xs text-gray-500 pt-3 border-t border-gray-100">
+                            <div class="flex justify-between">
+                                <span>Found: {{ finding.created_at.strftime('%Y-%m-%d %H:%M') if finding.created_at else 'Unknown' }}</span>
+                                <span>Vector: {{ finding.vector.name if finding.vector else 'Manual' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mt-4 flex justify-end space-x-2">
+                        <button onclick="viewFinding({{ finding.id }})" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                            <i class="fas fa-eye mr-1"></i>View
+                        </button>
+                        <button onclick="exportFinding({{ finding.id }})" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                            <i class="fas fa-download mr-1"></i>Export
+                        </button>
+                        <button onclick="deleteFinding({{ finding.id }})" class="text-red-600 hover:text-red-800 text-sm font-medium">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-span-full">
+                <div class="text-center py-12 bg-white rounded-lg shadow-sm">
+                    <i class="fas fa-search text-gray-400 text-6xl mb-4"></i>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">No findings found</h3>
+                    <p class="mt-1 text-sm text-gray-500">
+                        {% if request.args.get('search') or request.args.get('confidence') or request.args.get('category') %}
+                            Try adjusting your filters to find what you're looking for.
+                        {% else %}
+                            Run analysis vectors on your files to discover findings.
+                        {% endif %}
+                    </p>
+                    <div class="mt-6">
+                        {% if request.args.get('search') or request.args.get('confidence') or request.args.get('category') %}
+                            <a href="{{ url_for('analysis.findings_list') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                                Clear Filters
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('analysis.vector_list') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                                Configure Analysis Vectors
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Pagination -->
+    {% if findings and findings.pages > 1 %}
+    <div class="mt-8 flex justify-center">
+        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            {% if findings.has_prev %}
+                <a href="{{ url_for('analysis.findings_list', page=findings.prev_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            {% endif %}
+            {% for page_num in findings.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != findings.page %}
+                        <a href="{{ url_for('analysis.findings_list', page=page_num, **request.args) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">{{ page_num }}</a>
+                    {% else %}
+                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-indigo-50 text-sm font-medium text-indigo-600">{{ page_num }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                {% endif %}
+            {% endfor %}
+            {% if findings.has_next %}
+                <a href="{{ url_for('analysis.findings_list', page=findings.next_num, **request.args) }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Finding Detail Modal -->
+<div id="findingModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+        <div id="findingModalContent">
+            <!-- Modal content will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function viewFinding(findingId) {
+    const modal = document.getElementById('findingModal');
+    const content = document.getElementById('findingModalContent');
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    content.innerHTML = '<div class="text-center py-8"><div class="spinner mx-auto mb-4"></div><p>Loading finding details...</p></div>';
+    
+    makeRequest(`/api/findings/${findingId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const finding = data.finding;
+                content.innerHTML = `
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-medium text-gray-900">Finding Details</h3>
+                        <button onclick="closeFindingModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-3">Basic Information</h4>
+                            <dl class="space-y-2">
+                                <div>
+                                    <dt class="text-sm text-gray-500">Type:</dt>
+                                    <dd class="text-sm text-gray-900">${finding.finding_type}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-sm text-gray-500">Confidence:</dt>
+                                    <dd class="text-sm text-gray-900">${Math.round(finding.confidence_score * 100)}%</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-sm text-gray-500">File:</dt>
+                                    <dd class="text-sm text-gray-900">${finding.file ? finding.file.filename : 'Unknown'}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-sm text-gray-500">Vector:</dt>
+                                    <dd class="text-sm text-gray-900">${finding.vector ? finding.vector.name : 'Manual'}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-sm text-gray-500">Created:</dt>
+                                    <dd class="text-sm text-gray-900">${new Date(finding.created_at).toLocaleString()}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                        
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-3">Details</h4>
+                            <div>
+                                <dt class="text-sm text-gray-500 mb-1">Description:</dt>
+                                <dd class="text-sm text-gray-900 mb-3">${finding.description || 'No description available'}</dd>
+                            </div>
+                            ${finding.location ? `
+                                <div>
+                                    <dt class="text-sm text-gray-500 mb-1">Location:</dt>
+                                    <dd class="text-sm text-gray-900 font-mono mb-3">${finding.location}</dd>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    ${finding.metadata ? `
+                        <div class="mt-6">
+                            <h4 class="font-medium text-gray-900 mb-3">Metadata</h4>
+                            <pre class="text-xs text-gray-600 bg-gray-50 p-4 rounded overflow-x-auto max-h-64">${JSON.stringify(JSON.parse(finding.metadata), null, 2)}</pre>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button onclick="exportFinding(${findingId})" class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-download mr-2"></i>Export
+                        </button>
+                        <button onclick="closeFindingModal()" class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                            Close
+                        </button>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+                        <p class="text-gray-600">Failed to load finding details</p>
+                        <button onclick="closeFindingModal()" class="mt-4 px-4 py-2 bg-gray-600 text-white rounded-md">Close</button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('View finding error:', error);
+            content.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+                    <p class="text-gray-600">Error loading finding details</p>
+                    <button onclick="closeFindingModal()" class="mt-4 px-4 py-2 bg-gray-600 text-white rounded-md">Close</button>
+                </div>
+            `;
+        });
 }
 
-function
-viewFinding(findingId)
-{
-// Navigate
-to
-finding
-detail
-page
-window.location.href = ` / analysis / findings /${findingId}
-`;
+function closeFindingModal() {
+    const modal = document.getElementById('findingModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
 }
 
-function
-verifyFinding(findingId)
-{
-if (confirm('Mark this finding as verified?'))
-{
-    fetch(` / api / findings /${findingId} / verify
-`, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({action: 'verify'})
-})
-.then(response= > response.json())
-.then(data= > {
-if (data.success)
-{
-    alert('Finding verified successfully!');
-location.reload();
-} else {
-    alert('Error: ' + data.message);
+function exportFinding(findingId) {
+    window.open(`/api/findings/${findingId}/export`, '_blank');
 }
-})
-.catch(error= > {
-    console.error('Error:', error);
-alert('Error verifying finding');
+
+function exportFindings() {
+    const params = new URLSearchParams(window.location.search);
+    window.open(`/api/findings/export?${params.toString()}`, '_blank');
+}
+
+function deleteFinding(findingId) {
+    if (confirm('Are you sure you want to delete this finding? This action cannot be undone.')) {
+        makeRequest(`/api/findings/${findingId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Finding deleted', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.message || 'Failed to delete finding', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Delete finding error:', error);
+            showNotification('Failed to delete finding', 'error');
+        });
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('findingModal');
+    if (modal && event.target === modal) {
+        closeFindingModal();
+    }
 });
+</script>
+{% endblock %}
+
+<!-- analysis/file_detail.html -->
+{% extends "base.html" %}
+
+{% block title %}File Analysis - {{ file.filename }} - Crypto Hunter{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- File Header -->
+    <div class="mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{ file.filename }}</h1>
+                <p class="mt-2 text-sm text-gray-600">Detailed analysis and findings</p>
+            </div>
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                {% if file.status.value == 'pending' %}
+                <button onclick="analyzeFile()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                    <i class="fas fa-play mr-2"></i>Start Analysis
+                </button>
+                {% endif %}
+                <button onclick="downloadFile()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-download mr-2"></i>Download
+                </button>
+                <button onclick="exportReport()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-file-export mr-2"></i>Export Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- File Information -->
+        <div class="lg:col-span-1">
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-medium text-gray-900">File Information</h2>
+                </div>
+                <div class="p-6">
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Filename</dt>
+                            <dd class="text-sm text-gray-900 mt-1 break-all">{{ file.filename }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Size</dt>
+                            <dd class="text-sm text-gray-900 mt-1">{{ file.file_size | filesizeformat }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">MIME Type</dt>
+                            <dd class="text-sm text-gray-900 mt-1">{{ file.mime_type or 'Unknown' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Status</dt>
+                            <dd class="text-sm mt-1">
+                                {% if file.status.value == 'complete' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>Complete
+                                    </span>
+                                {% elif file.status.value == 'processing' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <span class="w-1.5 h-1.5 bg-blue-400 rounded-full mr-1"></span>Processing
+                                    </span>
+                                {% elif file.status.value == 'error' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <span class="w-1.5 h-1.5 bg-red-400 rounded-full mr-1"></span>Error
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mr-1"></span>Pending
+                                    </span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">SHA256</dt>
+                            <dd class="text-xs text-gray-900 mt-1 font-mono break-all">{{ file.sha256_hash }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Uploaded</dt>
+                            <dd class="text-sm text-gray-900 mt-1">{{ file.created_at.strftime('%Y-%m-%d %H:%M') if file.created_at else 'Unknown' }}</dd>
+                        </div>
+                        {% if file.is_root_file %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Root File</dt>
+                            <dd class="text-sm mt-1">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <i class="fas fa-star mr-1"></i>Root File
+                                </span>
+                            </dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+
+                    <!-- File Actions -->
+                    <div class="mt-6 space-y-3">
+                        <button onclick="toggleRootFile({{ file.is_root_file|lower }})" class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-star mr-2"></i>
+                            {% if file.is_root_file %}Unmark as Root{% else %}Mark as Root{% endif %}
+                        </button>
+                        <button onclick="deleteFile()" class="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50">
+                            <i class="fas fa-trash mr-2"></i>Delete File
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entropy Visualization -->
+            {% if file.entropy_data %}
+            <div class="mt-6 bg-white shadow rounded-lg">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Entropy Analysis</h3>
+                </div>
+                <div class="p-6">
+                    <canvas id="entropyChart" width="400" height="200"></canvas>
+                    <p class="text-sm text-gray-600 mt-2">Average entropy: {{ "%.2f"|format(file.average_entropy or 0) }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Analysis Results -->
+        <div class="lg:col-span-2">
+            <!-- Findings -->
+            <div class="bg-white shadow rounded-lg mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-medium text-gray-900">Analysis Findings</h2>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            {{ file.findings|length }} finding{{ 's' if file.findings|length != 1 else '' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="p-6">
+                    {% if file.findings %}
+                        <div class="space-y-4">
+                            {% for finding in file.findings %}
+                            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2 mb-2">
+                                            <h3 class="text-md font-medium text-gray-900">{{ finding.finding_type }}</h3>
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if finding.confidence_score >= 0.8 %}bg-red-100 text-red-800
+                                                {% elif finding.confidence_score >= 0.6 %}bg-yellow-100 text-yellow-800
+                                                {% elif finding.confidence_score >= 0.4 %}bg-blue-100 text-blue-800
+                                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                                {{ (finding.confidence_score * 100)|round }}%
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">
+                                            Found: {{ finding.created_at.strftime('%Y-%m-%d %H:%M') if finding.created_at else 'Unknown' }}
+                                            {% if finding.vector %}• Vector: {{ finding.vector.name }}{% endif %}
+                                        </p>
+                                    </div>
+                                    <div class="flex-shrink-0 ml-4">
+                                        <button onclick="viewFindingDetail({{ finding.id }})" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-search text-gray-400 text-4xl mb-4"></i>
+                            <p class="text-gray-500">No findings discovered yet</p>
+                            {% if file.status.value == 'pending' %}
+                                <button onclick="analyzeFile()" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                                    Start Analysis
+                                </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Extracted Files -->
+            {% if file.extracted_files %}
+            <div class="bg-white shadow rounded-lg mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-medium text-gray-900">Extracted Files</h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for extracted in file.extracted_files %}
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-file text-gray-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate">{{ extracted.filename }}</p>
+                                    <p class="text-xs text-gray-500">{{ extracted.file_size | filesizeformat }}</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <a href="{{ url_for('analysis.file_detail', file_id=extracted.id) }}" class="text-indigo-600 hover:text-indigo-800">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Content Preview -->
+            {% if file.content %}
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-medium text-gray-900">Content Preview</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="togglePreviewMode('hex')" id="hex-btn" class="px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Hex</button>
+                            <button onclick="togglePreviewMode('text')" id="text-btn" class="px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50">Text</button>
+                            <button onclick="togglePreviewMode('strings')" id="strings-btn" class="px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50">Strings</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="hex-preview" class="font-mono text-xs text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto bg-gray-50 p-4 rounded">
+                        {{ file.content.hex_preview if file.content and file.content.hex_preview else 'No hex preview available' }}
+                    </div>
+                    <div id="text-preview" class="hidden font-mono text-xs text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto bg-gray-50 p-4 rounded">
+                        {{ file.content.text_preview if file.content and file.content.text_preview else 'No text preview available' }}
+                    </div>
+                    <div id="strings-preview" class="hidden font-mono text-xs text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto bg-gray-50 p-4 rounded">
+                        {{ file.content.strings_preview if file.content and file.content.strings_preview else 'No strings extracted' }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentPreviewMode = 'hex';
+
+function togglePreviewMode(mode) {
+    // Hide all previews
+    document.getElementById('hex-preview').classList.add('hidden');
+    document.getElementById('text-preview').classList.add('hidden');
+    document.getElementById('strings-preview').classList.add('hidden');
+    
+    // Reset all buttons
+    document.getElementById('hex-btn').className = 'px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50';
+    document.getElementById('text-btn').className = 'px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50';
+    document.getElementById('strings-btn').className = 'px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-50';
+    
+    // Show selected preview
+    document.getElementById(mode + '-preview').classList.remove('hidden');
+    document.getElementById(mode + '-btn').className = 'px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200';
+    
+    currentPreviewMode = mode;
 }
+
+function analyzeFile() {
+    showLoading(document.querySelector('main'));
+    
+    makeRequest(`/api/files/{{ file.id }}/analyze`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Analysis started', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showNotification(data.message || 'Failed to start analysis', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Analysis error:', error);
+        showNotification('Failed to start analysis', 'error');
+    })
+    .finally(() => {
+        hideLoading();
+    });
 }
-< / script >
-{ % endblock %}
+
+function downloadFile() {
+    window.open(`/files/download/{{ file.id }}`, '_blank');
+}
+
+function exportReport() {
+    window.open(`/api/files/{{ file.id }}/report`, '_blank');
+}
+
+function toggleRootFile(isCurrentlyRoot) {
+    const newStatus = !isCurrentlyRoot;
+    
+    makeRequest(`/api/files/{{ file.id }}/mark-root`, {
+        method: 'POST',
+        body: JSON.stringify({ is_root: newStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message || 'Failed to update file', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Root file toggle error:', error);
+        showNotification('Failed to update file', 'error');
+    });
+}
+
+function deleteFile() {
+    if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+        makeRequest(`/api/files/{{ file.id }}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('File deleted', 'success');
+                setTimeout(() => window.location.href = '{{ url_for("files.file_list") }}', 1000);
+            } else {
+                showNotification(data.message || 'Failed to delete file', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Delete error:', error);
+            showNotification('Failed to delete file', 'error');
+        });
+    }
+}
+
+function viewFindingDetail(findingId) {
+    window.open(`/analysis/finding/${findingId}`, '_blank');
+}
+
+// Initialize entropy chart if data exists
+{% if file.entropy_data %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('entropyChart').getContext('2d');
+    const entropyData = {{ file.entropy_data | safe }};
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: entropyData.labels || [],
+            datasets: [{
+                label: 'Entropy',
+                data: entropyData.values || [],
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 8
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+});
+{% endif %}
+</script>
+{% endblock %>text-sm text-gray-600 mb-2">{{ finding.description }}</p>
+                                        {% if finding.location %}
+                                            <p class="text-xs text-gray-500 font-mono">Location: {{ finding.location }}</p>
+                                        {% endif %}
+                                        <p class="
